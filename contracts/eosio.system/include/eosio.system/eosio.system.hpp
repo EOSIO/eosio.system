@@ -11,6 +11,7 @@
 #include <eosio.system/exchange_state.hpp>
 #include <eosio.system/native.hpp>
 #include <eosio.system/time_constants.hpp>
+#include <eosio.system/vote_pool.hpp>
 
 #include <deque>
 #include <optional>
@@ -1317,6 +1318,9 @@ namespace eosiosystem {
          [[eosio::action]]
          void rentbw( const name& payer, const name& receiver, uint32_t days, int64_t net_frac, int64_t cpu_frac, const asset& max_payment );
 
+         [[eosio::action]]
+         void initvpool( const std::vector<uint32_t>& durations );
+
          using init_action = eosio::action_wrapper<"init"_n, &system_contract::init>;
          using setacctram_action = eosio::action_wrapper<"setacctram"_n, &system_contract::setacctram>;
          using setacctnet_action = eosio::action_wrapper<"setacctnet"_n, &system_contract::setacctnet>;
@@ -1366,6 +1370,7 @@ namespace eosiosystem {
          using configrentbw_action = eosio::action_wrapper<"configrentbw"_n, &system_contract::configrentbw>;
          using rentbwexec_action = eosio::action_wrapper<"rentbwexec"_n, &system_contract::rentbwexec>;
          using rentbw_action = eosio::action_wrapper<"rentbw"_n, &system_contract::rentbw>;
+         using initvpool_action = eosio::action_wrapper<"initvpool"_n, &system_contract::initvpool>;
 
       private:
          // Implementation details:
