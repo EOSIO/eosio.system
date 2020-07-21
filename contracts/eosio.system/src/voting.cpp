@@ -46,6 +46,7 @@ namespace eosiosystem {
             info.producer_authority.emplace( producer_authority );
             if ( info.last_claim_time == time_point() )
                info.last_claim_time = ct;
+            enable_prod_pool_votes( info );
          });
 
          auto prod2 = _producers2.find( producer.value );
@@ -67,6 +68,7 @@ namespace eosiosystem {
             info.location           = location;
             info.last_claim_time    = ct;
             info.producer_authority.emplace( producer_authority );
+            enable_prod_pool_votes( info );
          });
          _producers2.emplace( producer, [&]( producer_info2& info ){
             info.owner                     = producer;

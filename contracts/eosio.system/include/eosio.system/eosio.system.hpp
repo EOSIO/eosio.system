@@ -10,6 +10,7 @@
 
 #include <eosio.system/exchange_state.hpp>
 #include <eosio.system/native.hpp>
+#include <eosio.system/stream_extensions.hpp>
 #include <eosio.system/time_constants.hpp>
 #include <eosio.system/vote_pool.hpp>
 
@@ -181,6 +182,11 @@ namespace eosiosystem {
       return eosio::block_signing_authority_v0{ .threshold = 1, .keys = {{producer_key, 1}} };
    }
 
+   struct prod_pool_votes {
+      std::vector<double> pool_votes;           // shares in each pool, weighted by vote time
+      double              total_pool_votes = 0; // total shares in all pools, weighted by vote time and pool strength
+   };
+
    // Defines `producer_info` structure to be stored in `producer_info` table, added after version 1.0
    struct [[eosio::table, eosio::contract("eosio.system")]] producer_info {
       name                                                     owner;
@@ -192,6 +198,7 @@ namespace eosiosystem {
       time_point                                               last_claim_time;
       uint16_t                                                 location = 0;
       eosio::binary_extension<eosio::block_signing_authority>  producer_authority; // added in version 1.9.0
+      eosio::binary_extension<std::optional<prod_pool_votes>>  pool_votes;
 
       uint64_t primary_key()const { return owner.value;                             }
       double   by_votes()const    { return is_active ? -total_votes : total_votes;  }
@@ -230,10 +237,7 @@ namespace eosiosystem {
             << t.unpaid_blocks
             << t.last_claim_time
             << t.location;
-
-         if( !t.producer_authority.has_value() ) return ds;
-
-         return ds << t.producer_authority;
+         return write_extensions( ds, t.producer_authority, t.pool_votes );
       }
 
       template<typename DataStream>
@@ -246,7 +250,8 @@ namespace eosiosystem {
                    >> t.unpaid_blocks
                    >> t.last_claim_time
                    >> t.location
-                   >> t.producer_authority;
+                   >> t.producer_authority
+                   >> t.pool_votes;
       }
    };
 
@@ -1488,6 +1493,10 @@ namespace eosiosystem {
             time_point_sec now, symbol core_symbol, rentbw_state& state,
             rentbw_order_table& orders, uint32_t max_items, int64_t& net_delta_available,
             int64_t& cpu_delta_available);
+
+         // defined in vote_pool.cpp
+         prod_pool_votes* get_prod_pool_votes(producer_info& info);
+         void enable_prod_pool_votes(producer_info& info);
    };
 
 }

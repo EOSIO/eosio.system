@@ -24,6 +24,27 @@ namespace eosiosystem {
       state_sing.set(state, get_self());
    }
 
+   prod_pool_votes* system_contract::get_prod_pool_votes(producer_info& info) {
+      if (info.pool_votes.has_value() && info.pool_votes.value().has_value())
+         return &info.pool_votes.value().value();
+      return nullptr;
+   }
+
+   void system_contract::enable_prod_pool_votes(producer_info& info) {
+      if (get_prod_pool_votes(info))
+         return;
+
+      vote_pool_state_singleton state_sing{ get_self(), 0 };
+      if (!state_sing.exists())
+         return;
+      auto state = state_sing.get();
+
+      info.pool_votes.emplace();
+      info.pool_votes.value().emplace();
+      auto& v = info.pool_votes.value().value();
+      v.pool_votes.resize(state.pools.size());
+   }
+
    void system_contract::stake2pool(name owner, uint32_t pool_index, asset amount) {
       // TODO: require upgraded account
       // TODO: update vote weights
@@ -115,8 +136,15 @@ namespace eosiosystem {
       require_auth(from);
       require_recipient(from);
       require_recipient(to);
-      check(memo.size() <= 256, "memo has more than 256 bytes");
-      // TODO: transfer
+      eosio::check(memo.size() <= 256, "memo has more than 256 bytes");
+      eosio::check(from != to, "from = to");
+      eosio::check(eosio::is_account(to), "invalid account");
+
+      vote_pool_stake_table stake_table{ get_self(), 0 };
+      auto                  it = stake_table.find(id);
+      eosio::check(it != stake_table.end(), "stake not found");
+      eosio::check(it->owner == from, "stake has different owner");
+      stake_table.modify(it, from, [&](auto& row) { row.owner = to; });
    }
 
 } // namespace eosiosystem
