@@ -50,6 +50,15 @@ namespace eosiosystem {
          return eosio::asset(double(s) * double(_balance.amount) / double(_total_shares), _balance.symbol);
       }
 
+      // the number of shares need to get d_out
+      double simulate_sell(eosio::asset d_out) const {
+         if (d_out == _balance)
+            return _total_shares;
+         else if (!d_out.amount)
+            return 0;
+         return (d_out.amount * _total_shares) / double(_balance.amount);
+      }
+
     private:
       eosio::asset _balance;
       double       _total_shares = 0;

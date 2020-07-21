@@ -680,6 +680,7 @@ namespace eosiosystem {
          static constexpr eosio::name saving_account{"eosio.saving"_n};
          static constexpr eosio::name rex_account{"eosio.rex"_n};
          static constexpr eosio::name reserv_account{"eosio.reserv"_n};
+         static constexpr eosio::name vpool_account{"eosio.vpool"_n};
          static constexpr eosio::name null_account{"eosio.null"_n};
          static constexpr symbol ramcore_symbol = symbol(symbol_code("RAMCORE"), 4);
          static constexpr symbol ram_symbol     = symbol(symbol_code("RAM"), 0);
@@ -1320,6 +1321,12 @@ namespace eosiosystem {
 
          [[eosio::action]]
          void initvpool( const std::vector<uint32_t>& durations );
+         [[eosio::action]]
+         void stake2pool( name owner, uint32_t pool_index, asset amount );
+         [[eosio::action]]
+         void claimstake( name owner, uint64_t id, asset max_amount );
+         [[eosio::action]]
+         void transferstake( name from, name to, uint64_t id, const std::string& memo );
 
          using init_action = eosio::action_wrapper<"init"_n, &system_contract::init>;
          using setacctram_action = eosio::action_wrapper<"setacctram"_n, &system_contract::setacctram>;
@@ -1371,6 +1378,9 @@ namespace eosiosystem {
          using rentbwexec_action = eosio::action_wrapper<"rentbwexec"_n, &system_contract::rentbwexec>;
          using rentbw_action = eosio::action_wrapper<"rentbw"_n, &system_contract::rentbw>;
          using initvpool_action = eosio::action_wrapper<"initvpool"_n, &system_contract::initvpool>;
+         using stake2pool_action = eosio::action_wrapper<"stake2pool"_n, &system_contract::stake2pool>;
+         using claimstake_action = eosio::action_wrapper<"claimstake"_n, &system_contract::claimstake>;
+         using transferstake_action = eosio::action_wrapper<"transferstake"_n, &system_contract::transferstake>;
 
       private:
          // Implementation details:
