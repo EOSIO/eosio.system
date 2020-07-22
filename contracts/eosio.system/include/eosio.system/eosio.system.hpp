@@ -1495,6 +1495,10 @@ namespace eosiosystem {
             int64_t& cpu_delta_available);
 
          // defined in vote_pool.cpp
+         vote_pool_state_singleton& get_vote_pool_state_singleton();
+         vote_pool_state& get_vote_pool_state(bool init = false);
+         void save_vote_pool_state();
+         vote_pool_stake_table& get_vote_pool_stake_table();
          prod_pool_votes* get_prod_pool_votes(producer_info& info);
          void enable_prod_pool_votes(producer_info& info);
    };

@@ -3,17 +3,45 @@
 
 namespace eosiosystem {
 
+   vote_pool_state_singleton& system_contract::get_vote_pool_state_singleton() {
+      static std::optional<vote_pool_state_singleton> sing;
+      if (!sing)
+         sing.emplace(get_self(), 0);
+      return *sing;
+   }
+
+   vote_pool_state& system_contract::get_vote_pool_state(bool init) {
+      static std::optional<vote_pool_state> state;
+      if (init) {
+         eosio::check(!state && !get_vote_pool_state_singleton().exists(), "vote pools already initialized");
+         state.emplace();
+      } else if (!state) {
+         eosio::check(get_vote_pool_state_singleton().exists(), "vote pools not initialized");
+         state = get_vote_pool_state_singleton().get();
+      }
+      return *state;
+   }
+
+   void system_contract::save_vote_pool_state() {
+      get_vote_pool_state_singleton().set(get_vote_pool_state(), get_self());
+   }
+
+   vote_pool_stake_table& system_contract::get_vote_pool_stake_table() {
+      static std::optional<vote_pool_stake_table> table;
+      if (!table)
+         table.emplace(get_self(), 0);
+      return *table;
+   }
+
    void system_contract::initvpool(const std::vector<uint32_t>& durations) {
       require_auth(get_self());
 
-      vote_pool_state_singleton state_sing{ get_self(), 0 };
-      eosio::check(!state_sing.exists(), "vote pools already initialized");
+      auto& state = get_vote_pool_state(true);
       eosio::check(!durations.empty(), "durations is empty");
       for (auto d : durations)
          eosio::check(d > 0, "duration must be positive");
 
-      vote_pool_state state;
-      auto            sym = get_core_symbol();
+      auto sym = get_core_symbol();
       state.pools.resize(durations.size());
       for (size_t i = 0; i < durations.size(); ++i) {
          auto& pool    = state.pools[i];
@@ -21,7 +49,7 @@ namespace eosiosystem {
          pool.token_pool.init(sym);
       }
 
-      state_sing.set(state, get_self());
+      save_vote_pool_state();
    }
 
    prod_pool_votes* system_contract::get_prod_pool_votes(producer_info& info) {
@@ -31,18 +59,13 @@ namespace eosiosystem {
    }
 
    void system_contract::enable_prod_pool_votes(producer_info& info) {
-      if (get_prod_pool_votes(info))
+      if (get_prod_pool_votes(info) || !get_vote_pool_state_singleton().exists())
          return;
-
-      vote_pool_state_singleton state_sing{ get_self(), 0 };
-      if (!state_sing.exists())
-         return;
-      auto state = state_sing.get();
 
       info.pool_votes.emplace();
       info.pool_votes.value().emplace();
       auto& v = info.pool_votes.value().value();
-      v.pool_votes.resize(state.pools.size());
+      v.pool_votes.resize(get_vote_pool_state().pools.size());
    }
 
    void system_contract::stake2pool(name owner, uint32_t pool_index, asset amount) {
@@ -50,12 +73,9 @@ namespace eosiosystem {
       // TODO: update vote weights
       require_auth(owner);
 
-      vote_pool_state_singleton state_sing{ get_self(), 0 };
-      vote_pool_stake_table     stake_table{ get_self(), 0 };
-
-      eosio::check(state_sing.exists(), "vote pools not initialized");
-      auto state       = state_sing.get();
-      auto core_symbol = get_core_symbol();
+      auto& state       = get_vote_pool_state();
+      auto& stake_table = get_vote_pool_stake_table();
+      auto  core_symbol = get_core_symbol();
 
       eosio::check(pool_index <= state.pools.size(), "invalid pool");
       eosio::check(amount.symbol == core_symbol, "amount doesn't match core symbol");
@@ -73,7 +93,7 @@ namespace eosiosystem {
          row.matures        = eosio::block_timestamp{ row.created.slot + pool.duration * blocks_per_week };
          row.last_claim     = row.created;
       });
-      state_sing.set(state, get_self());
+      save_vote_pool_state();
 
       eosio::token::transfer_action transfer_act{ token_account, { owner, active_permission } };
       transfer_act.send(owner, vpool_account, amount,
@@ -84,11 +104,10 @@ namespace eosiosystem {
       // TODO: update vote weights
       require_auth(owner);
 
-      vote_pool_state_singleton state_sing{ get_self(), 0 };
-      vote_pool_stake_table     stake_table{ get_self(), 0 };
-      auto                      state        = state_sing.get();
-      auto                      it           = stake_table.find(id);
-      auto                      current_time = eosio::current_block_time();
+      auto& state        = get_vote_pool_state();
+      auto& stake_table  = get_vote_pool_stake_table();
+      auto  it           = stake_table.find(id);
+      auto  current_time = eosio::current_block_time();
       eosio::check(it != stake_table.end(), "stake not found");
       eosio::check(it->owner == owner, "stake has different owner");
       eosio::check(current_time.slot >= it->last_claim.slot + blocks_per_week, "claim too soon");
@@ -119,7 +138,7 @@ namespace eosiosystem {
 
       eosio::check(pool.token_pool.shares() >= 0, "pool shares is negative");
       eosio::check(pool.token_pool.balance().amount >= 0, "pool amount is negative");
-      state_sing.set(state, get_self());
+      save_vote_pool_state();
 
       if (claimed_amount.amount) {
          eosio::token::transfer_action transfer_act{ token_account, { vpool_account, active_permission } };
@@ -140,8 +159,8 @@ namespace eosiosystem {
       eosio::check(from != to, "from = to");
       eosio::check(eosio::is_account(to), "invalid account");
 
-      vote_pool_stake_table stake_table{ get_self(), 0 };
-      auto                  it = stake_table.find(id);
+      auto& stake_table = get_vote_pool_stake_table();
+      auto  it          = stake_table.find(id);
       eosio::check(it != stake_table.end(), "stake not found");
       eosio::check(it->owner == from, "stake has different owner");
       stake_table.modify(it, from, [&](auto& row) { row.owner = to; });
