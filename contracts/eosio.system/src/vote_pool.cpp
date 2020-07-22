@@ -52,6 +52,12 @@ namespace eosiosystem {
       save_vote_pool_state();
    }
 
+   const prod_pool_votes* system_contract::get_prod_pool_votes(const producer_info& info) {
+      if (info.pool_votes.has_value() && info.pool_votes.value().has_value())
+         return &info.pool_votes.value().value();
+      return nullptr;
+   }
+
    prod_pool_votes* system_contract::get_prod_pool_votes(producer_info& info) {
       if (info.pool_votes.has_value() && info.pool_votes.value().has_value())
          return &info.pool_votes.value().value();
@@ -68,8 +74,51 @@ namespace eosiosystem {
       v.pool_votes.resize(get_vote_pool_state().pools.size());
    }
 
+   const voter_pool_votes* system_contract::get_voter_pool_votes(const voter_info& info) {
+      if (info.pool_votes.has_value() && info.pool_votes.value().has_value())
+         return &info.pool_votes.value().value();
+      return nullptr;
+   }
+
+   voter_pool_votes* system_contract::get_voter_pool_votes(voter_info& info) {
+      if (info.pool_votes.has_value() && info.pool_votes.value().has_value())
+         return &info.pool_votes.value().value();
+      return nullptr;
+   }
+
+   void system_contract::enable_voter_pool_votes(voter_info& info) {
+      if (get_voter_pool_votes(info) || !get_vote_pool_state_singleton().exists())
+         return;
+
+      info.pool_votes.emplace();
+      info.pool_votes.value().emplace();
+      auto& v    = info.pool_votes.value().value();
+      auto  size = get_vote_pool_state().pools.size();
+      v.pool_votes.resize(size);
+      v.proxied_pool_votes.resize(size);
+
+      if (info.proxy.value) {
+         auto it = _voters.find(info.proxy.value);
+         if (it == _voters.end() || !it->is_proxy)
+            eosio::check(false, info.owner.to_string() + " is using proxy " + info.proxy.to_string() +
+                                      ", which is no longer active");
+         if (!get_voter_pool_votes(*it))
+            eosio::check(false, info.owner.to_string() + " is using proxy " + info.proxy.to_string() +
+                                      ", which is not upgraded to support pool votes");
+      }
+
+      for (auto prod : info.producers) {
+         auto it = _producers.find(prod.value);
+         if (it == _producers.end() || !it->is_active)
+            eosio::check(false,
+                         info.owner.to_string() + " is voting for " + prod.to_string() + ", which is no longer active");
+         if (!get_prod_pool_votes(*it))
+            eosio::check(false, info.owner.to_string() + " is voting for " + prod.to_string() +
+                                      ", which is not upgraded to support pool votes");
+      }
+   }
+
    void system_contract::stake2pool(name owner, uint32_t pool_index, asset amount) {
-      // TODO: require upgraded account
       // TODO: update vote weights
       require_auth(owner);
 
@@ -80,6 +129,18 @@ namespace eosiosystem {
       eosio::check(pool_index <= state.pools.size(), "invalid pool");
       eosio::check(amount.symbol == core_symbol, "amount doesn't match core symbol");
       eosio::check(amount.amount > 0, "amount must be positive"); // TODO: higher minimum amount?
+
+      auto voter_itr = _voters.find(owner.value);
+      if (voter_itr != _voters.end()) {
+         if (!get_voter_pool_votes(*voter_itr)) {
+            _voters.modify(voter_itr, owner, [&](auto& v) { enable_voter_pool_votes(v); });
+         }
+      } else {
+         voter_itr = _voters.emplace(owner, [&](auto& v) {
+            v.owner = owner;
+            enable_voter_pool_votes(v);
+         });
+      }
 
       auto& pool = state.pools[pool_index];
 

@@ -341,16 +341,21 @@ namespace eosiosystem {
 
       auto pitr = _voters.find( proxy.value );
       if ( pitr != _voters.end() ) {
-         check( isproxy != pitr->is_proxy, "action has no effect" );
+         if (!(isproxy && !get_voter_pool_votes(*pitr) && get_vote_pool_state_singleton().exists()))
+            check( isproxy != pitr->is_proxy, "action has no effect" );
          check( !isproxy || !pitr->proxy, "account that uses a proxy is not allowed to become a proxy" );
          _voters.modify( pitr, same_payer, [&]( auto& p ) {
                p.is_proxy = isproxy;
+               if (isproxy)
+                  enable_voter_pool_votes(p);
             });
          propagate_weight_change( *pitr );
       } else {
          _voters.emplace( proxy, [&]( auto& p ) {
                p.owner  = proxy;
                p.is_proxy = isproxy;
+               if (isproxy)
+                  enable_voter_pool_votes(p);
             });
       }
    }

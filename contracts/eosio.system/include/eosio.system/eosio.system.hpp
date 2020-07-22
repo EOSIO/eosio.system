@@ -185,6 +185,8 @@ namespace eosiosystem {
    struct prod_pool_votes {
       std::vector<double> pool_votes;           // shares in each pool, weighted by vote time
       double              total_pool_votes = 0; // total shares in all pools, weighted by vote time and pool strength
+
+      EOSLIB_SERIALIZE(prod_pool_votes, (pool_votes)(total_pool_votes))
    };
 
    // Defines `producer_info` structure to be stored in `producer_info` table, added after version 1.0
@@ -267,6 +269,13 @@ namespace eosiosystem {
       EOSLIB_SERIALIZE( producer_info2, (owner)(votepay_share)(last_votepay_share_update) )
    };
 
+   struct voter_pool_votes {
+      std::vector<double> pool_votes;         // shares in each pool, weighted by vote time
+      std::vector<double> proxied_pool_votes; // shares in each pool delegated to this voter as a proxy
+
+      EOSLIB_SERIALIZE(voter_pool_votes, (pool_votes)(proxied_pool_votes))
+   };
+
    // Voter info. Voter info stores information about the voter:
    // - `owner` the voter
    // - `proxy` the proxy set by the voter, if any
@@ -292,6 +301,8 @@ namespace eosiosystem {
       uint32_t            reserved2 = 0;
       eosio::asset        reserved3;
 
+      eosio::binary_extension<std::optional<voter_pool_votes>> pool_votes;
+
       uint64_t primary_key()const { return owner.value; }
 
       enum class flags1_fields : uint32_t {
@@ -300,8 +311,35 @@ namespace eosiosystem {
          cpu_managed = 4
       };
 
-      // explicit serialization macro is not necessary, used here only to improve compilation time
-      EOSLIB_SERIALIZE( voter_info, (owner)(proxy)(producers)(staked)(last_vote_weight)(proxied_vote_weight)(is_proxy)(flags1)(reserved2)(reserved3) )
+      template <typename DataStream>
+      friend DataStream& operator<<(DataStream& ds, const voter_info& v) {
+         ds << v.owner
+            << v.proxy
+            << v.producers
+            << v.staked
+            << v.last_vote_weight
+            << v.proxied_vote_weight
+            << v.is_proxy
+            << v.flags1
+            << v.reserved2
+            << v.reserved3;
+         return write_extensions(ds, v.pool_votes);
+      }
+
+      template <typename DataStream>
+      friend DataStream& operator>>(DataStream& ds, voter_info& v) {
+         return ds >> v.owner
+                   >> v.proxy
+                   >> v.producers
+                   >> v.staked
+                   >> v.last_vote_weight
+                   >> v.proxied_vote_weight
+                   >> v.is_proxy
+                   >> v.flags1
+                   >> v.reserved2
+                   >> v.reserved3
+                   >> v.pool_votes;
+      }
    };
 
 
@@ -1499,8 +1537,12 @@ namespace eosiosystem {
          vote_pool_state& get_vote_pool_state(bool init = false);
          void save_vote_pool_state();
          vote_pool_stake_table& get_vote_pool_stake_table();
+         const prod_pool_votes* get_prod_pool_votes(const producer_info& info);
          prod_pool_votes* get_prod_pool_votes(producer_info& info);
          void enable_prod_pool_votes(producer_info& info);
+         const voter_pool_votes* get_voter_pool_votes(const voter_info& info);
+         voter_pool_votes* get_voter_pool_votes(voter_info& info);
+         void enable_voter_pool_votes(voter_info& info);
    };
 
 }
