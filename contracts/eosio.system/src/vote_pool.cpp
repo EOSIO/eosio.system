@@ -94,8 +94,9 @@ namespace eosiosystem {
       info.pool_votes.value().emplace();
       auto& v    = info.pool_votes.value().value();
       auto  size = get_vote_pool_state().pools.size();
-      v.pool_votes.resize(size);
-      v.proxied_pool_votes.resize(size);
+      v.shares.resize(size);
+      v.proxied_shares.resize(size);
+      v.last_votes.resize(size);
 
       if (info.proxy.value) {
          auto it = _voters.find(info.proxy.value);

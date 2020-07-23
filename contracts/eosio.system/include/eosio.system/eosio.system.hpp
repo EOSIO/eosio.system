@@ -270,10 +270,11 @@ namespace eosiosystem {
    };
 
    struct voter_pool_votes {
-      std::vector<double> pool_votes;         // shares in each pool, weighted by vote time
-      std::vector<double> proxied_pool_votes; // shares in each pool delegated to this voter as a proxy
+      std::vector<double> shares;         // shares in each pool
+      std::vector<double> proxied_shares; // shares in each pool (time weighted) delegated to this voter as a proxy
+      std::vector<double> last_votes;     // vote weights cast (time weighted) the last time the vote was updated
 
-      EOSLIB_SERIALIZE(voter_pool_votes, (pool_votes)(proxied_pool_votes))
+      EOSLIB_SERIALIZE(voter_pool_votes, (shares)(proxied_shares)(last_votes))
    };
 
    // Voter info. Voter info stores information about the voter:
