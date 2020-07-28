@@ -1544,6 +1544,10 @@ namespace eosiosystem {
          const voter_pool_votes* get_voter_pool_votes(const voter_info& info);
          voter_pool_votes* get_voter_pool_votes(voter_info& info);
          void enable_voter_pool_votes(voter_info& info);
+         void add_proxied_shares(voter_info& proxy, const std::vector<double>& deltas, const char* error);
+         void sub_proxied_shares(voter_info& proxy, const std::vector<double>& deltas, const char* error);
+         void add_pool_votes(producer_info& prod, const std::vector<double>& deltas, const char* error);
+         void sub_pool_votes(producer_info& prod, const std::vector<double>& deltas, const char* error);
    };
 
 }

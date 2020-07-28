@@ -119,6 +119,38 @@ namespace eosiosystem {
       }
    }
 
+   void system_contract::add_proxied_shares(voter_info& proxy, const std::vector<double>& deltas, const char* error) {
+
+      auto* votes = get_voter_pool_votes(proxy);
+      eosio::check(votes && votes->proxied_shares.size() == deltas.size(), error);
+      for (size_t i = 0; i < deltas.size(); ++i)
+         votes->proxied_shares[i] += deltas[i];
+   }
+
+   void system_contract::sub_proxied_shares(voter_info& proxy, const std::vector<double>& deltas, const char* error) {
+
+      auto* votes = get_voter_pool_votes(proxy);
+      eosio::check(votes && votes->proxied_shares.size() == deltas.size(), error);
+      for (size_t i = 0; i < deltas.size(); ++i)
+         votes->proxied_shares[i] -= deltas[i];
+   }
+
+   void system_contract::add_pool_votes(producer_info& prod, const std::vector<double>& deltas, const char* error) {
+
+      auto* votes = get_prod_pool_votes(prod);
+      eosio::check(votes && votes->pool_votes.size() == deltas.size(), error);
+      for (size_t i = 0; i < deltas.size(); ++i)
+         votes->pool_votes[i] += deltas[i];
+   }
+
+   void system_contract::sub_pool_votes(producer_info& prod, const std::vector<double>& deltas, const char* error) {
+
+      auto* votes = get_prod_pool_votes(prod);
+      eosio::check(votes && votes->pool_votes.size() == deltas.size(), error);
+      for (size_t i = 0; i < deltas.size(); ++i)
+         votes->pool_votes[i] -= deltas[i];
+   }
+
    void system_contract::stake2pool(name owner, uint32_t pool_index, asset amount) {
       // TODO: update vote weights
       require_auth(owner);
