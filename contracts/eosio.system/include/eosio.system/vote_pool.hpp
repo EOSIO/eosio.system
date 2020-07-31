@@ -80,28 +80,34 @@ namespace eosiosystem {
 
    typedef eosio::singleton<"vpoolstate"_n, vote_pool_state> vote_pool_state_singleton;
 
-   struct [[eosio::table("vpool.stake"), eosio::contract("eosio.system")]] vote_pool_stake {
-      uint64_t               id;
-      eosio::name            owner;
-      uint32_t               pool_index;
-      eosio::asset           initial_amount;
-      double                 current_shares;
-      eosio::block_timestamp created;
-      eosio::block_timestamp matures;
-      eosio::block_timestamp last_claim;
+   struct per_pool_stake {
+      double                 current_shares; // owned shares in pool; includes both vested and unvested
+      eosio::asset           initial_unvested;
+      eosio::block_timestamp start_vesting; // unvested = initial_unvested at this time
+      eosio::block_timestamp end_vesting;   // unvested = 0 at this time. end_vesting - start_vesting may be less than
+                                            // pool duration; this happens when initial_unvested is updated because of
+                                            // transfer or additional staking.
+      eosio::block_timestamp last_claim;    // limits claim frequency
 
-      uint64_t primary_key() const { return id; }
-
-      eosio::asset min_balance(const vote_pool& pool, eosio::block_timestamp current_time) {
-         uint32_t age = (current_time.slot - created.slot) / blocks_per_week;
-         if (age >= pool.duration)
-            return { 0, initial_amount.symbol };
-         int64_t spendable = uint128_t(initial_amount.amount) * age / pool.duration;
-         return { initial_amount.amount - spendable, initial_amount.symbol };
+      eosio::asset unvested(eosio::block_timestamp current_time) {
+         if (current_time >= end_vesting)
+            return { 0, initial_unvested.symbol };
+         auto    age       = current_time.slot - start_vesting.slot;
+         auto    duration  = end_vesting.slot - start_vesting.slot;
+         int64_t spendable = uint128_t(initial_unvested.amount) * age / duration;
+         return { initial_unvested.amount - spendable, initial_unvested.symbol };
       }
 
-      EOSLIB_SERIALIZE(vote_pool_stake,
-                       (id)(owner)(pool_index)(initial_amount)(current_shares)(created)(matures)(last_claim))
+      EOSLIB_SERIALIZE(per_pool_stake, (current_shares)(initial_unvested)(start_vesting)(end_vesting)(last_claim))
+   };
+
+   struct [[eosio::table("vpool.stake"), eosio::contract("eosio.system")]] vote_pool_stake {
+      eosio::name                 owner;
+      std::vector<per_pool_stake> stakes;
+
+      uint64_t primary_key() const { return owner.value; }
+
+      EOSLIB_SERIALIZE(vote_pool_stake, (owner)(stakes))
    };
 
    typedef eosio::multi_index<"vpool.stake"_n, vote_pool_stake> vote_pool_stake_table;

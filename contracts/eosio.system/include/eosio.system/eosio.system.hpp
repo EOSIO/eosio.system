@@ -1368,9 +1368,9 @@ namespace eosiosystem {
          [[eosio::action]]
          void stake2pool( name owner, uint32_t pool_index, asset amount );
          [[eosio::action]]
-         void claimstake( name owner, uint64_t id, asset max_amount );
+         void claimstake( name owner, uint32_t pool_index, asset requested );
          [[eosio::action]]
-         void transferstake( name from, name to, uint64_t id, const std::string& memo );
+         void transferstake(name from, name to, uint32_t pool_index, asset requested, const std::string& memo);
 
          using init_action = eosio::action_wrapper<"init"_n, &system_contract::init>;
          using setacctram_action = eosio::action_wrapper<"setacctram"_n, &system_contract::setacctram>;
@@ -1548,6 +1548,8 @@ namespace eosiosystem {
          void sub_proxied_shares(voter_info& proxy, const std::vector<double>& deltas, const char* error);
          void add_pool_votes(producer_info& prod, const std::vector<double>& deltas, const char* error);
          void sub_pool_votes(producer_info& prod, const std::vector<double>& deltas, const char* error);
+         void deposit_unvested(vote_pool& pool, per_pool_stake& stake, asset new_unvested);
+         asset withdraw_vested(vote_pool& pool, per_pool_stake& stake, asset max_requested);
    };
 
 }
