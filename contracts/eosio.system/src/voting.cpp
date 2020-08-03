@@ -399,12 +399,27 @@ namespace eosiosystem {
          new_weight += voter.proxied_vote_weight;
       }
 
+      auto*                              pool_votes = get_voter_pool_votes(voter);
+      std::optional<std::vector<double>> new_pool_votes;
+      if (pool_votes) {
+         new_pool_votes.emplace(pool_votes->shares.size());
+         for (size_t i = 0; i < new_pool_votes->size(); ++i)
+            new_pool_votes.value()[i] = time_weight_shares(pool_votes->shares[i]);
+         if (voter.is_proxy)
+            for (size_t i = 0; i < new_pool_votes->size(); ++i)
+               new_pool_votes.value()[i] += pool_votes->proxied_shares[i];
+      }
+
       /// don't propagate small changes (1 ~= epsilon)
-      if ( fabs( new_weight - voter.last_vote_weight ) > 1 )  {
+      if ( fabs( new_weight - voter.last_vote_weight ) > 1 || pool_votes )  {
          if ( voter.proxy ) {
             auto& proxy = _voters.get( voter.proxy.value, "proxy not found" ); //data corruption
             _voters.modify( proxy, same_payer, [&]( auto& p ) {
                   p.proxied_vote_weight += new_weight - voter.last_vote_weight;
+                  if (pool_votes)
+                     sub_proxied_shares(p, pool_votes->last_votes, "bug: proxy lost its pool");
+                  if (new_pool_votes)
+                     add_proxied_shares(p, *new_pool_votes, "bug: proxy lost its pool");
                }
             );
             propagate_weight_change( proxy );
@@ -419,6 +434,10 @@ namespace eosiosystem {
                _producers.modify( prod, same_payer, [&]( auto& p ) {
                   p.total_votes += delta;
                   _gstate.total_producer_vote_weight += delta;
+                  if (pool_votes)
+                     sub_pool_votes(p, pool_votes->last_votes, "bug: producer lost its pool");
+                  if (new_pool_votes)
+                     add_pool_votes(p, *new_pool_votes, "producer has not upgraded to support pool votes");
                });
                auto prod2 = _producers2.find( acnt.value );
                if ( prod2 != _producers2.end() ) {
@@ -447,6 +466,8 @@ namespace eosiosystem {
       }
       _voters.modify( voter, same_payer, [&]( auto& v ) {
             v.last_vote_weight = new_weight;
+            if (new_pool_votes)
+               get_voter_pool_votes(v)->last_votes = std::move(*new_pool_votes);
          }
       );
    }
