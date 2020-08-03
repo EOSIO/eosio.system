@@ -128,7 +128,6 @@ namespace eosiosystem {
    }
 
    void system_contract::add_proxied_shares(voter_info& proxy, const std::vector<double>& deltas, const char* error) {
-
       auto* votes = get_voter_pool_votes(proxy);
       eosio::check(votes && votes->proxied_shares.size() == deltas.size(), error);
       for (size_t i = 0; i < deltas.size(); ++i)
@@ -136,7 +135,6 @@ namespace eosiosystem {
    }
 
    void system_contract::sub_proxied_shares(voter_info& proxy, const std::vector<double>& deltas, const char* error) {
-
       auto* votes = get_voter_pool_votes(proxy);
       eosio::check(votes && votes->proxied_shares.size() == deltas.size(), error);
       for (size_t i = 0; i < deltas.size(); ++i)
@@ -144,7 +142,6 @@ namespace eosiosystem {
    }
 
    void system_contract::add_pool_votes(producer_info& prod, const std::vector<double>& deltas, const char* error) {
-
       auto* votes = get_prod_pool_votes(prod);
       eosio::check(votes && votes->pool_votes.size() == deltas.size(), error);
       for (size_t i = 0; i < deltas.size(); ++i)
@@ -152,11 +149,30 @@ namespace eosiosystem {
    }
 
    void system_contract::sub_pool_votes(producer_info& prod, const std::vector<double>& deltas, const char* error) {
-
       auto* votes = get_prod_pool_votes(prod);
       eosio::check(votes && votes->pool_votes.size() == deltas.size(), error);
       for (size_t i = 0; i < deltas.size(); ++i)
          votes->pool_votes[i] -= deltas[i];
+   }
+
+   double time_weight_shares(double shares);
+
+   void system_contract::update_total_pool_votes(producer_info& prod) {
+      // TODO: eliminate new game created by use of time_weight_shares(...) here
+      // TODO: reconsider pool weights
+      // TODO: transition weighting between old and new systems
+      auto* prod_pool_votes = get_prod_pool_votes(prod);
+      if (!prod_pool_votes)
+         return;
+      auto& vote_pool_state = get_vote_pool_state();
+      prod.total_votes -= prod_pool_votes->total_pool_votes;
+      prod_pool_votes->total_pool_votes = 0;
+      eosio::check(prod_pool_votes->pool_votes.size() == vote_pool_state.pools.size(), "vote pool corruption");
+      for (size_t i = 0; i < vote_pool_state.pools.size(); ++i)
+         prod_pool_votes->total_pool_votes +=
+               vote_pool_state.pools[i].token_pool.simulate_sell(prod_pool_votes->pool_votes[i]).amount;
+      prod_pool_votes->total_pool_votes = time_weight_shares(prod_pool_votes->total_pool_votes);
+      prod.total_votes += prod_pool_votes->total_pool_votes;
    }
 
    void system_contract::deposit_unvested(vote_pool& pool, per_pool_stake& stake, asset new_unvested) {

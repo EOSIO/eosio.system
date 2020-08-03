@@ -252,9 +252,7 @@ namespace eosiosystem {
       auto*                              pool_votes = get_voter_pool_votes(*voter);
       std::optional<std::vector<double>> new_pool_votes;
       if (pool_votes) {
-         new_pool_votes.emplace(pool_votes->shares.size());
-         for (size_t i = 0; i < new_pool_votes->size(); ++i)
-            new_pool_votes.value()[i] = time_weight_shares(pool_votes->shares[i]);
+         new_pool_votes = pool_votes->shares;
          if (voter->is_proxy)
             for (size_t i = 0; i < new_pool_votes->size(); ++i)
                new_pool_votes.value()[i] += pool_votes->proxied_shares[i];
@@ -329,6 +327,7 @@ namespace eosiosystem {
                   sub_pool_votes(p, pool_votes->last_votes, "bug: producer lost its pool");
                if (new_pool_votes)
                   add_pool_votes(p, *new_pool_votes, "producer has not upgraded to support pool votes");
+               update_total_pool_votes(p); // TODO: move elsewhere
             });
             auto prod2 = _producers2.find( pd.first.value );
             if( prod2 != _producers2.end() ) {
@@ -402,9 +401,7 @@ namespace eosiosystem {
       auto*                              pool_votes = get_voter_pool_votes(voter);
       std::optional<std::vector<double>> new_pool_votes;
       if (pool_votes) {
-         new_pool_votes.emplace(pool_votes->shares.size());
-         for (size_t i = 0; i < new_pool_votes->size(); ++i)
-            new_pool_votes.value()[i] = time_weight_shares(pool_votes->shares[i]);
+         new_pool_votes = pool_votes->shares;
          if (voter.is_proxy)
             for (size_t i = 0; i < new_pool_votes->size(); ++i)
                new_pool_votes.value()[i] += pool_votes->proxied_shares[i];
@@ -438,6 +435,7 @@ namespace eosiosystem {
                      sub_pool_votes(p, pool_votes->last_votes, "bug: producer lost its pool");
                   if (new_pool_votes)
                      add_pool_votes(p, *new_pool_votes, "producer has not upgraded to support pool votes");
+                  update_total_pool_votes(p); // TODO: move elsewhere
                });
                auto prod2 = _producers2.find( acnt.value );
                if ( prod2 != _producers2.end() ) {

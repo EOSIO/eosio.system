@@ -271,8 +271,8 @@ namespace eosiosystem {
 
    struct voter_pool_votes {
       std::vector<double> shares;         // shares in each pool
-      std::vector<double> proxied_shares; // shares in each pool (time weighted) delegated to this voter as a proxy
-      std::vector<double> last_votes;     // vote weights cast (time weighted) the last time the vote was updated
+      std::vector<double> proxied_shares; // shares in each pool delegated to this voter as a proxy
+      std::vector<double> last_votes;     // vote weights cast the last time the vote was updated
 
       EOSLIB_SERIALIZE(voter_pool_votes, (shares)(proxied_shares)(last_votes))
    };
@@ -1548,6 +1548,7 @@ namespace eosiosystem {
          void sub_proxied_shares(voter_info& proxy, const std::vector<double>& deltas, const char* error);
          void add_pool_votes(producer_info& prod, const std::vector<double>& deltas, const char* error);
          void sub_pool_votes(producer_info& prod, const std::vector<double>& deltas, const char* error);
+         void update_total_pool_votes(producer_info& prod);
          void deposit_unvested(vote_pool& pool, per_pool_stake& stake, asset new_unvested);
          asset withdraw_vested(vote_pool& pool, per_pool_stake& stake, asset max_requested);
    };
