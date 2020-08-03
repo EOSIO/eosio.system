@@ -338,4 +338,17 @@ namespace eosiosystem {
       update_votes(to, to_voter.proxy, to_voter.producers, false);
    }
 
+   void system_contract::onblock_update_vpool(block_timestamp production_time) {
+      if (!get_vote_pool_state_singleton().exists())
+         return;
+      auto& state = get_vote_pool_state();
+      if (production_time.slot >= state.interval_start.slot + blocks_per_minute) {
+         state.unpaid_blocks       = state.blocks;
+         state.blocks              = 0;
+         state.interval_start.slot = (production_time.slot / blocks_per_minute) * blocks_per_minute;
+      }
+      ++state.blocks;
+      save_vote_pool_state();
+   }
+
 } // namespace eosiosystem

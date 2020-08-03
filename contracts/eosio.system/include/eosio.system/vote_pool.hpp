@@ -74,8 +74,13 @@ namespace eosiosystem {
 
    struct [[eosio::table("vpoolstate"), eosio::contract("eosio.system")]] vote_pool_state {
       std::vector<vote_pool> pools;
+      double                 prod_rate  = 0;    // Continuous inflation rate allocated to producer pay (0.01 = 1%)
+      double                 voter_rate = 0;    // Continuous inflation rate allocated to voters (0.01 = 1%)
+      eosio::block_timestamp interval_start;    // Beginning of current 1-minute block production interval
+      uint32_t               blocks        = 0; // Blocks produced in current interval
+      uint32_t               unpaid_blocks = 0; // Blocks produced in previous interval
 
-      EOSLIB_SERIALIZE(vote_pool_state, (pools))
+      EOSLIB_SERIALIZE(vote_pool_state, (pools)(prod_rate)(voter_rate)(interval_start)(blocks)(unpaid_blocks))
    };
 
    typedef eosio::singleton<"vpoolstate"_n, vote_pool_state> vote_pool_state_singleton;

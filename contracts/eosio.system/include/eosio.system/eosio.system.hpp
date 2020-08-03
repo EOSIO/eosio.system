@@ -1551,6 +1551,7 @@ namespace eosiosystem {
          void update_total_pool_votes(producer_info& prod);
          void deposit_unvested(vote_pool& pool, per_pool_stake& stake, asset new_unvested);
          asset withdraw_vested(vote_pool& pool, per_pool_stake& stake, asset max_requested);
+         void onblock_update_vpool(block_timestamp production_time);
    };
 
 }
