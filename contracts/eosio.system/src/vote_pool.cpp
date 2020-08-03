@@ -204,7 +204,6 @@ namespace eosiosystem {
    }
 
    void system_contract::stake2pool(name owner, uint32_t pool_index, asset amount) {
-      // TODO: update vote weights
       require_auth(owner);
 
       auto& state       = get_vote_pool_state();
@@ -237,10 +236,10 @@ namespace eosiosystem {
                         std::string("transfer from ") + owner.to_string() + " to eosio.vpool");
 
       save_vote_pool_state();
+      update_votes(owner, voter_itr->proxy, voter_itr->producers, false);
    }
 
    void system_contract::claimstake(name owner, uint32_t pool_index, asset requested) {
-      // TODO: update vote weights
       require_auth(owner);
 
       auto& state        = get_vote_pool_state();
@@ -272,6 +271,9 @@ namespace eosiosystem {
          transfer_act.send(vpool_account, owner, claimed_amount,
                            std::string("transfer from eosio.vpool to ") + owner.to_string());
       }
+
+      auto& voter = _voters.get(owner.value, "voter record missing");
+      update_votes(owner, voter.proxy, voter.producers, false);
    }
 
    void system_contract::transferstake(name from, name to, uint32_t pool_index, asset requested,
@@ -279,8 +281,6 @@ namespace eosiosystem {
       // TODO: notifications. require_recipient doesn't work because requested and actual amount may differ
       // TODO: assert if requested is too far below actual?
       // TODO: enfource last_claim?
-      // TODO: update vote weights (from)
-      // TODO: update vote weights (to)
       // TODO: need way to upgrade receiver's account
       require_auth(from);
       eosio::check(memo.size() <= 256, "memo has more than 256 bytes");
@@ -314,6 +314,12 @@ namespace eosiosystem {
       eosio::check(pool.token_pool.shares() >= 0, "pool shares is negative");
       eosio::check(pool.token_pool.balance().amount >= 0, "pool amount is negative");
       save_vote_pool_state();
+
+      auto& from_voter = _voters.get(from.value, "from voter record missing");
+      update_votes(from, from_voter.proxy, from_voter.producers, false);
+
+      auto& to_voter = _voters.get(to.value, "to voter record missing");
+      update_votes(to, to_voter.proxy, to_voter.producers, false);
    }
 
 } // namespace eosiosystem
