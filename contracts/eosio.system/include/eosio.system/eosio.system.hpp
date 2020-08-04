@@ -1493,6 +1493,7 @@ namespace eosiosystem {
                                                double shares_rate, bool reset_to_zero = false );
          double update_total_votepay_share( const time_point& ct,
                                             double additional_shares_delta = 0.0, double shares_rate_delta = 0.0 );
+         double time_to_vote_weight( const time_point& time );
 
          template <auto system_contract::*...Ptrs>
          class registration {
@@ -1548,7 +1549,9 @@ namespace eosiosystem {
          void sub_proxied_shares(voter_info& proxy, const std::vector<double>& deltas, const char* error);
          void add_pool_votes(producer_info& prod, const std::vector<double>& deltas, const char* error);
          void sub_pool_votes(producer_info& prod, const std::vector<double>& deltas, const char* error);
-         void update_total_pool_votes(producer_info& prod);
+         std::vector<const producer_info*> top_active_producers(size_t n);
+         void update_total_pool_votes(producer_info& prod, double pool_vote_weight);
+         void update_total_pool_votes();
          void deposit_unvested(vote_pool& pool, per_pool_stake& stake, asset new_unvested);
          asset withdraw_vested(vote_pool& pool, per_pool_stake& stake, asset max_requested);
          void onblock_update_vpool(block_timestamp production_time);

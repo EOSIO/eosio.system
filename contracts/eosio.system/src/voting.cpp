@@ -150,9 +150,9 @@ namespace eosiosystem {
       return double(staked) * std::pow( 2, weight );
    }
 
-   double time_weight_shares( double shares ) {
-      double weight = int64_t( (current_time_point().sec_since_epoch() - (block_timestamp::block_timestamp_epoch / 1000)) / (seconds_per_day * 7) )  / double( 52 );
-      return shares * std::pow( 2, weight );
+   double system_contract::time_to_vote_weight( const time_point& time ) {
+      double weight = int64_t( (time.sec_since_epoch() - (block_timestamp::block_timestamp_epoch / 1000)) / (seconds_per_day * 7) )  / double( 52 );
+      return std::pow( 2, weight );
    }
 
    double system_contract::update_total_votepay_share( const time_point& ct,
@@ -327,7 +327,6 @@ namespace eosiosystem {
                   sub_pool_votes(p, pool_votes->last_votes, "bug: producer lost its pool");
                if (new_pool_votes)
                   add_pool_votes(p, *new_pool_votes, "producer has not upgraded to support pool votes");
-               update_total_pool_votes(p); // TODO: move elsewhere
             });
             auto prod2 = _producers2.find( pd.first.value );
             if( prod2 != _producers2.end() ) {
@@ -435,7 +434,6 @@ namespace eosiosystem {
                      sub_pool_votes(p, pool_votes->last_votes, "bug: producer lost its pool");
                   if (new_pool_votes)
                      add_pool_votes(p, *new_pool_votes, "producer has not upgraded to support pool votes");
-                  update_total_pool_votes(p); // TODO: move elsewhere
                });
                auto prod2 = _producers2.find( acnt.value );
                if ( prod2 != _producers2.end() ) {

@@ -15,6 +15,7 @@ namespace eosiosystem {
       if (init) {
          eosio::check(!state && !get_vote_pool_state_singleton().exists(), "vote pools already initialized");
          state.emplace();
+         state->interval_start.slot = (eosio::current_block_time().slot / blocks_per_minute) * blocks_per_minute;
       } else if (!state) {
          eosio::check(get_vote_pool_state_singleton().exists(), "vote pools not initialized");
          state = get_vote_pool_state_singleton().get();
@@ -155,10 +156,16 @@ namespace eosiosystem {
          votes->pool_votes[i] -= deltas[i];
    }
 
-   double time_weight_shares(double shares);
+   std::vector<const producer_info*> system_contract::top_active_producers(size_t n) {
+      std::vector<const producer_info*> prods;
+      prods.reserve(n);
+      auto idx = _producers.get_index<"prototalvote"_n>();
+      for (auto it = idx.begin(); it != idx.end() && prods.size() < n && it->total_votes > 0 && it->active(); ++it)
+         prods.push_back(&*it);
+      return prods;
+   }
 
-   void system_contract::update_total_pool_votes(producer_info& prod) {
-      // TODO: eliminate new game created by use of time_weight_shares(...) here
+   void system_contract::update_total_pool_votes(producer_info& prod, double pool_vote_weight) {
       // TODO: reconsider pool weights
       // TODO: transition weighting between old and new systems
       auto* prod_pool_votes = get_prod_pool_votes(prod);
@@ -171,8 +178,15 @@ namespace eosiosystem {
       for (size_t i = 0; i < vote_pool_state.pools.size(); ++i)
          prod_pool_votes->total_pool_votes +=
                vote_pool_state.pools[i].token_pool.simulate_sell(prod_pool_votes->pool_votes[i]).amount;
-      prod_pool_votes->total_pool_votes = time_weight_shares(prod_pool_votes->total_pool_votes);
+      prod_pool_votes->total_pool_votes *= pool_vote_weight;
       prod.total_votes += prod_pool_votes->total_pool_votes;
+   }
+
+   void system_contract::update_total_pool_votes() {
+      auto pool_vote_weight = time_to_vote_weight(get_vote_pool_state().interval_start);
+      auto prods            = top_active_producers(30);
+      for (auto* prod : prods)
+         _producers.modify(*prod, same_payer, [&](auto& prod) { update_total_pool_votes(prod, pool_vote_weight); });
    }
 
    void system_contract::deposit_unvested(vote_pool& pool, per_pool_stake& stake, asset new_unvested) {
