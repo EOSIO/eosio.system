@@ -185,8 +185,9 @@ namespace eosiosystem {
    struct prod_pool_votes {
       std::vector<double> pool_votes;           // shares in each pool, weighted by vote time
       double              total_pool_votes = 0; // total shares in all pools, weighted by vote time and pool strength
+      eosio::asset        vote_pay;             // unclaimed vote pay
 
-      EOSLIB_SERIALIZE(prod_pool_votes, (pool_votes)(total_pool_votes))
+      EOSLIB_SERIALIZE(prod_pool_votes, (pool_votes)(total_pool_votes)(vote_pay))
    };
 
    // Defines `producer_info` structure to be stored in `producer_info` table, added after version 1.0
@@ -725,6 +726,7 @@ namespace eosiosystem {
          static constexpr eosio::name rex_account{"eosio.rex"_n};
          static constexpr eosio::name reserv_account{"eosio.reserv"_n};
          static constexpr eosio::name vpool_account{"eosio.vpool"_n};
+         static constexpr eosio::name bvpay_account{"eosio.bvpay"_n};
          static constexpr eosio::name null_account{"eosio.null"_n};
          static constexpr symbol ramcore_symbol = symbol(symbol_code("RAMCORE"), 4);
          static constexpr symbol ram_symbol     = symbol(symbol_code("RAM"), 0);
@@ -1371,6 +1373,12 @@ namespace eosiosystem {
          void claimstake( name owner, uint32_t pool_index, asset requested );
          [[eosio::action]]
          void transferstake(name from, name to, uint32_t pool_index, asset requested, const std::string& memo);
+         [[eosio::action]]
+         void updatevotes( name user, name producer );
+         [[eosio::action]]
+         void updatepay( name user );
+         [[eosio::action]]
+         void claimvotepay( name producer );
 
          using init_action = eosio::action_wrapper<"init"_n, &system_contract::init>;
          using setacctram_action = eosio::action_wrapper<"setacctram"_n, &system_contract::setacctram>;
@@ -1425,6 +1433,9 @@ namespace eosiosystem {
          using stake2pool_action = eosio::action_wrapper<"stake2pool"_n, &system_contract::stake2pool>;
          using claimstake_action = eosio::action_wrapper<"claimstake"_n, &system_contract::claimstake>;
          using transferstake_action = eosio::action_wrapper<"transferstake"_n, &system_contract::transferstake>;
+         using updatevotes_action = eosio::action_wrapper<"updatevotes"_n, &system_contract::updatevotes>;
+         using updatepay_action = eosio::action_wrapper<"updatepay"_n, &system_contract::updatepay>;
+         using claimvotepay_action = eosio::action_wrapper<"claimvotepay"_n, &system_contract::claimvotepay>;
 
       private:
          // Implementation details:
@@ -1551,7 +1562,7 @@ namespace eosiosystem {
          void sub_pool_votes(producer_info& prod, const std::vector<double>& deltas, const char* error);
          std::vector<const producer_info*> top_active_producers(size_t n);
          void update_total_pool_votes(producer_info& prod, double pool_vote_weight);
-         void update_total_pool_votes();
+         void update_total_pool_votes(size_t n);
          void deposit_unvested(vote_pool& pool, per_pool_stake& stake, asset new_unvested);
          asset withdraw_vested(vote_pool& pool, per_pool_stake& stake, asset max_requested);
          void onblock_update_vpool(block_timestamp production_time);

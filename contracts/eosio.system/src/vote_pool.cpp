@@ -73,6 +73,7 @@ namespace eosiosystem {
       info.pool_votes.value().emplace();
       auto& v = info.pool_votes.value().value();
       v.pool_votes.resize(get_vote_pool_state().pools.size());
+      v.vote_pay = { 0, get_core_symbol() };
    }
 
    const voter_pool_votes* system_contract::get_voter_pool_votes(const voter_info& info) {
@@ -182,9 +183,9 @@ namespace eosiosystem {
       prod.total_votes += prod_pool_votes->total_pool_votes;
    }
 
-   void system_contract::update_total_pool_votes() {
+   void system_contract::update_total_pool_votes(size_t n) {
       auto pool_vote_weight = time_to_vote_weight(get_vote_pool_state().interval_start);
-      auto prods            = top_active_producers(30);
+      auto prods            = top_active_producers(n);
       for (auto* prod : prods)
          _producers.modify(*prod, same_payer, [&](auto& prod) { update_total_pool_votes(prod, pool_vote_weight); });
    }
@@ -363,6 +364,89 @@ namespace eosiosystem {
       }
       ++state.blocks;
       save_vote_pool_state();
+   }
+
+   void system_contract::updatevotes(name user, name producer) {
+      require_auth(user);
+      auto  pool_vote_weight = time_to_vote_weight(get_vote_pool_state().interval_start);
+      auto& prod             = _producers.get(producer.value, "unknown producer");
+      eosio::check(prod.is_active, "producer is not active");
+      _producers.modify(prod, same_payer, [&](auto& prod) { update_total_pool_votes(prod, pool_vote_weight); });
+      save_vote_pool_state();
+   }
+
+   void system_contract::updatepay(name user) {
+      require_auth(user);
+      auto& state = get_vote_pool_state();
+      eosio::check(state.unpaid_blocks > 0, "already processed pay for this time interval");
+
+      update_total_pool_votes(50);
+      auto prods = top_active_producers(50);
+
+      double total_votes = 0;
+      for (auto* prod : prods) {
+         if (get_prod_pool_votes(*prod))
+            total_votes += prod->total_votes;
+      }
+
+      const asset token_supply    = eosio::token::get_supply(token_account, core_symbol().code());
+      auto        pay_scale       = pow(10, (double)state.unpaid_blocks / blocks_per_minute);
+      int64_t     target_prod_pay = pay_scale * state.prod_rate / minutes_per_year * token_supply.amount;
+      int64_t     total_prod_pay  = 0;
+
+      if (target_prod_pay > 0 && total_votes > 0) {
+         for (auto* prod : prods) {
+            _producers.modify(*prod, same_payer, [&](auto& prod) {
+               if (auto* pv = get_prod_pool_votes(prod)) {
+                  int64_t pay = (target_prod_pay * total_votes) / prod.total_votes;
+                  pv->vote_pay.amount += pay;
+                  total_prod_pay += pay;
+               }
+            });
+         }
+      }
+
+      int64_t per_pool_pay = pay_scale * state.voter_rate / minutes_per_year * token_supply.amount / state.pools.size();
+      int64_t total_voter_pay = 0;
+      for (auto& pool : state.pools) {
+         if (pool.token_pool.shares()) {
+            pool.token_pool.adjust({ per_pool_pay, core_symbol() });
+            total_voter_pay += per_pool_pay;
+         }
+      }
+
+      int64_t new_tokens = total_prod_pay + total_voter_pay;
+      if (new_tokens > 0) {
+         {
+            eosio::token::issue_action issue_act{ token_account, { { get_self(), active_permission } } };
+            issue_act.send(get_self(), asset(new_tokens, core_symbol()), "issue tokens for producer pay and voter pay");
+         }
+         if (total_prod_pay > 0) {
+            eosio::token::transfer_action transfer_act{ token_account, { get_self(), active_permission } };
+            transfer_act.send(get_self(), bvpay_account, eosio::asset{ total_prod_pay, core_symbol() },
+                              "fund producer pay");
+         }
+         if (total_voter_pay > 0) {
+            eosio::token::transfer_action transfer_act{ token_account, { get_self(), active_permission } };
+            transfer_act.send(get_self(), vpool_account, eosio::asset{ total_voter_pay, core_symbol() },
+                              "fund voter pay");
+         }
+      }
+
+      state.unpaid_blocks = 0;
+      save_vote_pool_state();
+   }
+
+   void system_contract::claimvotepay(name producer) {
+      require_auth(producer);
+      auto& prod = _producers.get(producer.value, "unknown producer");
+      _producers.modify(prod, same_payer, [&](auto& prod) {
+         auto* pv = get_prod_pool_votes(prod);
+         eosio::check(pv && pv->vote_pay.amount > 0, "no pay available");
+         eosio::token::transfer_action transfer_act{ token_account, { bvpay_account, active_permission } };
+         transfer_act.send(bvpay_account, producer, pv->vote_pay, "producer pay");
+         pv->vote_pay.amount = 0;
+      });
    }
 
 } // namespace eosiosystem
