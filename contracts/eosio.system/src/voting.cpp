@@ -252,7 +252,7 @@ namespace eosiosystem {
       auto*                              pool_votes = get_voter_pool_votes(*voter);
       std::optional<std::vector<double>> new_pool_votes;
       if (pool_votes) {
-         new_pool_votes = pool_votes->shares;
+         new_pool_votes = pool_votes->owned_shares;
          if (voter->is_proxy)
             for (size_t i = 0; i < new_pool_votes->size(); ++i)
                new_pool_votes.value()[i] += pool_votes->proxied_shares[i];
@@ -400,7 +400,7 @@ namespace eosiosystem {
       auto*                              pool_votes = get_voter_pool_votes(voter);
       std::optional<std::vector<double>> new_pool_votes;
       if (pool_votes) {
-         new_pool_votes = pool_votes->shares;
+         new_pool_votes = pool_votes->owned_shares;
          if (voter.is_proxy)
             for (size_t i = 0; i < new_pool_votes->size(); ++i)
                new_pool_votes.value()[i] += pool_votes->proxied_shares[i];

@@ -183,8 +183,8 @@ namespace eosiosystem {
    }
 
    struct prod_pool_votes {
-      std::vector<double> pool_votes;           // shares in each pool, weighted by vote time
-      double              total_pool_votes = 0; // total shares in all pools, weighted by vote time and pool strength
+      std::vector<double> pool_votes;           // shares in each pool
+      double              total_pool_votes = 0; // total shares in all pools, weighted by update time and pool strength
       eosio::asset        vote_pay;             // unclaimed vote pay
 
       EOSLIB_SERIALIZE(prod_pool_votes, (pool_votes)(total_pool_votes)(vote_pay))
@@ -271,11 +271,11 @@ namespace eosiosystem {
    };
 
    struct voter_pool_votes {
-      std::vector<double> shares;         // shares in each pool
+      std::vector<double> owned_shares;   // shares in each pool
       std::vector<double> proxied_shares; // shares in each pool delegated to this voter as a proxy
       std::vector<double> last_votes;     // vote weights cast the last time the vote was updated
 
-      EOSLIB_SERIALIZE(voter_pool_votes, (shares)(proxied_shares)(last_votes))
+      EOSLIB_SERIALIZE(voter_pool_votes, (owned_shares)(proxied_shares)(last_votes))
    };
 
    // Voter info. Voter info stores information about the voter:
@@ -1556,8 +1556,8 @@ namespace eosiosystem {
          const prod_pool_votes* get_prod_pool_votes(const producer_info& info);
          prod_pool_votes* get_prod_pool_votes(producer_info& info);
          void enable_prod_pool_votes(producer_info& info);
-         const voter_pool_votes* get_voter_pool_votes(const voter_info& info);
-         voter_pool_votes* get_voter_pool_votes(voter_info& info);
+         const voter_pool_votes* get_voter_pool_votes(const voter_info& info, bool required = false);
+         voter_pool_votes* get_voter_pool_votes(voter_info& info, bool required = false);
          void enable_voter_pool_votes(voter_info& info);
          void add_proxied_shares(voter_info& proxy, const std::vector<double>& deltas, const char* error);
          void sub_proxied_shares(voter_info& proxy, const std::vector<double>& deltas, const char* error);
@@ -1566,8 +1566,8 @@ namespace eosiosystem {
          std::vector<const producer_info*> top_active_producers(size_t n);
          void update_total_pool_votes(producer_info& prod, double pool_vote_weight);
          void update_total_pool_votes(size_t n);
-         void deposit_unvested(vote_pool& pool, per_pool_stake& stake, asset new_unvested);
-         asset withdraw_vested(vote_pool& pool, per_pool_stake& stake, asset max_requested);
+         void deposit_unvested(vote_pool& pool, double& owned_shares, per_pool_stake& stake, asset new_unvested);
+         asset withdraw_vested(vote_pool& pool, double& owned_shares, per_pool_stake& stake, asset max_requested);
          void onblock_update_vpool(block_timestamp production_time);
    };
 

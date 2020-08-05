@@ -86,7 +86,6 @@ namespace eosiosystem {
    typedef eosio::singleton<"vpoolstate"_n, vote_pool_state> vote_pool_state_singleton;
 
    struct per_pool_stake {
-      double                 current_shares; // owned shares in pool; includes both vested and unvested
       eosio::asset           initial_unvested;
       eosio::block_timestamp start_vesting; // unvested = initial_unvested at this time
       eosio::block_timestamp end_vesting;   // unvested = 0 at this time. end_vesting - start_vesting may be less than
@@ -103,7 +102,7 @@ namespace eosiosystem {
          return { initial_unvested.amount - spendable, initial_unvested.symbol };
       }
 
-      EOSLIB_SERIALIZE(per_pool_stake, (current_shares)(initial_unvested)(start_vesting)(end_vesting)(last_claim))
+      EOSLIB_SERIALIZE(per_pool_stake, (initial_unvested)(start_vesting)(end_vesting)(last_claim))
    };
 
    struct [[eosio::table("vpool.stake"), eosio::contract("eosio.system")]] vote_pool_stake {
