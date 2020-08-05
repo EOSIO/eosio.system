@@ -1368,6 +1368,8 @@ namespace eosiosystem {
          [[eosio::action]]
          void initvpool( const std::vector<uint32_t>& durations );
          [[eosio::action]]
+         void cfgvpool(double prod_rate, double voter_rate);
+         [[eosio::action]]
          void stake2pool( name owner, uint32_t pool_index, asset amount );
          [[eosio::action]]
          void claimstake( name owner, uint32_t pool_index, asset requested );
@@ -1430,6 +1432,7 @@ namespace eosiosystem {
          using rentbwexec_action = eosio::action_wrapper<"rentbwexec"_n, &system_contract::rentbwexec>;
          using rentbw_action = eosio::action_wrapper<"rentbw"_n, &system_contract::rentbw>;
          using initvpool_action = eosio::action_wrapper<"initvpool"_n, &system_contract::initvpool>;
+         using cfgvpool_action = eosio::action_wrapper<"cfgvpool"_n, &system_contract::cfgvpool>;
          using stake2pool_action = eosio::action_wrapper<"stake2pool"_n, &system_contract::stake2pool>;
          using claimstake_action = eosio::action_wrapper<"claimstake"_n, &system_contract::claimstake>;
          using transferstake_action = eosio::action_wrapper<"transferstake"_n, &system_contract::transferstake>;

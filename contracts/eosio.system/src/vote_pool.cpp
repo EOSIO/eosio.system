@@ -41,6 +41,8 @@ namespace eosiosystem {
       eosio::check(!durations.empty(), "durations is empty");
       for (auto d : durations)
          eosio::check(d > 0, "duration must be positive");
+      for (size_t i = 1; i < durations.size(); ++i)
+         eosio::check(durations[i - 1] < durations[i], "durations out of order");
 
       auto sym = get_core_symbol();
       state.pools.resize(durations.size());
@@ -50,6 +52,18 @@ namespace eosiosystem {
          pool.token_pool.init(sym);
       }
 
+      save_vote_pool_state();
+   }
+
+   void system_contract::cfgvpool(double prod_rate, double voter_rate) {
+      // TODO: convert rates from yearly compound to per-minute compound? Keep args per-minute compound?
+      require_auth(get_self());
+      eosio::check(prod_rate >= 0 && prod_rate < 1, "prod_rate out of range");
+      eosio::check(voter_rate >= 0 && voter_rate < 1, "voter_rate out of range");
+
+      auto& state      = get_vote_pool_state();
+      state.prod_rate  = prod_rate;
+      state.voter_rate = voter_rate;
       save_vote_pool_state();
    }
 
