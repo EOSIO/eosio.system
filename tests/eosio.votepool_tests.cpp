@@ -74,12 +74,31 @@ struct votepool_tester : eosio_system_tester {
 
 BOOST_AUTO_TEST_SUITE(eosio_system_votepool_tests)
 
-BOOST_AUTO_TEST_CASE(votepool_tests) try {
-   {
-      votepool_tester t;
-      BOOST_REQUIRE_EQUAL(t.success(), t.initvpool(N(eosio), { 6 * 4, 12 * 4, 24 * 4 }));
-   }
-} // votepool_tests
+BOOST_AUTO_TEST_CASE(initvpool) try {
+   votepool_tester t;
+   t.create_accounts_with_resources({ N(alice1111111) }, N(eosio));
+   BOOST_REQUIRE_EQUAL("missing authority of eosio", t.initvpool(N(alice1111111), { 1, 2, 3, 4 }));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("durations is empty"), t.initvpool(N(eosio), {}));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("duration must be positive"), t.initvpool(N(eosio), { 0 }));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("durations out of order"), t.initvpool(N(eosio), { 1, 2, 4, 3 }));
+   BOOST_REQUIRE_EQUAL(t.success(), t.initvpool(N(eosio), { 1, 2, 3, 4 }));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("vote pools already initialized"), t.initvpool(N(eosio), { 1, 2, 3, 4 }));
+}
+FC_LOG_AND_RETHROW()
+
+BOOST_AUTO_TEST_CASE(cfgvpool) try {
+   votepool_tester t;
+   t.create_accounts_with_resources({ N(alice1111111) }, N(eosio));
+   BOOST_REQUIRE_EQUAL("missing authority of eosio", t.cfgvpool(N(alice1111111), .5, .5));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("vote pools not initialized"), t.cfgvpool(N(eosio), .5, .5));
+   BOOST_REQUIRE_EQUAL(t.success(), t.initvpool(N(eosio), { 1, 2, 3, 4 }));
+   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(N(eosio), 0, .999));
+   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(N(eosio), .999, 0));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("prod_rate out of range"), t.cfgvpool(N(eosio), -.001, .5));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("prod_rate out of range"), t.cfgvpool(N(eosio), 1, .5));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("voter_rate out of range"), t.cfgvpool(N(eosio), .5, -.001));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("voter_rate out of range"), t.cfgvpool(N(eosio), .5, 1));
+}
 FC_LOG_AND_RETHROW()
 
 BOOST_AUTO_TEST_SUITE_END()
