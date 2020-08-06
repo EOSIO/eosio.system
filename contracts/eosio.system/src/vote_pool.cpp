@@ -10,15 +10,16 @@ namespace eosiosystem {
       return *sing;
    }
 
-   vote_pool_state& system_contract::get_vote_pool_state_mutable(bool init) {
+   vote_pool_state& system_contract::get_vote_pool_state_mutable(bool init_if_not_exist) {
       static std::optional<vote_pool_state> state;
-      if (init) {
-         eosio::check(!state && !get_vote_pool_state_singleton().exists(), "vote pools already initialized");
-         state.emplace();
-         state->interval_start.slot = (eosio::current_block_time().slot / blocks_per_minute) * blocks_per_minute;
-      } else if (!state) {
-         eosio::check(get_vote_pool_state_singleton().exists(), "vote pools not initialized");
-         state = get_vote_pool_state_singleton().get();
+      if (!state) {
+         if (init_if_not_exist && !get_vote_pool_state_singleton().exists()) {
+            state.emplace();
+            state->interval_start.slot = (eosio::current_block_time().slot / blocks_per_minute) * blocks_per_minute;
+         } else {
+            eosio::check(get_vote_pool_state_singleton().exists(), "vote pools not initialized");
+            state = get_vote_pool_state_singleton().get();
+         }
       }
       return *state;
    }
@@ -36,36 +37,44 @@ namespace eosiosystem {
       return *table;
    }
 
-   void system_contract::initvpool(const std::vector<uint32_t>& durations) {
-      require_auth(get_self());
-
-      auto& state = get_vote_pool_state_mutable(true);
-      eosio::check(!durations.empty(), "durations is empty");
-      for (auto d : durations)
-         eosio::check(d > 0, "duration must be positive");
-      for (size_t i = 1; i < durations.size(); ++i)
-         eosio::check(durations[i - 1] < durations[i], "durations out of order");
-
-      auto sym = get_core_symbol();
-      state.pools.resize(durations.size());
-      for (size_t i = 0; i < durations.size(); ++i) {
-         auto& pool    = state.pools[i];
-         pool.duration = durations[i];
-         pool.token_pool.init(sym);
-      }
-
-      save_vote_pool_state();
-   }
-
-   void system_contract::cfgvpool(double prod_rate, double voter_rate) {
+   void system_contract::cfgvpool(const std::optional<std::vector<uint32_t>>& durations,
+                                  const std::optional<double>& prod_rate, const std::optional<double>& voter_rate) {
       // TODO: convert rates from yearly compound to per-minute compound? Keep args per-minute compound?
       require_auth(get_self());
-      eosio::check(prod_rate >= 0 && prod_rate < 1, "prod_rate out of range");
-      eosio::check(voter_rate >= 0 && voter_rate < 1, "voter_rate out of range");
 
-      auto& state      = get_vote_pool_state_mutable();
-      state.prod_rate  = prod_rate;
-      state.voter_rate = voter_rate;
+      if (!get_vote_pool_state_singleton().exists()) {
+         eosio::check(durations.has_value(), "durations is required on first use of cfgvpool");
+      } else {
+         eosio::check(!durations.has_value(), "durations can't change");
+      }
+
+      auto& state = get_vote_pool_state_mutable(true);
+      if (durations.has_value()) {
+         eosio::check(!durations->empty(), "durations is empty");
+         for (auto d : *durations)
+            eosio::check(d > 0, "duration must be positive");
+         for (size_t i = 1; i < durations->size(); ++i)
+            eosio::check(durations.value()[i - 1] < durations.value()[i], "durations out of order");
+
+         auto sym = get_core_symbol();
+         state.pools.resize(durations->size());
+         for (size_t i = 0; i < durations->size(); ++i) {
+            auto& pool    = state.pools[i];
+            pool.duration = durations.value()[i];
+            pool.token_pool.init(sym);
+         }
+      }
+
+      if (prod_rate) {
+         eosio::check(*prod_rate >= 0 && *prod_rate < 1, "prod_rate out of range");
+         state.prod_rate = *prod_rate;
+      }
+
+      if (voter_rate) {
+         eosio::check(*voter_rate >= 0 && *voter_rate < 1, "voter_rate out of range");
+         state.voter_rate = *voter_rate;
+      }
+
       save_vote_pool_state();
    }
 

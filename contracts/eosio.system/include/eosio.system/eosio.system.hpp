@@ -1365,10 +1365,13 @@ namespace eosiosystem {
          [[eosio::action]]
          void rentbw( const name& payer, const name& receiver, uint32_t days, int64_t net_frac, int64_t cpu_frac, const asset& max_payment );
 
+         using uint32_vector = std::vector<uint32_t>;
+
          [[eosio::action]]
-         void initvpool( const std::vector<uint32_t>& durations );
-         [[eosio::action]]
-         void cfgvpool(double prod_rate, double voter_rate);
+         void cfgvpool(
+            const std::optional<uint32_vector>& durations,
+            const std::optional<double>& prod_rate,
+            const std::optional<double>& voter_rate);
          [[eosio::action]]
          void stake2pool( name owner, uint32_t pool_index, asset amount );
          [[eosio::action]]
@@ -1431,7 +1434,6 @@ namespace eosiosystem {
          using configrentbw_action = eosio::action_wrapper<"configrentbw"_n, &system_contract::configrentbw>;
          using rentbwexec_action = eosio::action_wrapper<"rentbwexec"_n, &system_contract::rentbwexec>;
          using rentbw_action = eosio::action_wrapper<"rentbw"_n, &system_contract::rentbw>;
-         using initvpool_action = eosio::action_wrapper<"initvpool"_n, &system_contract::initvpool>;
          using cfgvpool_action = eosio::action_wrapper<"cfgvpool"_n, &system_contract::cfgvpool>;
          using stake2pool_action = eosio::action_wrapper<"stake2pool"_n, &system_contract::stake2pool>;
          using claimstake_action = eosio::action_wrapper<"claimstake"_n, &system_contract::claimstake>;
@@ -1550,7 +1552,7 @@ namespace eosiosystem {
 
          // defined in vote_pool.cpp
          vote_pool_state_singleton& get_vote_pool_state_singleton();
-         vote_pool_state& get_vote_pool_state_mutable(bool init = false);
+         vote_pool_state& get_vote_pool_state_mutable(bool init_if_not_exist = false);
          const vote_pool_state& get_vote_pool_state();
          void save_vote_pool_state();
          vote_pool_stake_table& get_vote_pool_stake_table();
