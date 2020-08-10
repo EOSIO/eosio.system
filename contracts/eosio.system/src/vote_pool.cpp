@@ -265,7 +265,7 @@ namespace eosiosystem {
       auto& state       = get_vote_pool_state_mutable();
       auto  core_symbol = get_core_symbol();
 
-      eosio::check(pool_index <= state.pools.size(), "invalid pool");
+      eosio::check(pool_index < state.pools.size(), "invalid pool");
       eosio::check(amount.symbol == core_symbol, "amount doesn't match core symbol");
       eosio::check(amount.amount > 0, "amount must be positive"); // TODO: higher minimum amount?
 
@@ -302,7 +302,7 @@ namespace eosiosystem {
       auto  core_symbol  = get_core_symbol();
       auto  current_time = eosio::current_block_time();
 
-      eosio::check(pool_index <= state.pools.size(), "invalid pool");
+      eosio::check(pool_index < state.pools.size(), "invalid pool");
       eosio::check(requested.symbol == core_symbol, "requested doesn't match core symbol");
       eosio::check(requested.amount > 0, "requested must be positive"); // TODO: higher minimum amount?
 
@@ -346,7 +346,7 @@ namespace eosiosystem {
       auto  core_symbol  = get_core_symbol();
       auto  current_time = eosio::current_block_time();
 
-      eosio::check(pool_index <= state.pools.size(), "invalid pool");
+      eosio::check(pool_index < state.pools.size(), "invalid pool");
       eosio::check(requested.symbol == core_symbol, "requested doesn't match core symbol");
       eosio::check(requested.amount > 0, "requested must be positive"); // TODO: higher minimum amount?
 

@@ -15,6 +15,8 @@
 using namespace eosio_system;
 using std::nullopt;
 
+auto a(const char* s) { return asset::from_string(s); }
+
 asset core(const std::string& s) { return core_sym::from_string(s); }
 
 struct votepool_tester : eosio_system_tester {
@@ -130,6 +132,27 @@ BOOST_AUTO_TEST_CASE(cfgvpool) try {
                        t.cfgvpool(N(eosio), nullopt, nullopt, nullopt, -.001));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("voter_rate out of range"),
                        t.cfgvpool(N(eosio), nullopt, nullopt, nullopt, 1));
+} // cfgvpool
+FC_LOG_AND_RETHROW()
+
+BOOST_AUTO_TEST_CASE(stake2pool) try {
+   votepool_tester t;
+   t.create_accounts_with_resources({ N(alice1111111), N(bob111111111) }, N(eosio));
+
+   BOOST_REQUIRE_EQUAL("missing authority of bob", t.stake2pool(N(alice1111111), N(bob), 0, a("1.0000 TST")));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("vote pools not initialized"),
+                       t.stake2pool(N(alice1111111), N(alice1111111), 0, a("1.0000 TST")));
+   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(N(eosio), { { 2, 3, 4, 5 } }, { { 1, 1, 3, 3 } }));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("invalid pool"),
+                       t.stake2pool(N(alice1111111), N(alice1111111), 4, a("1.0000 TST")));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("amount doesn't match core symbol"),
+                       t.stake2pool(N(alice1111111), N(alice1111111), 3, a("1.0000 FOO")));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("amount doesn't match core symbol"),
+                       t.stake2pool(N(alice1111111), N(alice1111111), 3, a("1.000 FOO")));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("amount must be positive"),
+                       t.stake2pool(N(alice1111111), N(alice1111111), 3, a("0.0000 TST")));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("amount must be positive"),
+                       t.stake2pool(N(alice1111111), N(alice1111111), 3, a("-1.0000 TST")));
 }
 FC_LOG_AND_RETHROW()
 
