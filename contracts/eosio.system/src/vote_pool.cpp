@@ -30,37 +30,45 @@ namespace eosiosystem {
       get_vote_pool_state_singleton().set(get_vote_pool_state_mutable(), get_self());
    }
 
-   vote_pool_stake_table& system_contract::get_vote_pool_stake_table() {
-      static std::optional<vote_pool_stake_table> table;
-      if (!table)
-         table.emplace(get_self(), 0);
-      return *table;
-   }
-
    void system_contract::cfgvpool(const std::optional<std::vector<uint32_t>>& durations,
+                                  const std::optional<std::vector<uint32_t>>& claim_periods,
                                   const std::optional<double>& prod_rate, const std::optional<double>& voter_rate) {
       // TODO: convert rates from yearly compound to per-minute compound? Keep args per-minute compound?
       require_auth(get_self());
 
       if (!get_vote_pool_state_singleton().exists()) {
          eosio::check(durations.has_value(), "durations is required on first use of cfgvpool");
+         eosio::check(claim_periods.has_value(), "claim_periods is required on first use of cfgvpool");
       } else {
          eosio::check(!durations.has_value(), "durations can't change");
+         eosio::check(!claim_periods.has_value(), "claim_periods can't change");
       }
 
       auto& state = get_vote_pool_state_mutable(true);
       if (durations.has_value()) {
          eosio::check(!durations->empty(), "durations is empty");
-         for (auto d : *durations)
+         eosio::check(claim_periods->size() == durations->size(), "mismatched vector sizes");
+
+         for (size_t i = 0; i < durations->size(); ++i) {
+            auto d = durations.value()[i];
+            auto c = claim_periods.value()[i];
             eosio::check(d > 0, "duration must be positive");
-         for (size_t i = 1; i < durations->size(); ++i)
-            eosio::check(durations.value()[i - 1] < durations.value()[i], "durations out of order");
+            eosio::check(c > 0, "claim_period must be positive");
+            eosio::check(c < d, "claim_period must be less than duration");
+         }
+
+         for (size_t i = 1; i < durations->size(); ++i) {
+            eosio::check(durations.value()[i - 1] < durations.value()[i], "durations must be increasing");
+            eosio::check(claim_periods.value()[i - 1] <= claim_periods.value()[i],
+                         "claim_periods must be non-decreasing");
+         }
 
          auto sym = get_core_symbol();
          state.pools.resize(durations->size());
          for (size_t i = 0; i < durations->size(); ++i) {
-            auto& pool    = state.pools[i];
-            pool.duration = durations.value()[i];
+            auto& pool        = state.pools[i];
+            pool.duration     = durations.value()[i];
+            pool.claim_period = claim_periods.value()[i];
             pool.token_pool.init(sym);
          }
       }
@@ -123,17 +131,10 @@ namespace eosiosystem {
       info.pool_votes.value().emplace();
       auto& v    = info.pool_votes.value().value();
       auto  size = get_vote_pool_state().pools.size();
+      v.next_claim.resize(size);
       v.owned_shares.resize(size);
       v.proxied_shares.resize(size);
       v.last_votes.resize(size);
-
-      auto core_symbol = get_core_symbol();
-      get_vote_pool_stake_table().emplace(info.owner, [&](auto& s) {
-         s.owner = info.owner;
-         s.stakes.resize(size);
-         for (auto& stake : s.stakes)
-            stake.initial_unvested = { 0, core_symbol };
-      });
 
       if (info.proxy.value) {
          auto it = _voters.find(info.proxy.value);
@@ -217,48 +218,43 @@ namespace eosiosystem {
          _producers.modify(*prod, same_payer, [&](auto& prod) { update_total_pool_votes(prod, pool_vote_weight); });
    }
 
-   void system_contract::deposit_unvested(vote_pool& pool, double& owned_shares, per_pool_stake& stake,
-                                          asset new_unvested) {
-      eosio::check(new_unvested.amount > 0, "new_unvested must be positive");
-
+   void system_contract::deposit_pool(vote_pool& pool, double& owned_shares, block_timestamp& next_claim,
+                                      asset new_amount) {
       auto                   current_time = eosio::current_block_time();
-      eosio::block_timestamp max_end_time{ current_time.slot + pool.duration * blocks_per_week };
-      auto                   new_shares       = pool.token_pool.buy(new_unvested);
-      auto                   current_unvested = stake.unvested(current_time);
+      eosio::block_timestamp max_next_claim{ current_time.slot + pool.claim_period * 2 };
+      auto                   current_balance = pool.token_pool.simulate_sell(owned_shares);
+      auto                   new_shares      = pool.token_pool.buy(new_amount);
 
       eosio::check(new_shares > 0, "new_shares must be positive");
 
-      eosio::block_timestamp new_end_time((stake.end_vesting.slot * int128_t(current_unvested.amount) +
-                                           max_end_time.slot * int128_t(new_unvested.amount)) /
-                                          (current_unvested.amount + new_unvested.amount));
+      next_claim = std::max(next_claim, current_time);
+      eosio::block_timestamp new_next_claim(
+            (next_claim.slot * int128_t(current_balance.amount) + max_next_claim.slot * int128_t(new_amount.amount)) /
+            (current_balance.amount + new_amount.amount));
 
       owned_shares += new_shares;
-      stake.initial_unvested = current_unvested + new_unvested;
-      stake.start_vesting    = current_time;
-      stake.end_vesting      = new_end_time;
+      next_claim = new_next_claim;
    }
 
-   asset system_contract::withdraw_vested(vote_pool& pool, double& owned_shares, per_pool_stake& stake,
-                                          asset max_requested) {
-      eosio::check(max_requested.amount > 0, "max_requested must be positive");
-      auto current_time = eosio::current_block_time();
-      auto balance      = pool.token_pool.simulate_sell(owned_shares);
-      auto unvested     = stake.unvested(current_time);
+   asset system_contract::withdraw_pool(vote_pool& pool, double& owned_shares, asset max_requested, bool claiming) {
+      auto balance = pool.token_pool.simulate_sell(owned_shares);
 
-      if (unvested.amount == 0 && max_requested >= balance) {
+      if (!claiming && max_requested >= balance) {
          // withdraw all shares; sold might be 0 when stake only contains dust
          auto sold    = pool.token_pool.sell(owned_shares);
          owned_shares = 0;
          return sold;
       } else {
-         auto sell_amount = std::min(balance - unvested, max_requested);
+         auto available = balance;
+         if (claiming)
+            available.amount = (int128_t(balance.amount) * pool.claim_period) / pool.duration;
+         auto sell_amount = std::min(available, max_requested);
          eosio::check(sell_amount.amount > 0, "withdrawing 0");
 
          auto sell_shares = std::min(pool.token_pool.simulate_sell(sell_amount), owned_shares);
          auto sold        = pool.token_pool.sell(sell_shares);
          owned_shares -= sell_shares;
          eosio::check(sell_shares > 0 && sold.amount > 0, "withdrawing 0");
-         eosio::check(owned_shares > 0, "owned_shares reached 0");
          return sold;
       }
    }
@@ -267,7 +263,6 @@ namespace eosiosystem {
       require_auth(owner);
 
       auto& state       = get_vote_pool_state_mutable();
-      auto& stake_table = get_vote_pool_stake_table();
       auto  core_symbol = get_core_symbol();
 
       eosio::check(pool_index <= state.pools.size(), "invalid pool");
@@ -286,13 +281,10 @@ namespace eosiosystem {
          });
       }
 
-      auto& pool   = state.pools[pool_index];
-      auto& stakes = stake_table.get(owner.value);
+      auto& pool = state.pools[pool_index];
       _voters.modify(voter_itr, same_payer, [&](auto& voter) {
-         stake_table.modify(stakes, same_payer, [&](auto& stakes) {
-            auto& owned_shares = get_voter_pool_votes(voter, true)->owned_shares[pool_index];
-            deposit_unvested(pool, owned_shares, stakes.stakes[pool_index], amount);
-         });
+         auto* v = get_voter_pool_votes(voter, true);
+         deposit_pool(pool, v->owned_shares[pool_index], v->next_claim[pool_index], amount);
       });
 
       eosio::token::transfer_action transfer_act{ token_account, { owner, active_permission } };
@@ -307,7 +299,6 @@ namespace eosiosystem {
       require_auth(owner);
 
       auto& state        = get_vote_pool_state_mutable();
-      auto& stake_table  = get_vote_pool_stake_table();
       auto  core_symbol  = get_core_symbol();
       auto  current_time = eosio::current_block_time();
 
@@ -315,19 +306,15 @@ namespace eosiosystem {
       eosio::check(requested.symbol == core_symbol, "requested doesn't match core symbol");
       eosio::check(requested.amount > 0, "requested must be positive"); // TODO: higher minimum amount?
 
-      auto& pool   = state.pools[pool_index];
-      auto& stakes = stake_table.get(owner.value, "stake not found");
-      auto& voter  = _voters.get(owner.value, "voter record missing");
+      auto& pool  = state.pools[pool_index];
+      auto& voter = _voters.get(owner.value, "voter record missing");
       asset claimed_amount;
 
       _voters.modify(voter, same_payer, [&](auto& voter) {
-         stake_table.modify(stakes, same_payer, [&](auto& stakes) {
-            auto& owned_shares = get_voter_pool_votes(voter, true)->owned_shares[pool_index];
-            auto& stake        = stakes.stakes[pool_index];
-            eosio::check(current_time.slot >= stake.last_claim.slot + blocks_per_week, "claim too soon");
-            claimed_amount   = withdraw_vested(pool, owned_shares, stake, requested);
-            stake.last_claim = current_time;
-         });
+         auto* v = get_voter_pool_votes(voter, true);
+         eosio::check(current_time >= v->next_claim[pool_index], "claim too soon");
+         claimed_amount            = withdraw_pool(pool, v->owned_shares[pool_index], requested, true);
+         v->next_claim[pool_index] = eosio::block_timestamp(current_time.slot + pool.claim_period * 2);
       });
 
       eosio::check(pool.token_pool.shares() >= 0, "pool shares is negative");
@@ -356,7 +343,6 @@ namespace eosiosystem {
       eosio::check(eosio::is_account(to), "invalid account");
 
       auto& state        = get_vote_pool_state_mutable();
-      auto& stake_table  = get_vote_pool_stake_table();
       auto  core_symbol  = get_core_symbol();
       auto  current_time = eosio::current_block_time();
 
@@ -364,28 +350,20 @@ namespace eosiosystem {
       eosio::check(requested.symbol == core_symbol, "requested doesn't match core symbol");
       eosio::check(requested.amount > 0, "requested must be positive"); // TODO: higher minimum amount?
 
-      auto& pool        = state.pools[pool_index];
-      auto& from_voter  = _voters.get(from.value, "from voter record missing");
-      auto& to_voter    = _voters.get(to.value, "to voter record missing");
-      auto& from_stakes = stake_table.get(from.value, "stake not found");
-      auto& to_stakes   = stake_table.get(to.value, "receiver can't reveive stake");
+      auto& pool       = state.pools[pool_index];
+      auto& from_voter = _voters.get(from.value, "from voter record missing");
+      auto& to_voter   = _voters.get(to.value, "to voter record missing");
       asset transferred_amount;
 
       _voters.modify(from_voter, same_payer, [&](auto& from_voter) {
-         stake_table.modify(from_stakes, same_payer, [&](auto& from_stakes) {
-            auto& from_owned_shares = get_voter_pool_votes(from_voter, true)->owned_shares[pool_index];
-            auto& from_stake        = from_stakes.stakes[pool_index];
-            transferred_amount      = withdraw_vested(pool, from_owned_shares, from_stake, requested);
-            eosio::check(transferred_amount.amount > 0, "transferred 0");
-         });
+         auto* v            = get_voter_pool_votes(from_voter, true);
+         transferred_amount = withdraw_pool(pool, v->owned_shares[pool_index], requested, false);
+         eosio::check(transferred_amount.amount > 0, "transferred 0");
       });
 
       _voters.modify(to_voter, same_payer, [&](auto& to_voter) {
-         stake_table.modify(to_stakes, same_payer, [&](auto& to_stakes) {
-            auto& to_owned_shares = get_voter_pool_votes(to_voter, true)->owned_shares[pool_index];
-            auto& to_stake        = to_stakes.stakes[pool_index];
-            deposit_unvested(pool, to_owned_shares, to_stake, transferred_amount);
-         });
+         auto* v = get_voter_pool_votes(to_voter, true);
+         deposit_pool(pool, v->owned_shares[pool_index], v->next_claim[pool_index], transferred_amount);
       });
 
       eosio::check(pool.token_pool.shares() >= 0, "pool shares is negative");

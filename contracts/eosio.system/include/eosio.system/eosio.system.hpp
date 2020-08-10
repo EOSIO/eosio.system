@@ -271,11 +271,12 @@ namespace eosiosystem {
    };
 
    struct voter_pool_votes {
-      std::vector<double> owned_shares;   // shares in each pool
-      std::vector<double> proxied_shares; // shares in each pool delegated to this voter as a proxy
-      std::vector<double> last_votes;     // vote weights cast the last time the vote was updated
+      std::vector<block_timestamp> next_claim;     // next time user may claim shares
+      std::vector<double>          owned_shares;   // shares in each pool
+      std::vector<double>          proxied_shares; // shares in each pool delegated to this voter as a proxy
+      std::vector<double>          last_votes;     // vote weights cast the last time the vote was updated
 
-      EOSLIB_SERIALIZE(voter_pool_votes, (owned_shares)(proxied_shares)(last_votes))
+      EOSLIB_SERIALIZE(voter_pool_votes, (next_claim)(owned_shares)(proxied_shares)(last_votes))
    };
 
    // Voter info. Voter info stores information about the voter:
@@ -1370,6 +1371,7 @@ namespace eosiosystem {
          [[eosio::action]]
          void cfgvpool(
             const std::optional<uint32_vector>& durations,
+            const std::optional<std::vector<uint32_t>>& claim_periods,
             const std::optional<double>& prod_rate,
             const std::optional<double>& voter_rate);
          [[eosio::action]]
@@ -1555,7 +1557,6 @@ namespace eosiosystem {
          vote_pool_state& get_vote_pool_state_mutable(bool init_if_not_exist = false);
          const vote_pool_state& get_vote_pool_state();
          void save_vote_pool_state();
-         vote_pool_stake_table& get_vote_pool_stake_table();
          const prod_pool_votes* get_prod_pool_votes(const producer_info& info);
          prod_pool_votes* get_prod_pool_votes(producer_info& info);
          void enable_prod_pool_votes(producer_info& info);
@@ -1569,8 +1570,8 @@ namespace eosiosystem {
          std::vector<const producer_info*> top_active_producers(size_t n);
          void update_total_pool_votes(producer_info& prod, double pool_vote_weight);
          void update_total_pool_votes(size_t n);
-         void deposit_unvested(vote_pool& pool, double& owned_shares, per_pool_stake& stake, asset new_unvested);
-         asset withdraw_vested(vote_pool& pool, double& owned_shares, per_pool_stake& stake, asset max_requested);
+         void deposit_pool(vote_pool& pool, double& owned_shares, block_timestamp& next_claim, asset new_unvested);
+         asset withdraw_pool(vote_pool& pool, double& owned_shares, asset max_requested, bool claiming);
          void onblock_update_vpool(block_timestamp production_time);
    };
 

@@ -12,5 +12,4 @@ namespace eosiosystem {
    static constexpr uint32_t minutes_per_year  = seconds_per_year / 60;
    static constexpr uint32_t blocks_per_minute = 2 * 60;              // half seconds per minute
    static constexpr uint32_t blocks_per_day    = 2 * seconds_per_day; // half seconds per day
-   static constexpr uint32_t blocks_per_week   = 7 * blocks_per_day;  // half seconds per week
 } // namespace eosiosystem
