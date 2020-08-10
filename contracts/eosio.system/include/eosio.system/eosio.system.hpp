@@ -1371,7 +1371,7 @@ namespace eosiosystem {
          [[eosio::action]]
          void cfgvpool(
             const std::optional<uint32_vector>& durations,
-            const std::optional<std::vector<uint32_t>>& claim_periods,
+            const std::optional<uint32_vector>& claim_periods,
             const std::optional<double>& prod_rate,
             const std::optional<double>& voter_rate);
          [[eosio::action]]

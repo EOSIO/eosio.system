@@ -38,13 +38,18 @@ struct votepool_tester : eosio_system_tester {
    }
 
    action_result cfgvpool(name authorizer, const std::optional<std::vector<uint32_t>>& durations = nullopt,
-                          const std::optional<double>& prod_rate  = nullopt,
-                          const std::optional<double>& voter_rate = nullopt) {
+                          const std::optional<std::vector<uint32_t>>& claim_periods = nullopt,
+                          const std::optional<double>&                prod_rate     = nullopt,
+                          const std::optional<double>&                voter_rate    = nullopt) {
       mvo v;
       if (durations)
          v("durations", *durations);
       else
          v("durations", nullptr);
+      if (claim_periods)
+         v("claim_periods", *claim_periods);
+      else
+         v("claim_periods", nullptr);
       if (prod_rate)
          v("prod_rate", *prod_rate);
       else
@@ -92,19 +97,39 @@ BOOST_AUTO_TEST_CASE(cfgvpool) try {
 
    BOOST_REQUIRE_EQUAL("missing authority of eosio", t.cfgvpool(N(alice1111111), { { 1, 2, 3, 4 } }));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("durations is required on first use of cfgvpool"),
-                       t.cfgvpool(N(eosio), nullopt));
-   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("durations is empty"), t.cfgvpool(N(eosio), std::vector<uint32_t>{}));
-   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("duration must be positive"), t.cfgvpool(N(eosio), { { 0 } }));
-   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("durations out of order"), t.cfgvpool(N(eosio), { { 1, 2, 4, 3 } }));
-   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(N(eosio), { { 1, 2, 3, 4 } }));
-   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("durations can't change"), t.cfgvpool(N(eosio), { { 1, 2, 3 } }));
+                       t.cfgvpool(N(eosio), nullopt, nullopt));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("claim_periods is required on first use of cfgvpool"),
+                       t.cfgvpool(N(eosio), { { 1 } }, nullopt));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("durations is empty"),
+                       t.cfgvpool(N(eosio), std::vector<uint32_t>{}, std::vector<uint32_t>{}));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("mismatched vector sizes"),
+                       t.cfgvpool(N(eosio), { { 1 } }, std::vector<uint32_t>{}));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("mismatched vector sizes"),
+                       t.cfgvpool(N(eosio), { { 1, 2 } }, { { 1, 3, 4 } }));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("duration must be positive"), t.cfgvpool(N(eosio), { { 0 } }, { { 1 } }));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("claim_period must be positive"), t.cfgvpool(N(eosio), { { 1 } }, { { 0 } }));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("claim_period must be less than duration"),
+                       t.cfgvpool(N(eosio), { { 1 } }, { { 1 } }));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("claim_period must be less than duration"),
+                       t.cfgvpool(N(eosio), { { 10, 20 } }, { { 9, 20 } }));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("durations must be increasing"),
+                       t.cfgvpool(N(eosio), { { 2, 3, 4, 3 } }, { { 1, 1, 1, 1 } }));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("durations must be increasing"),
+                       t.cfgvpool(N(eosio), { { 2, 3, 4, 4 } }, { { 1, 1, 1, 1 } }));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("claim_periods must be non-decreasing"),
+                       t.cfgvpool(N(eosio), { { 3, 4, 5, 6 } }, { { 2, 2, 2, 1 } }));
+   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(N(eosio), { { 2, 3, 4, 5 } }, { { 1, 1, 3, 3 } }));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("durations can't change"), t.cfgvpool(N(eosio), { { 1, 2, 3 } }, nullopt));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("claim_periods can't change"), t.cfgvpool(N(eosio), nullopt, { { 1, 2, 3 } }));
 
-   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(N(eosio), nullopt, 0, .999));
-   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(N(eosio), nullopt, .999, 0));
-   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("prod_rate out of range"), t.cfgvpool(N(eosio), nullopt, -.001));
-   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("prod_rate out of range"), t.cfgvpool(N(eosio), nullopt, 1));
-   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("voter_rate out of range"), t.cfgvpool(N(eosio), nullopt, nullopt, -.001));
-   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("voter_rate out of range"), t.cfgvpool(N(eosio), nullopt, nullopt, 1));
+   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(N(eosio), nullopt, nullopt, 0, .999));
+   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(N(eosio), nullopt, nullopt, .999, 0));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("prod_rate out of range"), t.cfgvpool(N(eosio), nullopt, nullopt, -.001));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("prod_rate out of range"), t.cfgvpool(N(eosio), nullopt, nullopt, 1));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("voter_rate out of range"),
+                       t.cfgvpool(N(eosio), nullopt, nullopt, nullopt, -.001));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("voter_rate out of range"),
+                       t.cfgvpool(N(eosio), nullopt, nullopt, nullopt, 1));
 }
 FC_LOG_AND_RETHROW()
 
