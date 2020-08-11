@@ -41,7 +41,7 @@ struct votepool_tester : eosio_system_tester {
       BOOST_REQUIRE_EQUAL(success(), vote(N(bp11activate), {}));
    }
 
-   btime pending_time(int32_t delta_sec = 0) {
+   btime pending_time(double delta_sec = 0) {
       btime t = control->pending_block_time();
       t.slot += delta_sec * 2;
       return t;
@@ -179,6 +179,8 @@ BOOST_AUTO_TEST_CASE(stake2pool_no_inflation) try {
    votepool_tester t;
    BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(N(eosio), { { 1024, 2048 } }, { { 64, 256 } }));
    t.create_accounts_with_resources({ alice, bob }, N(eosio));
+   BOOST_REQUIRE_EQUAL(t.success(), t.stake(N(eosio), alice, a("1000.0000 TST"), a("1000.0000 TST")));
+   BOOST_REQUIRE_EQUAL(t.success(), t.stake(N(eosio), bob, a("1000.0000 TST"), a("1000.0000 TST")));
    t.transfer(N(eosio), alice, a("1000.0000 TST"), N(eosio));
    t.transfer(N(eosio), bob, a("1000.0000 TST"), N(eosio));
 
@@ -196,6 +198,45 @@ BOOST_AUTO_TEST_CASE(stake2pool_no_inflation) try {
                            ("owned_shares", vector({ 0.0, 2'0000.0 }))              //
                            ("proxied_shares", vector({ 0.0, 0.0 }))                 //
                            ("last_votes", vector({ 0.0, 2'0000.0 })),               //
+                           t.voter_pool_votes(bob));
+
+   // Increasing stake at the same time as the original; next_claim doesn't move
+
+   BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(alice, alice, 0, a("0.5000 TST")));
+   REQUIRE_MATCHING_OBJECT(mvo()                                                   //
+                           ("next_claim", vector({ t.pending_time(64), btime() })) //
+                           ("owned_shares", vector({ 1'5000.0, 0.0 }))             //
+                           ("proxied_shares", vector({ 0.0, 0.0 }))                //
+                           ("last_votes", vector({ 1'5000.0, 0.0 })),              //
+                           t.voter_pool_votes(alice));
+
+   BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(bob, bob, 1, a("1.0000 TST")));
+   REQUIRE_MATCHING_OBJECT(mvo()                                                    //
+                           ("next_claim", vector({ btime(), t.pending_time(256) })) //
+                           ("owned_shares", vector({ 0.0, 3'0000.0 }))              //
+                           ("proxied_shares", vector({ 0.0, 0.0 }))                 //
+                           ("last_votes", vector({ 0.0, 3'0000.0 })),               //
+                           t.voter_pool_votes(bob));
+
+   // Move time forward 16s. Increasing stake uses weighting to advance next_claim
+   t.produce_blocks(32);
+
+   // (48s, 1'5000.0), (64s, 0'7500.0) => (53s, 2'2500)
+   BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(alice, alice, 0, a("0.7500 TST")));
+   REQUIRE_MATCHING_OBJECT(mvo()                                                   //
+                           ("next_claim", vector({ t.pending_time(53), btime() })) //
+                           ("owned_shares", vector({ 2'2500.0, 0.0 }))             //
+                           ("proxied_shares", vector({ 0.0, 0.0 }))                //
+                           ("last_votes", vector({ 2'2500.0, 0.0 })),              //
+                           t.voter_pool_votes(alice));
+
+   // (240s, 3'0000.0), (256s, 6'0000.0) => (250.5s, 9'0000.0)
+   BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(bob, bob, 1, a("6.0000 TST")));
+   REQUIRE_MATCHING_OBJECT(mvo()                                                      //
+                           ("next_claim", vector({ btime(), t.pending_time(250.5) })) //
+                           ("owned_shares", vector({ 0.0, 9'0000.0 }))                //
+                           ("proxied_shares", vector({ 0.0, 0.0 }))                   //
+                           ("last_votes", vector({ 0.0, 9'0000.0 })),                 //
                            t.voter_pool_votes(bob));
 }
 FC_LOG_AND_RETHROW()
