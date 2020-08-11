@@ -17,7 +17,8 @@ using std::nullopt;
 
 auto a(const char* s) { return asset::from_string(s); }
 
-asset core(const std::string& s) { return core_sym::from_string(s); }
+constexpr auto alice = N(alice1111111);
+constexpr auto bob   = N(bob111111111);
 
 struct votepool_tester : eosio_system_tester {
    votepool_tester() : eosio_system_tester(setup_level::none) {
@@ -31,10 +32,10 @@ struct votepool_tester : eosio_system_tester {
    // 'bp11activate' votes for self, then unvotes
    void activate_chain() {
       create_account_with_resources(N(bp11activate), N(eosio));
-      transfer(N(eosio), N(bp11activate), core("150000000.0000"), N(eosio));
+      transfer(N(eosio), N(bp11activate), a("150000000.0000 TST"), N(eosio));
       BOOST_REQUIRE_EQUAL(success(), regproducer(N(bp11activate)));
       BOOST_REQUIRE_EQUAL(success(),
-                          stake(N(bp11activate), N(bp11activate), core("75000000.0000"), core("75000000.0000")));
+                          stake(N(bp11activate), N(bp11activate), a("75000000.0000 TST"), a("75000000.0000 TST")));
       BOOST_REQUIRE_EQUAL(success(), vote(N(bp11activate), { N(bp11activate) }));
       BOOST_REQUIRE_EQUAL(success(), vote(N(bp11activate), {}));
    }
@@ -95,9 +96,9 @@ BOOST_AUTO_TEST_SUITE(eosio_system_votepool_tests)
 
 BOOST_AUTO_TEST_CASE(cfgvpool) try {
    votepool_tester t;
-   t.create_accounts_with_resources({ N(alice1111111) }, N(eosio));
+   t.create_accounts_with_resources({ alice }, N(eosio));
 
-   BOOST_REQUIRE_EQUAL("missing authority of eosio", t.cfgvpool(N(alice1111111), { { 1, 2, 3, 4 } }));
+   BOOST_REQUIRE_EQUAL("missing authority of eosio", t.cfgvpool(alice, { { 1, 2, 3, 4 } }));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("durations is required on first use of cfgvpool"),
                        t.cfgvpool(N(eosio), nullopt, nullopt));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("claim_periods is required on first use of cfgvpool"),
@@ -135,24 +136,20 @@ BOOST_AUTO_TEST_CASE(cfgvpool) try {
 } // cfgvpool
 FC_LOG_AND_RETHROW()
 
-BOOST_AUTO_TEST_CASE(stake2pool) try {
+BOOST_AUTO_TEST_CASE(stake2pool_checks) try {
    votepool_tester t;
-   t.create_accounts_with_resources({ N(alice1111111), N(bob111111111) }, N(eosio));
+   t.create_accounts_with_resources({ alice }, N(eosio));
 
-   BOOST_REQUIRE_EQUAL("missing authority of bob", t.stake2pool(N(alice1111111), N(bob), 0, a("1.0000 TST")));
-   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("vote pools not initialized"),
-                       t.stake2pool(N(alice1111111), N(alice1111111), 0, a("1.0000 TST")));
+   BOOST_REQUIRE_EQUAL("missing authority of bob", t.stake2pool(alice, N(bob), 0, a("1.0000 TST")));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("vote pools not initialized"), t.stake2pool(alice, alice, 0, a("1.0000 TST")));
    BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(N(eosio), { { 2, 3, 4, 5 } }, { { 1, 1, 3, 3 } }));
-   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("invalid pool"),
-                       t.stake2pool(N(alice1111111), N(alice1111111), 4, a("1.0000 TST")));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("invalid pool"), t.stake2pool(alice, alice, 4, a("1.0000 TST")));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("amount doesn't match core symbol"),
-                       t.stake2pool(N(alice1111111), N(alice1111111), 3, a("1.0000 FOO")));
+                       t.stake2pool(alice, alice, 3, a("1.0000 FOO")));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("amount doesn't match core symbol"),
-                       t.stake2pool(N(alice1111111), N(alice1111111), 3, a("1.000 FOO")));
-   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("amount must be positive"),
-                       t.stake2pool(N(alice1111111), N(alice1111111), 3, a("0.0000 TST")));
-   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("amount must be positive"),
-                       t.stake2pool(N(alice1111111), N(alice1111111), 3, a("-1.0000 TST")));
+                       t.stake2pool(alice, alice, 3, a("1.000 FOO")));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("amount must be positive"), t.stake2pool(alice, alice, 3, a("0.0000 TST")));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("amount must be positive"), t.stake2pool(alice, alice, 3, a("-1.0000 TST")));
 }
 FC_LOG_AND_RETHROW()
 
