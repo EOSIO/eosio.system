@@ -14,6 +14,7 @@
 
 using namespace eosio_system;
 using std::nullopt;
+using btime = block_timestamp_type;
 
 auto a(const char* s) { return asset::from_string(s); }
 
@@ -38,6 +39,27 @@ struct votepool_tester : eosio_system_tester {
                           stake(N(bp11activate), N(bp11activate), a("75000000.0000 TST"), a("75000000.0000 TST")));
       BOOST_REQUIRE_EQUAL(success(), vote(N(bp11activate), { N(bp11activate) }));
       BOOST_REQUIRE_EQUAL(success(), vote(N(bp11activate), {}));
+   }
+
+   btime pending_time(int32_t delta_sec = 0) {
+      btime t = control->pending_block_time();
+      t.slot += delta_sec * 2;
+      return t;
+   }
+
+   fc::variant voter_pool_votes(name owner) { return get_voter_info(owner)["pool_votes"]; }
+
+   // Like eosio_system_tester::push_action, but doesn't move time forward
+   action_result push_action(name authorizer, name act, const variant_object& data) {
+      try {
+         // Some overloads move time forward, some don't. Use one that doesn't,
+         // but translate the exception like one that does.
+         base_tester::push_action(N(eosio), act, authorizer, data, 1, 0);
+      } catch (const fc::exception& ex) {
+         edump((ex.to_detail_string()));
+         return error(ex.top_message());
+      }
+      return success();
    }
 
    action_result cfgvpool(name authorizer, const std::optional<std::vector<uint32_t>>& durations = nullopt,
@@ -150,6 +172,31 @@ BOOST_AUTO_TEST_CASE(stake2pool_checks) try {
                        t.stake2pool(alice, alice, 3, a("1.000 FOO")));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("amount must be positive"), t.stake2pool(alice, alice, 3, a("0.0000 TST")));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("amount must be positive"), t.stake2pool(alice, alice, 3, a("-1.0000 TST")));
+}
+FC_LOG_AND_RETHROW()
+
+BOOST_AUTO_TEST_CASE(stake2pool_no_inflation) try {
+   votepool_tester t;
+   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(N(eosio), { { 1024, 2048 } }, { { 64, 256 } }));
+   t.create_accounts_with_resources({ alice, bob }, N(eosio));
+   t.transfer(N(eosio), alice, a("1000.0000 TST"), N(eosio));
+   t.transfer(N(eosio), bob, a("1000.0000 TST"), N(eosio));
+
+   BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(alice, alice, 0, a("1.0000 TST")));
+   REQUIRE_MATCHING_OBJECT(mvo()                                                   //
+                           ("next_claim", vector({ t.pending_time(64), btime() })) //
+                           ("owned_shares", vector({ 1'0000.0, 0.0 }))             //
+                           ("proxied_shares", vector({ 0.0, 0.0 }))                //
+                           ("last_votes", vector({ 1'0000.0, 0.0 })),              //
+                           t.voter_pool_votes(alice));
+
+   BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(bob, bob, 1, a("2.0000 TST")));
+   REQUIRE_MATCHING_OBJECT(mvo()                                                    //
+                           ("next_claim", vector({ btime(), t.pending_time(256) })) //
+                           ("owned_shares", vector({ 0.0, 2'0000.0 }))              //
+                           ("proxied_shares", vector({ 0.0, 0.0 }))                 //
+                           ("last_votes", vector({ 0.0, 2'0000.0 })),               //
+                           t.voter_pool_votes(bob));
 }
 FC_LOG_AND_RETHROW()
 
