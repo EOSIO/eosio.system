@@ -160,13 +160,23 @@ FC_LOG_AND_RETHROW()
 
 BOOST_AUTO_TEST_CASE(checks) try {
    votepool_tester t;
-   t.create_accounts_with_resources({ alice }, N(eosio));
+   t.create_accounts_with_resources({ alice, bob }, N(eosio));
 
    BOOST_REQUIRE_EQUAL("missing authority of bob", t.stake2pool(alice, N(bob), 0, a("1.0000 TST")));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("vote pools not initialized"), t.stake2pool(alice, alice, 0, a("1.0000 TST")));
 
    BOOST_REQUIRE_EQUAL("missing authority of bob", t.claimstake(alice, N(bob), 0, a("1.0000 TST")));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("vote pools not initialized"), t.claimstake(alice, alice, 0, a("1.0000 TST")));
+
+   BOOST_REQUIRE_EQUAL("missing authority of bob", t.transferstake(alice, N(bob), alice, 0, a("1.0000 TST"), "memo"));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("memo has more than 256 bytes"),
+                       t.transferstake(alice, alice, bob, 0, a("1.0000 TST"), std::string(257, 'x')));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("from = to"),
+                       t.transferstake(alice, alice, alice, 0, a("1.0000 TST"), std::string(256, 'x')));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("invalid account"),
+                       t.transferstake(alice, alice, N(oops), 0, a("1.0000 TST"), ""));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("vote pools not initialized"),
+                       t.transferstake(alice, alice, bob, 0, a("1.0000 TST"), ""));
 
    BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(N(eosio), { { 2, 3, 4, 5 } }, { { 1, 1, 3, 3 } }));
 
@@ -189,6 +199,20 @@ BOOST_AUTO_TEST_CASE(checks) try {
    t.transfer(N(eosio), alice, a("2.0000 TST"), N(eosio));
    BOOST_REQUIRE_EQUAL(t.success(), t.stake(alice, alice, a("1.0000 TST"), a("1.0000 TST")));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("voter is not upgraded"), t.claimstake(alice, alice, 0, a("1.0000 TST")));
+
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("invalid pool"), t.transferstake(alice, alice, bob, 4, a("1.0000 TST"), ""));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("requested doesn't match core symbol"),
+                       t.transferstake(alice, alice, bob, 0, a("1.0000 OOPS"), ""));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("requested doesn't match core symbol"),
+                       t.transferstake(alice, alice, bob, 0, a("1.000 TST"), ""));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("requested must be positive"),
+                       t.transferstake(alice, alice, bob, 0, a("0.0000 TST"), ""));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("requested must be positive"),
+                       t.transferstake(alice, alice, bob, 0, a("-1.0000 TST"), ""));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("from voter record missing"),
+                       t.transferstake(bob, bob, alice, 0, a("1.0000 TST"), ""));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("to voter record missing"),
+                       t.transferstake(alice, alice, bob, 0, a("1.0000 TST"), ""));
 } // checks
 FC_LOG_AND_RETHROW()
 
