@@ -158,13 +158,18 @@ BOOST_AUTO_TEST_CASE(cfgvpool) try {
 } // cfgvpool
 FC_LOG_AND_RETHROW()
 
-BOOST_AUTO_TEST_CASE(stake2pool_checks) try {
+BOOST_AUTO_TEST_CASE(checks) try {
    votepool_tester t;
    t.create_accounts_with_resources({ alice }, N(eosio));
 
    BOOST_REQUIRE_EQUAL("missing authority of bob", t.stake2pool(alice, N(bob), 0, a("1.0000 TST")));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("vote pools not initialized"), t.stake2pool(alice, alice, 0, a("1.0000 TST")));
+
+   BOOST_REQUIRE_EQUAL("missing authority of bob", t.claimstake(alice, N(bob), 0, a("1.0000 TST")));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("vote pools not initialized"), t.claimstake(alice, alice, 0, a("1.0000 TST")));
+
    BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(N(eosio), { { 2, 3, 4, 5 } }, { { 1, 1, 3, 3 } }));
+
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("invalid pool"), t.stake2pool(alice, alice, 4, a("1.0000 TST")));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("amount doesn't match core symbol"),
                        t.stake2pool(alice, alice, 3, a("1.0000 FOO")));
@@ -172,10 +177,23 @@ BOOST_AUTO_TEST_CASE(stake2pool_checks) try {
                        t.stake2pool(alice, alice, 3, a("1.000 FOO")));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("amount must be positive"), t.stake2pool(alice, alice, 3, a("0.0000 TST")));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("amount must be positive"), t.stake2pool(alice, alice, 3, a("-1.0000 TST")));
-}
+
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("invalid pool"), t.claimstake(alice, alice, 4, a("1.0000 TST")));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("requested doesn't match core symbol"),
+                       t.claimstake(alice, alice, 3, a("1.0000 FOO")));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("requested must be positive"), t.claimstake(alice, alice, 3, a("0.0000 TST")));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("requested must be positive"),
+                       t.claimstake(alice, alice, 3, a("-1.0000 TST")));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("voter record missing"), t.claimstake(alice, alice, 3, a("1.0000 TST")));
+
+   t.transfer(N(eosio), alice, a("2.0000 TST"), N(eosio));
+   BOOST_REQUIRE_EQUAL(t.success(), t.stake(alice, alice, a("1.0000 TST"), a("1.0000 TST")));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("voter is not upgraded"), t.claimstake(alice, alice, 0, a("1.0000 TST")));
+} // checks
 FC_LOG_AND_RETHROW()
 
-BOOST_AUTO_TEST_CASE(stake2pool_no_inflation) try {
+// Without inflation, 1.0 share = 0.0001 SYS
+BOOST_AUTO_TEST_CASE(no_inflation) try {
    votepool_tester t;
    BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(N(eosio), { { 1024, 2048 } }, { { 64, 256 } }));
    t.create_accounts_with_resources({ alice, bob }, N(eosio));
@@ -221,7 +239,7 @@ BOOST_AUTO_TEST_CASE(stake2pool_no_inflation) try {
    // Move time forward 16s. Increasing stake uses weighting to advance next_claim
    t.produce_blocks(32);
 
-   // (48s, 1'5000.0), (64s, 0'7500.0) => (53s, 2'2500)
+   // stake-weighting next_claim: (48s, 1'5000.0), (64s, 0'7500.0) => (53s, 2'2500)
    BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(alice, alice, 0, a("0.7500 TST")));
    REQUIRE_MATCHING_OBJECT(mvo()                                                   //
                            ("next_claim", vector({ t.pending_time(53), btime() })) //
@@ -230,7 +248,7 @@ BOOST_AUTO_TEST_CASE(stake2pool_no_inflation) try {
                            ("last_votes", vector({ 2'2500.0, 0.0 })),              //
                            t.voter_pool_votes(alice));
 
-   // (240s, 3'0000.0), (256s, 6'0000.0) => (250.5s, 9'0000.0)
+   // stake-weighting next_claim: (240s, 3'0000.0), (256s, 6'0000.0) => (250.5s, 9'0000.0)
    BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(bob, bob, 1, a("6.0000 TST")));
    REQUIRE_MATCHING_OBJECT(mvo()                                                      //
                            ("next_claim", vector({ btime(), t.pending_time(250.5) })) //
@@ -238,7 +256,40 @@ BOOST_AUTO_TEST_CASE(stake2pool_no_inflation) try {
                            ("proxied_shares", vector({ 0.0, 0.0 }))                   //
                            ("last_votes", vector({ 0.0, 9'0000.0 })),                 //
                            t.voter_pool_votes(bob));
-}
+
+   // Move time forward 52.5s (1 block before alice may claim)
+   t.produce_blocks(105);
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("claim too soon"), t.claimstake(alice, alice, 0, a("1.0000 TST")));
+
+   // 2.2500 * 64/1024 ~= 0.1406
+   t.produce_block();
+   auto alice_bal = t.get_balance(alice);
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("withdrawing 0"), t.claimstake(alice, alice, 1, a("10000.0000 TST")));
+   BOOST_REQUIRE_EQUAL(t.success(), t.claimstake(alice, alice, 0, a("10000.0000 TST")));
+   BOOST_REQUIRE_EQUAL(t.get_balance(alice).get_amount(), alice_bal.get_amount() + 1406);
+   REQUIRE_MATCHING_OBJECT(mvo()                                                   //
+                           ("next_claim", vector({ t.pending_time(64), btime() })) //
+                           ("owned_shares", vector({ 2'1094.0, 0.0 }))             //
+                           ("proxied_shares", vector({ 0.0, 0.0 }))                //
+                           ("last_votes", vector({ 2'1094.0, 0.0 })),              //
+                           t.voter_pool_votes(alice));
+
+   // Move time far forward
+   t.produce_block();
+   t.produce_block(fc::days(300));
+
+   // 9.0000 * 256/2048 = 1.1250
+   auto bob_bal = t.get_balance(bob);
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("withdrawing 0"), t.claimstake(bob, bob, 0, a("10000.0000 TST")));
+   BOOST_REQUIRE_EQUAL(t.success(), t.claimstake(bob, bob, 1, a("10000.0000 TST")));
+   BOOST_REQUIRE_EQUAL(t.get_balance(bob).get_amount(), bob_bal.get_amount() + 1'1250);
+   REQUIRE_MATCHING_OBJECT(mvo()                                                      //
+                           ("next_claim", vector({ btime(), t.pending_time(256.0) })) //
+                           ("owned_shares", vector({ 0.0, 7'8750.0 }))                //
+                           ("proxied_shares", vector({ 0.0, 0.0 }))                   //
+                           ("last_votes", vector({ 0.0, 7'8750.0 })),                 //
+                           t.voter_pool_votes(bob));
+} // no_inflation
 FC_LOG_AND_RETHROW()
 
 BOOST_AUTO_TEST_SUITE_END()
