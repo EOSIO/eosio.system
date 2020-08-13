@@ -318,7 +318,7 @@ namespace eosiosystem {
       });
 
       eosio::check(pool.token_pool.shares() >= 0, "pool shares is negative");
-      eosio::check(pool.token_pool.balance().amount >= 0, "pool amount is negative");
+      eosio::check(pool.token_pool.bal().amount >= 0, "pool amount is negative");
       save_vote_pool_state();
 
       if (claimed_amount.amount) {
@@ -367,7 +367,7 @@ namespace eosiosystem {
       });
 
       eosio::check(pool.token_pool.shares() >= 0, "pool shares is negative");
-      eosio::check(pool.token_pool.balance().amount >= 0, "pool amount is negative");
+      eosio::check(pool.token_pool.bal().amount >= 0, "pool amount is negative");
 
       update_votes(from, from_voter.proxy, from_voter.producers, false);
       update_votes(to, to_voter.proxy, to_voter.producers, false);

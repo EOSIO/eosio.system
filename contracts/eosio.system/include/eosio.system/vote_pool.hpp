@@ -10,59 +10,59 @@ namespace eosiosystem {
 
    class pool {
     public:
-      void init(eosio::symbol s) { _balance = { 0, s }; }
+      void init(eosio::symbol s) { balance = { 0, s }; }
 
-      auto shares() const { return _total_shares; }
-      auto balance() const { return _balance; }
+      auto shares() const { return total_shares; }
+      auto bal() const { return balance; }
 
-      void adjust(eosio::asset delta) { _balance += delta; }
+      void adjust(eosio::asset delta) { balance += delta; }
 
       double buy(eosio::asset b) {
          auto out = simulate_buy(b);
-         _balance += b;
-         _total_shares += out;
+         balance += b;
+         total_shares += out;
          return out;
       }
 
       eosio::asset sell(double s) {
          auto out = simulate_sell(s);
-         _balance -= out;
-         _total_shares -= s;
+         balance -= out;
+         total_shares -= s;
          return out;
       }
 
       double simulate_buy(eosio::asset b) const {
          if (!b.amount)
             return 0;
-         if (!_total_shares)
+         if (!total_shares)
             return b.amount;
          else
-            return (b.amount * _total_shares) / double(_balance.amount);
+            return (b.amount * total_shares) / double(balance.amount);
       }
 
       eosio::asset simulate_sell(double s) const {
          if (!s)
-            return eosio::asset{ 0, _balance.symbol };
-         if (s >= _total_shares)
-            return _balance;
-         eosio::check(_total_shares > 0, "no shares in pool");
+            return eosio::asset{ 0, balance.symbol };
+         if (s >= total_shares)
+            return balance;
+         eosio::check(total_shares > 0, "no shares in pool");
 
-         return eosio::asset(double(s) * double(_balance.amount) / double(_total_shares), _balance.symbol);
+         return eosio::asset(double(s) * double(balance.amount) / double(total_shares), balance.symbol);
       }
 
       // the number of shares need to get d_out
       double simulate_sell(eosio::asset d_out) const {
-         if (d_out == _balance)
-            return _total_shares;
+         if (d_out == balance)
+            return total_shares;
          else if (!d_out.amount)
             return 0;
-         return (d_out.amount * _total_shares) / double(_balance.amount);
+         return (d_out.amount * total_shares) / double(balance.amount);
       }
 
     private:
-      eosio::asset _balance;
-      double       _total_shares = 0;
-      EOSLIB_SERIALIZE(pool, (_total_shares)(_balance))
+      eosio::asset balance;
+      double       total_shares = 0;
+      EOSLIB_SERIALIZE(pool, (balance)(total_shares))
    };
 
    struct vote_pool {
