@@ -20,6 +20,7 @@ auto a(const char* s) { return asset::from_string(s); }
 
 constexpr auto alice = N(alice1111111);
 constexpr auto bob   = N(bob111111111);
+constexpr auto jane  = N(jane11111111);
 
 struct votepool_tester : eosio_system_tester {
    votepool_tester() : eosio_system_tester(setup_level::none) {
@@ -220,11 +221,15 @@ FC_LOG_AND_RETHROW()
 BOOST_AUTO_TEST_CASE(no_inflation) try {
    votepool_tester t;
    BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(N(eosio), { { 1024, 2048 } }, { { 64, 256 } }));
-   t.create_accounts_with_resources({ alice, bob }, N(eosio));
+   t.create_accounts_with_resources({ alice, bob, jane }, N(eosio));
    BOOST_REQUIRE_EQUAL(t.success(), t.stake(N(eosio), alice, a("1000.0000 TST"), a("1000.0000 TST")));
    BOOST_REQUIRE_EQUAL(t.success(), t.stake(N(eosio), bob, a("1000.0000 TST"), a("1000.0000 TST")));
+   BOOST_REQUIRE_EQUAL(t.success(), t.stake(N(eosio), jane, a("1000.0000 TST"), a("1000.0000 TST")));
    t.transfer(N(eosio), alice, a("1000.0000 TST"), N(eosio));
    t.transfer(N(eosio), bob, a("1000.0000 TST"), N(eosio));
+   t.transfer(N(eosio), jane, a("1000.0000 TST"), N(eosio));
+   BOOST_REQUIRE_EQUAL(t.success(), t.stake(jane, jane, a("0.0001 TST"), a("0.0001 TST")));
+   BOOST_REQUIRE_EQUAL(t.success(), t.unstake(jane, jane, a("0.0001 TST"), a("0.0001 TST")));
 
    BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(alice, alice, 0, a("1.0000 TST")));
    REQUIRE_MATCHING_OBJECT(mvo()                                                   //
@@ -313,6 +318,90 @@ BOOST_AUTO_TEST_CASE(no_inflation) try {
                            ("proxied_shares", vector({ 0.0, 0.0 }))                   //
                            ("last_votes", vector({ 0.0, 7'8750.0 })),                 //
                            t.voter_pool_votes(bob));
+
+   // Move time far forward 192s
+   t.produce_blocks(384);
+   REQUIRE_MATCHING_OBJECT(mvo()                                                   //
+                           ("next_claim", vector({ btime(), t.pending_time(64) })) //
+                           ("owned_shares", vector({ 0.0, 7'8750.0 }))             //
+                           ("proxied_shares", vector({ 0.0, 0.0 }))                //
+                           ("last_votes", vector({ 0.0, 7'8750.0 })),              //
+                           t.voter_pool_votes(bob));
+
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("voter is not upgraded"),
+                       t.transferstake(bob, bob, jane, 1, a("1.0000 TST"), ""));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("voter is not upgraded"),
+                       t.transferstake(jane, jane, bob, 1, a("1.0000 TST"), ""));
+
+   BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(jane, jane, 0, a("1.0000 TST")));
+   REQUIRE_MATCHING_OBJECT(mvo()                                                   //
+                           ("next_claim", vector({ t.pending_time(64), btime() })) //
+                           ("owned_shares", vector({ 1'0000.0, 0.0 }))             //
+                           ("proxied_shares", vector({ 0.0, 0.0 }))                //
+                           ("last_votes", vector({ 1'0000.0, 0.0 })),              //
+                           t.voter_pool_votes(jane));
+
+   // transfer bob -> jane. bob's next_claim doesn't change. jane's next_claim is fresh.
+   BOOST_REQUIRE_EQUAL(t.success(), t.transferstake(bob, bob, jane, 1, a("4.0000 TST"), ""));
+   REQUIRE_MATCHING_OBJECT(mvo()                                                   //
+                           ("next_claim", vector({ btime(), t.pending_time(64) })) //
+                           ("owned_shares", vector({ 0.0, 3'8750.0 }))             //
+                           ("proxied_shares", vector({ 0.0, 0.0 }))                //
+                           ("last_votes", vector({ 0.0, 3'8750.0 })),              //
+                           t.voter_pool_votes(bob));
+   REQUIRE_MATCHING_OBJECT(mvo()                                                               //
+                           ("next_claim", vector({ t.pending_time(64), t.pending_time(256) })) //
+                           ("owned_shares", vector({ 1'0000.0, 4'0000.0 }))                    //
+                           ("proxied_shares", vector({ 0.0, 0.0 }))                            //
+                           ("last_votes", vector({ 1'0000.0, 4'0000.0 })),                     //
+                           t.voter_pool_votes(jane));
+
+   // transfer jane -> bob. bob's next_claim moves.
+   // (3.8750, 64s), (2.0000, 256s) => (5.8750, 129s)
+   BOOST_REQUIRE_EQUAL(t.success(), t.transferstake(jane, jane, bob, 1, a("2.0000 TST"), ""));
+   REQUIRE_MATCHING_OBJECT(mvo()                                                    //
+                           ("next_claim", vector({ btime(), t.pending_time(129) })) //
+                           ("owned_shares", vector({ 0.0, 5'8750.0 }))              //
+                           ("proxied_shares", vector({ 0.0, 0.0 }))                 //
+                           ("last_votes", vector({ 0.0, 5'8750.0 })),               //
+                           t.voter_pool_votes(bob));
+   REQUIRE_MATCHING_OBJECT(mvo()                                                               //
+                           ("next_claim", vector({ t.pending_time(64), t.pending_time(256) })) //
+                           ("owned_shares", vector({ 1'0000.0, 2'0000.0 }))                    //
+                           ("proxied_shares", vector({ 0.0, 0.0 }))                            //
+                           ("last_votes", vector({ 1'0000.0, 2'0000.0 })),                     //
+                           t.voter_pool_votes(jane));
+
+   // Move time far forward 32s
+   t.produce_blocks(64);
+   REQUIRE_MATCHING_OBJECT(mvo()                                                   //
+                           ("next_claim", vector({ btime(), t.pending_time(97) })) //
+                           ("owned_shares", vector({ 0.0, 5'8750.0 }))             //
+                           ("proxied_shares", vector({ 0.0, 0.0 }))                //
+                           ("last_votes", vector({ 0.0, 5'8750.0 })),              //
+                           t.voter_pool_votes(bob));
+   REQUIRE_MATCHING_OBJECT(mvo()                                                               //
+                           ("next_claim", vector({ t.pending_time(32), t.pending_time(224) })) //
+                           ("owned_shares", vector({ 1'0000.0, 2'0000.0 }))                    //
+                           ("proxied_shares", vector({ 0.0, 0.0 }))                            //
+                           ("last_votes", vector({ 1'0000.0, 2'0000.0 })),                     //
+                           t.voter_pool_votes(jane));
+
+   // transfer jane -> bob. Even though jane's next_claim is 224, the transfer counts as 256 at the receiver.
+   // (5.8750, 97s), (1.0000, 256s) => (6.8750, 120s)
+   BOOST_REQUIRE_EQUAL(t.success(), t.transferstake(jane, jane, bob, 1, a("1.0000 TST"), ""));
+   REQUIRE_MATCHING_OBJECT(mvo()                                                    //
+                           ("next_claim", vector({ btime(), t.pending_time(120) })) //
+                           ("owned_shares", vector({ 0.0, 6'8750.0 }))              //
+                           ("proxied_shares", vector({ 0.0, 0.0 }))                 //
+                           ("last_votes", vector({ 0.0, 6'8750.0 })),               //
+                           t.voter_pool_votes(bob));
+   REQUIRE_MATCHING_OBJECT(mvo()                                                               //
+                           ("next_claim", vector({ t.pending_time(32), t.pending_time(224) })) //
+                           ("owned_shares", vector({ 1'0000.0, 1'0000.0 }))                    //
+                           ("proxied_shares", vector({ 0.0, 0.0 }))                            //
+                           ("last_votes", vector({ 1'0000.0, 1'0000.0 })),                     //
+                           t.voter_pool_votes(jane));
 } // no_inflation
 FC_LOG_AND_RETHROW()
 
