@@ -663,13 +663,41 @@ BOOST_AUTO_TEST_CASE(pool_inflation) try {
    t.check_vpool_totals(users);
    alice_shares -= alice_sell_shares;
    alice_bal += alice_returned_funds;
+   pool_0_balance -= alice_returned_funds;
    BOOST_REQUIRE_EQUAL(t.get_balance(alice), alice_bal);
+   BOOST_REQUIRE_EQUAL(t.get_balance(vpool), pool_0_balance + pool_1_balance);
    REQUIRE_MATCHING_OBJECT(mvo()                                                   //
                            ("next_claim", vector({ t.pending_time(64), btime() })) //
                            ("owned_shares", vector({ alice_shares, 0.0 }))         //
                            ("proxied_shares", vector({ 0.0, 0.0 }))                //
                            ("last_votes", vector({ alice_shares, 0.0 })),          //
                            t.voter_pool_votes(alice));
+
+   // BPs miss 30 blocks
+   t.produce_block();
+   t.produce_block(fc::milliseconds(15'500));
+   t.produce_to(interval_start.to_time_point() + fc::milliseconds(60'500));
+   interval_start = interval_start.to_time_point() + fc::seconds(60);
+   REQUIRE_MATCHING_OBJECT(mvo()                              //
+                           ("prod_rate", 0.0)                 //
+                           ("voter_rate", 0.5)                //
+                           ("interval_start", interval_start) //
+                           ("unpaid_blocks", 90),             //
+                           t.get_vpoolstate());
+
+   // check inflation with missed blocks
+   BOOST_REQUIRE_EQUAL(t.success(), t.updatepay(jane, jane));
+   auto pay_scale = pow((double)90 / 120, 10);
+   per_pool_inflation =
+         asset(supply.get_amount() * rate * pay_scale / eosiosystem::minutes_per_year / num_pools, symbol{ CORE_SYM });
+   pool_0_balance += per_pool_inflation;
+   pool_1_balance += per_pool_inflation;
+   supply = supply + per_pool_inflation + per_pool_inflation;
+   BOOST_REQUIRE_EQUAL(t.get_token_supply(), supply);
+   BOOST_REQUIRE_EQUAL(t.get_balance(vpool), pool_0_balance + pool_1_balance);
+   BOOST_REQUIRE_EQUAL(t.get_balance(bvpay), a("0.0000 TST"));
+   BOOST_REQUIRE_EQUAL(t.get_vpoolstate()["pools"][int(0)]["token_pool"]["balance"].as<asset>(), pool_0_balance);
+   BOOST_REQUIRE_EQUAL(t.get_vpoolstate()["pools"][int(1)]["token_pool"]["balance"].as<asset>(), pool_1_balance);
 } // pool_inflation
 FC_LOG_AND_RETHROW()
 
