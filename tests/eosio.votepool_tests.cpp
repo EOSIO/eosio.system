@@ -25,6 +25,9 @@ constexpr auto bvpay = N(eosio.bvpay);
 constexpr auto alice = N(alice1111111);
 constexpr auto bob   = N(bob111111111);
 constexpr auto jane  = N(jane11111111);
+constexpr auto bpa   = N(bpa111111111);
+constexpr auto bpb   = N(bpb111111111);
+constexpr auto bpc   = N(bpc111111111);
 
 struct votepool_tester : eosio_system_tester {
    votepool_tester() : eosio_system_tester(setup_level::none) {
@@ -35,7 +38,7 @@ struct votepool_tester : eosio_system_tester {
       activate_chain();
    }
 
-   // 'bp11activate' votes for self, then unvotes
+   // 'bp11activate' votes for self, then unvotes and unregisters
    void activate_chain() {
       create_account_with_resources(N(bp11activate), sys);
       transfer(sys, N(bp11activate), a("150000000.0000 TST"), sys);
@@ -44,6 +47,7 @@ struct votepool_tester : eosio_system_tester {
                           stake(N(bp11activate), N(bp11activate), a("75000000.0000 TST"), a("75000000.0000 TST")));
       BOOST_REQUIRE_EQUAL(success(), vote(N(bp11activate), { N(bp11activate) }));
       BOOST_REQUIRE_EQUAL(success(), vote(N(bp11activate), {}));
+      BOOST_REQUIRE_EQUAL(success(), push_action(N(bp11activate), N(unregprod), mvo()("producer", N(bp11activate))));
    }
 
    btime pending_time(double delta_sec = 0) {
@@ -261,7 +265,7 @@ BOOST_AUTO_TEST_CASE(checks) try {
 } // checks
 FC_LOG_AND_RETHROW()
 
-// Without inflation, 1.0 share = 0.0001 SYS
+// Without inflation, 1.0 share = 0.0001 TST
 BOOST_AUTO_TEST_CASE(no_inflation) try {
    votepool_tester   t;
    std::vector<name> users = { alice, bob, jane };
@@ -466,7 +470,7 @@ FC_LOG_AND_RETHROW()
 
 BOOST_AUTO_TEST_CASE(pool_inflation) try {
    votepool_tester   t;
-   std::vector<name> users     = { alice, bob, jane };
+   std::vector<name> users     = { alice, bob, jane, bpa, bpb, bpc };
    int               num_pools = 2;
    BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, { { 1024, 2048 } }, { { 64, 256 } }));
    t.create_accounts_with_resources(users, sys);
@@ -700,5 +704,52 @@ BOOST_AUTO_TEST_CASE(pool_inflation) try {
    BOOST_REQUIRE_EQUAL(t.get_vpoolstate()["pools"][int(1)]["token_pool"]["balance"].as<asset>(), pool_1_balance);
 } // pool_inflation
 FC_LOG_AND_RETHROW()
+
+BOOST_AUTO_TEST_CASE(prod_inflation) try {
+   votepool_tester   t;
+   std::vector<name> users     = { alice, bpa, bpb, bpc };
+   int               num_pools = 2;
+   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, { { 1024, 2048 } }, { { 64, 256 } }));
+   t.create_accounts_with_resources(users, sys);
+   BOOST_REQUIRE_EQUAL(t.success(), t.stake(sys, alice, a("1000.0000 TST"), a("1000.0000 TST")));
+   t.transfer(sys, alice, a("1000.0000 TST"), sys);
+   BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(alice, alice, 0, a("1.0000 TST")));
+   BOOST_REQUIRE_EQUAL(t.success(), t.regproducer(bpa));
+   BOOST_REQUIRE_EQUAL(t.success(), t.regproducer(bpb));
+   BOOST_REQUIRE_EQUAL(t.success(), t.regproducer(bpc));
+   BOOST_REQUIRE_EQUAL(t.success(), t.vote(alice, { bpa, bpb, bpc }));
+
+   btime interval_start(time_point::from_iso_string("2020-01-01T00:00:00.000"));
+
+   // Go to whole interval
+   t.produce_to(interval_start.to_time_point() + fc::milliseconds(120'500));
+   interval_start = interval_start.to_time_point() + fc::seconds(120);
+   REQUIRE_MATCHING_OBJECT(mvo()                              //
+                           ("prod_rate", 0.0)                 //
+                           ("voter_rate", 0.0)                //
+                           ("interval_start", interval_start) //
+                           ("unpaid_blocks", 120),            //
+                           t.get_vpoolstate());
+
+   auto supply = t.get_token_supply();
+   BOOST_REQUIRE_EQUAL(t.success(), t.updatepay(alice, alice));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("already processed pay for this time interval"), t.updatepay(bpa, bpa));
+
+   REQUIRE_MATCHING_OBJECT(mvo()                              //
+                           ("prod_rate", 0.0)                 //
+                           ("voter_rate", 0.0)                //
+                           ("interval_start", interval_start) //
+                           ("unpaid_blocks", 0),              //
+                           t.get_vpoolstate());
+
+   // inflation is 0
+   BOOST_REQUIRE_EQUAL(supply, t.get_token_supply());
+   BOOST_REQUIRE_EQUAL(t.get_balance(bvpay), a("0.0000 TST"));
+} // prod_inflation
+FC_LOG_AND_RETHROW()
+
+// TODO: voting
+// TODO: proxy
+// TODO: producer pay: 50, 80/20 rule
 
 BOOST_AUTO_TEST_SUITE_END()
