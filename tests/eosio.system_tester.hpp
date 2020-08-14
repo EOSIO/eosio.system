@@ -5,6 +5,7 @@
 #include <eosio/chain/resource_limits.hpp>
 #include "contracts.hpp"
 #include "test_symbol.hpp"
+#include "../contracts/eosio.system/include/eosio.system/time_constants.hpp"
 
 #include <fc/variant_object.hpp>
 #include <fstream>

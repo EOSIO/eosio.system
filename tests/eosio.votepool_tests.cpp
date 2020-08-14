@@ -52,6 +52,11 @@ struct votepool_tester : eosio_system_tester {
       return t;
    }
 
+   void produce_to(time_point t) {
+      while (control->pending_block_time() < t)
+         produce_block();
+   }
+
    fc::variant voter_pool_votes(name owner) {
       auto info = get_voter_info(owner);
       if (!info.is_null() && info.get_object().contains("pool_votes"))
@@ -214,6 +219,9 @@ BOOST_AUTO_TEST_CASE(checks) try {
                        t.transferstake(alice, alice, N(oops), 0, a("1.0000 TST"), ""));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("vote pools not initialized"),
                        t.transferstake(alice, alice, bob, 0, a("1.0000 TST"), ""));
+
+   BOOST_REQUIRE_EQUAL("missing authority of bob111111111", t.updatepay(alice, bob));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("vote pools not initialized"), t.updatepay(alice, alice));
 
    BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, { { 2, 3, 4, 5 } }, { { 1, 1, 3, 3 } }));
 
@@ -454,6 +462,215 @@ BOOST_AUTO_TEST_CASE(no_inflation) try {
                            ("last_votes", vector({ 1'0000.0, 1'0000.0 })),                     //
                            t.voter_pool_votes(jane));
 } // no_inflation
+FC_LOG_AND_RETHROW()
+
+BOOST_AUTO_TEST_CASE(pool_inflation) try {
+   votepool_tester   t;
+   std::vector<name> users     = { alice, bob, jane };
+   int               num_pools = 2;
+   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, { { 1024, 2048 } }, { { 64, 256 } }));
+   t.create_accounts_with_resources(users, sys);
+   BOOST_REQUIRE_EQUAL(t.success(), t.stake(sys, alice, a("1000.0000 TST"), a("1000.0000 TST")));
+   BOOST_REQUIRE_EQUAL(t.success(), t.stake(sys, bob, a("1000.0000 TST"), a("1000.0000 TST")));
+   BOOST_REQUIRE_EQUAL(t.success(), t.stake(sys, jane, a("1000.0000 TST"), a("1000.0000 TST")));
+   t.transfer(sys, alice, a("1000.0000 TST"), sys);
+   t.transfer(sys, bob, a("1000.0000 TST"), sys);
+   t.transfer(sys, jane, a("1000.0000 TST"), sys);
+
+   btime interval_start(time_point::from_iso_string("2020-01-01T00:00:00.000"));
+
+   REQUIRE_MATCHING_OBJECT(mvo()                              //
+                           ("prod_rate", 0.0)                 //
+                           ("voter_rate", 0.0)                //
+                           ("interval_start", interval_start) //
+                           ("unpaid_blocks", 0),              //
+                           t.get_vpoolstate());
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("already processed pay for this time interval"), t.updatepay(alice, alice));
+
+   // Bring the pending block to the beginning of the next time interval.
+   // Note: on_block sees the previous block produced, not the pending block, so it won't
+   //       trigger the rollover until 1 block later.
+
+   t.produce_to(interval_start.to_time_point() + fc::seconds(60));
+
+   REQUIRE_MATCHING_OBJECT(mvo()                              //
+                           ("prod_rate", 0.0)                 //
+                           ("voter_rate", 0.0)                //
+                           ("interval_start", interval_start) //
+                           ("unpaid_blocks", 0),              //
+                           t.get_vpoolstate());
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("already processed pay for this time interval"), t.updatepay(alice, alice));
+
+   t.produce_block();
+   interval_start = interval_start.to_time_point() + fc::seconds(60);
+
+   // First interval is partial
+   REQUIRE_MATCHING_OBJECT(mvo()                              //
+                           ("prod_rate", 0.0)                 //
+                           ("voter_rate", 0.0)                //
+                           ("interval_start", interval_start) //
+                           ("unpaid_blocks", 11),             //
+                           t.get_vpoolstate());
+
+   t.produce_to(interval_start.to_time_point() + fc::seconds(60));
+   REQUIRE_MATCHING_OBJECT(mvo()                              //
+                           ("prod_rate", 0.0)                 //
+                           ("voter_rate", 0.0)                //
+                           ("interval_start", interval_start) //
+                           ("unpaid_blocks", 11),             //
+                           t.get_vpoolstate());
+
+   t.produce_block();
+   interval_start = interval_start.to_time_point() + fc::seconds(60);
+
+   // unpaid_blocks doesn't accumulate
+   REQUIRE_MATCHING_OBJECT(mvo()                              //
+                           ("prod_rate", 0.0)                 //
+                           ("voter_rate", 0.0)                //
+                           ("interval_start", interval_start) //
+                           ("unpaid_blocks", 120),            //
+                           t.get_vpoolstate());
+
+   t.produce_to(interval_start.to_time_point() + fc::milliseconds(60'500));
+   interval_start = interval_start.to_time_point() + fc::seconds(60);
+
+   // unpaid_blocks doesn't accumulate
+   REQUIRE_MATCHING_OBJECT(mvo()                              //
+                           ("prod_rate", 0.0)                 //
+                           ("voter_rate", 0.0)                //
+                           ("interval_start", interval_start) //
+                           ("unpaid_blocks", 120),            //
+                           t.get_vpoolstate());
+
+   auto supply = t.get_token_supply();
+   BOOST_REQUIRE_EQUAL(t.success(), t.updatepay(alice, alice));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("already processed pay for this time interval"), t.updatepay(bob, bob));
+
+   REQUIRE_MATCHING_OBJECT(mvo()                              //
+                           ("prod_rate", 0.0)                 //
+                           ("voter_rate", 0.0)                //
+                           ("interval_start", interval_start) //
+                           ("unpaid_blocks", 0),              //
+                           t.get_vpoolstate());
+
+   // inflation is 0
+   BOOST_REQUIRE_EQUAL(supply, t.get_token_supply());
+   BOOST_REQUIRE_EQUAL(t.get_balance(vpool), a("0.0000 TST"));
+   BOOST_REQUIRE_EQUAL(t.get_balance(bvpay), a("0.0000 TST"));
+
+   // enable voter pool inflation
+   double rate = 0.5;
+   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, nullopt, nullopt, nullopt, rate));
+
+   t.produce_to(interval_start.to_time_point() + fc::milliseconds(60'500));
+   interval_start = interval_start.to_time_point() + fc::seconds(60);
+   REQUIRE_MATCHING_OBJECT(mvo()                              //
+                           ("prod_rate", 0.0)                 //
+                           ("voter_rate", rate)               //
+                           ("interval_start", interval_start) //
+                           ("unpaid_blocks", 120),            //
+                           t.get_vpoolstate());
+   BOOST_REQUIRE_EQUAL(t.success(), t.updatepay(alice, alice));
+
+   // pools can't receive inflation since users haven't bought into them yet
+   BOOST_REQUIRE_EQUAL(supply, t.get_token_supply());
+   BOOST_REQUIRE_EQUAL(t.get_balance(vpool), a("0.0000 TST"));
+   BOOST_REQUIRE_EQUAL(t.get_balance(bvpay), a("0.0000 TST"));
+
+   // alice buys into pool 0
+   auto   alice_bought = a("1.0000 TST");
+   double alice_shares = 1'0000.0;
+   BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(alice, alice, 0, alice_bought));
+   auto pool_0_balance = alice_bought;
+   t.check_vpool_totals(users);
+   REQUIRE_MATCHING_OBJECT(mvo()                                                   //
+                           ("next_claim", vector({ t.pending_time(64), btime() })) //
+                           ("owned_shares", vector({ alice_shares, 0.0 }))         //
+                           ("proxied_shares", vector({ 0.0, 0.0 }))                //
+                           ("last_votes", vector({ alice_shares, 0.0 })),          //
+                           t.voter_pool_votes(alice));
+   BOOST_REQUIRE_EQUAL(t.get_vpoolstate()["pools"][int(0)]["token_pool"]["balance"].as<asset>(), pool_0_balance);
+   BOOST_REQUIRE_EQUAL(t.get_vpoolstate()["pools"][int(1)]["token_pool"]["balance"].as<asset>(), a("0.0000 TST"));
+
+   // produce inflation
+   t.produce_to(interval_start.to_time_point() + fc::milliseconds(60'500));
+   interval_start = interval_start.to_time_point() + fc::seconds(60);
+   REQUIRE_MATCHING_OBJECT(mvo()                              //
+                           ("prod_rate", 0.0)                 //
+                           ("voter_rate", rate)               //
+                           ("interval_start", interval_start) //
+                           ("unpaid_blocks", 120),            //
+                           t.get_vpoolstate());
+   BOOST_REQUIRE_EQUAL(t.success(), t.updatepay(jane, jane));
+
+   // check inflation
+   auto per_pool_inflation =
+         asset(supply.get_amount() * rate / eosiosystem::minutes_per_year / num_pools, symbol{ CORE_SYM });
+   pool_0_balance += per_pool_inflation;
+   supply += per_pool_inflation;
+   BOOST_REQUIRE_EQUAL(t.get_token_supply(), supply);
+   BOOST_REQUIRE_EQUAL(t.get_balance(vpool), pool_0_balance);
+   BOOST_REQUIRE_EQUAL(t.get_balance(bvpay), a("0.0000 TST"));
+   BOOST_REQUIRE_EQUAL(t.get_vpoolstate()["pools"][int(0)]["token_pool"]["balance"].as<asset>(), pool_0_balance);
+   BOOST_REQUIRE_EQUAL(t.get_vpoolstate()["pools"][int(1)]["token_pool"]["balance"].as<asset>(), a("0.0000 TST"));
+
+   // bob buys into pool 1
+   auto   bob_bought = a("2.0000 TST");
+   double bob_shares = 2'0000.0;
+   BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(bob, bob, 1, bob_bought));
+   auto pool_1_balance = bob_bought;
+   t.check_vpool_totals(users);
+   REQUIRE_MATCHING_OBJECT(mvo()                                                    //
+                           ("next_claim", vector({ btime(), t.pending_time(256) })) //
+                           ("owned_shares", vector({ 0.0, bob_shares }))            //
+                           ("proxied_shares", vector({ 0.0, 0.0 }))                 //
+                           ("last_votes", vector({ 0.0, bob_shares })),             //
+                           t.voter_pool_votes(bob));
+   BOOST_REQUIRE_EQUAL(t.get_vpoolstate()["pools"][int(0)]["token_pool"]["balance"].as<asset>(), pool_0_balance);
+   BOOST_REQUIRE_EQUAL(t.get_vpoolstate()["pools"][int(1)]["token_pool"]["balance"].as<asset>(), pool_1_balance);
+
+   // produce inflation
+   t.produce_to(interval_start.to_time_point() + fc::milliseconds(60'500));
+   interval_start = interval_start.to_time_point() + fc::seconds(60);
+   REQUIRE_MATCHING_OBJECT(mvo()                              //
+                           ("prod_rate", 0.0)                 //
+                           ("voter_rate", rate)               //
+                           ("interval_start", interval_start) //
+                           ("unpaid_blocks", 120),            //
+                           t.get_vpoolstate());
+   BOOST_REQUIRE_EQUAL(t.success(), t.updatepay(jane, jane));
+
+   // check inflation
+   per_pool_inflation =
+         asset(supply.get_amount() * rate / eosiosystem::minutes_per_year / num_pools, symbol{ CORE_SYM });
+   pool_0_balance += per_pool_inflation;
+   pool_1_balance += per_pool_inflation;
+   supply = supply + per_pool_inflation + per_pool_inflation;
+   BOOST_REQUIRE_EQUAL(t.get_token_supply(), supply);
+   BOOST_REQUIRE_EQUAL(t.get_balance(vpool), pool_0_balance + pool_1_balance);
+   BOOST_REQUIRE_EQUAL(t.get_balance(bvpay), a("0.0000 TST"));
+   BOOST_REQUIRE_EQUAL(t.get_vpoolstate()["pools"][int(0)]["token_pool"]["balance"].as<asset>(), pool_0_balance);
+   BOOST_REQUIRE_EQUAL(t.get_vpoolstate()["pools"][int(1)]["token_pool"]["balance"].as<asset>(), pool_1_balance);
+
+   // alice made a profit
+   auto alice_approx_sell_shares = alice_shares * 64 / 1024; // easier formula, but rounds different from actual
+   auto alice_sell_shares        = 624.9998690972549;        // calculated by contract
+   BOOST_REQUIRE(abs(alice_sell_shares - alice_approx_sell_shares) < 0.001);
+   auto alice_returned_funds =
+         asset(pool_0_balance.get_amount() * alice_sell_shares / alice_shares, symbol{ CORE_SYM });
+   auto alice_bal = t.get_balance(alice);
+   BOOST_REQUIRE_EQUAL(t.success(), t.claimstake(alice, alice, 0, a("10000.0000 TST")));
+   t.check_vpool_totals(users);
+   alice_shares -= alice_sell_shares;
+   alice_bal += alice_returned_funds;
+   BOOST_REQUIRE_EQUAL(t.get_balance(alice), alice_bal);
+   REQUIRE_MATCHING_OBJECT(mvo()                                                   //
+                           ("next_claim", vector({ t.pending_time(64), btime() })) //
+                           ("owned_shares", vector({ alice_shares, 0.0 }))         //
+                           ("proxied_shares", vector({ 0.0, 0.0 }))                //
+                           ("last_votes", vector({ alice_shares, 0.0 })),          //
+                           t.voter_pool_votes(alice));
+} // pool_inflation
 FC_LOG_AND_RETHROW()
 
 BOOST_AUTO_TEST_SUITE_END()

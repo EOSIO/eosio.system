@@ -410,7 +410,7 @@ namespace eosiosystem {
       }
 
       const asset token_supply    = eosio::token::get_supply(token_account, core_symbol().code());
-      auto        pay_scale       = pow(10, (double)state.unpaid_blocks / blocks_per_minute);
+      auto        pay_scale       = pow((double)state.unpaid_blocks / blocks_per_minute, 10);
       int64_t     target_prod_pay = pay_scale * state.prod_rate / minutes_per_year * token_supply.amount;
       int64_t     total_prod_pay  = 0;
 
