@@ -29,6 +29,12 @@ constexpr auto bpa   = N(bpa111111111);
 constexpr auto bpb   = N(bpb111111111);
 constexpr auto bpc   = N(bpc111111111);
 
+struct prod_pool_votes {
+   std::vector<double> pool_votes;           // shares in each pool
+   double              total_pool_votes = 0; // total shares in all pools, weighted by update time and pool strength
+   asset               vote_pay;             // unclaimed vote pay
+};
+
 struct votepool_tester : eosio_system_tester {
    votepool_tester() : eosio_system_tester(setup_level::none) {
       create_accounts({ vpool, bvpay });
@@ -95,6 +101,46 @@ struct votepool_tester : eosio_system_tester {
          total_balance += pool["balance"].as<asset>();
       }
       BOOST_REQUIRE_EQUAL(get_balance(vpool), total_balance);
+   }
+
+   void check_pool_votes(int num_pools, std::map<name, prod_pool_votes>& pool_votes, const std::vector<name>& voters) {
+      check_vpool_totals(voters);
+
+      for (auto& [prod, ppv] : pool_votes) {
+         ppv.pool_votes.clear();
+         ppv.pool_votes.resize(num_pools);
+      }
+
+      for (auto voter : voters) {
+         auto info = get_voter_info(voter);
+         auto v    = voter_pool_votes(voter);
+         if (!v.is_null()) {
+            auto shares = v["owned_shares"].as<vector<double>>();
+            auto prods  = info["producers"].as<vector<name>>();
+            for (auto prod : prods) {
+               auto& ppv = pool_votes[prod];
+               BOOST_REQUIRE_EQUAL(ppv.pool_votes.size(), shares.size());
+               for (size_t i = 0; i < shares.size(); ++i)
+                  ppv.pool_votes[i] += shares[i];
+            }
+         }
+      }
+
+      for (auto& [prod, ppv] : pool_votes) {
+         BOOST_REQUIRE(ppv.pool_votes == get_producer_info(prod)["pool_votes"]["pool_votes"].as<vector<double>>());
+      }
+   }; // check_pool_votes
+
+   void check_total_pool_votes(std::map<name, prod_pool_votes>& pool_votes) {
+      for (auto& [prod, ppv] : pool_votes) {
+         BOOST_REQUIRE_EQUAL(ppv.total_pool_votes,
+                             get_producer_info(prod)["pool_votes"]["total_pool_votes"].as<double>());
+      }
+   }
+
+   void check_votes(int num_pools, std::map<name, prod_pool_votes>& pool_votes, const std::vector<name>& voters) {
+      check_pool_votes(num_pools, pool_votes, voters);
+      check_total_pool_votes(pool_votes);
    }
 
    // Like eosio_system_tester::push_action, but doesn't move time forward
@@ -740,16 +786,21 @@ BOOST_AUTO_TEST_CASE(prod_inflation) try {
                               t.get_vpoolstate());
    };
 
-   auto check_vote_pay = [&]() {
-      check_vpoolstate(120);
+   auto check_vote_pay = [&](uint32_t unpaid_blocks = 120) {
+      check_vpoolstate(unpaid_blocks);
       BOOST_REQUIRE_EQUAL(t.success(), t.updatepay(alice, alice));
       check_vpoolstate(0);
 
-      auto target_pay = asset(supply.get_amount() * prod_rate / eosiosystem::minutes_per_year, symbol{ CORE_SYM });
+      auto pay_scale = pow(double(unpaid_blocks) / 120, 10);
+      auto target_pay =
+            asset(pay_scale * prod_rate * supply.get_amount() / eosiosystem::minutes_per_year, symbol{ CORE_SYM });
       // ilog("target_pay: ${x}", ("x", target_pay));
 
       auto check_pay = [&](auto bp, auto& bp_vote_pay, double ratio) {
          auto pay = asset(target_pay.get_amount() * ratio, symbol{ CORE_SYM });
+         auto adj = t.get_producer_info(bp)["pool_votes"]["vote_pay"].template as<asset>() - bp_vote_pay - pay;
+         if (abs(adj.get_amount()) <= 2)
+            pay += adj; // allow slight rounding difference
          // ilog("${bp} pay: ${x}", ("bp", bp)("x", pay));
          supply += pay;
          bvpay_bal += pay;
@@ -824,10 +875,47 @@ BOOST_AUTO_TEST_CASE(prod_inflation) try {
    t.produce_block();
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("no pay available"), t.claimvotepay(bpa, bpa));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("no pay available"), t.claimvotepay(bpb, bpb));
+
+   // BPs miss 30 blocks
+   t.produce_block();
+   t.produce_block(fc::milliseconds(15'500));
+   next_interval();
+   check_vote_pay(90);
 } // prod_inflation
 FC_LOG_AND_RETHROW()
 
-// TODO: voting
+BOOST_AUTO_TEST_CASE(voting) try {
+   votepool_tester   t;
+   std::vector<name> users     = { alice, bob, bpa, bpb, bpc };
+   int               num_pools = 2;
+   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, { { 1024, 2048 } }, { { 64, 256 } }));
+   t.create_accounts_with_resources(users, sys);
+   t.transfer(sys, alice, a("1000.0000 TST"), sys);
+   BOOST_REQUIRE_EQUAL(t.success(), t.regproducer(bpa));
+   BOOST_REQUIRE_EQUAL(t.success(), t.regproducer(bpb));
+   BOOST_REQUIRE_EQUAL(t.success(), t.regproducer(bpc));
+
+   std::map<name, prod_pool_votes> pool_votes;
+   pool_votes[bpa];
+   pool_votes[bpb];
+   pool_votes[bpc];
+
+   btime interval_start(time_point::from_iso_string("2020-01-01T00:00:00.000"));
+
+   // Go to first whole interval
+   t.produce_to(interval_start.to_time_point() + fc::milliseconds(120'500));
+   interval_start = interval_start.to_time_point() + fc::seconds(120);
+
+   t.check_votes(num_pools, pool_votes, users);
+
+   BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(alice, alice, 0, a("1.0000 TST")));
+   t.check_votes(num_pools, pool_votes, users);
+   BOOST_REQUIRE_EQUAL(t.success(), t.vote(alice, { bpa, bpb }));
+   t.check_votes(num_pools, pool_votes, users);
+
+} // voting
+FC_LOG_AND_RETHROW()
+
 // TODO: proxy
 // TODO: producer pay: 50, 80/20 rule
 
