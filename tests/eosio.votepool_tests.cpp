@@ -721,30 +721,83 @@ BOOST_AUTO_TEST_CASE(prod_inflation) try {
 
    btime interval_start(time_point::from_iso_string("2020-01-01T00:00:00.000"));
 
-   // Go to whole interval
+   double prod_rate    = 0.0;
+   auto   supply       = t.get_token_supply();
+   auto   bvpay_bal    = a("0.0000 TST");
+   auto   bpa_vote_pay = a("0.0000 TST");
+   auto   bpb_vote_pay = a("0.0000 TST");
+   auto   bpc_vote_pay = a("0.0000 TST");
+   double bpa_factor   = 0.0;
+   double bpb_factor   = 0.0;
+   double bpc_factor   = 0.0;
+
+   auto check_vpoolstate = [&](uint32_t unpaid_blocks) {
+      REQUIRE_MATCHING_OBJECT(mvo()                              //
+                              ("prod_rate", prod_rate)           //
+                              ("voter_rate", 0.0)                //
+                              ("interval_start", interval_start) //
+                              ("unpaid_blocks", unpaid_blocks),  //
+                              t.get_vpoolstate());
+   };
+
+   auto check_vote_pay = [&]() {
+      check_vpoolstate(120);
+      BOOST_REQUIRE_EQUAL(t.success(), t.updatepay(alice, alice));
+      check_vpoolstate(0);
+
+      auto target_pay = asset(supply.get_amount() * prod_rate / eosiosystem::minutes_per_year, symbol{ CORE_SYM });
+      // ilog("target_pay: ${x}", ("x", target_pay));
+
+      auto check_pay = [&](auto bp, auto& bp_vote_pay, double ratio) {
+         auto pay = asset(target_pay.get_amount() * ratio, symbol{ CORE_SYM });
+         // ilog("${bp} pay: ${x}", ("bp", bp)("x", pay));
+         supply += pay;
+         bvpay_bal += pay;
+         bp_vote_pay += pay;
+         BOOST_REQUIRE_EQUAL(t.get_producer_info(bp)["pool_votes"]["vote_pay"].template as<asset>(), bp_vote_pay);
+      };
+      check_pay(bpa, bpa_vote_pay, bpa_factor);
+      check_pay(bpb, bpb_vote_pay, bpb_factor);
+      check_pay(bpc, bpc_vote_pay, bpc_factor);
+
+      BOOST_REQUIRE_EQUAL(t.get_token_supply(), supply);
+      BOOST_REQUIRE_EQUAL(t.get_balance(bvpay), bvpay_bal);
+   };
+
+   auto next_interval = [&]() {
+      t.produce_to(interval_start.to_time_point() + fc::milliseconds(60'500));
+      interval_start = interval_start.to_time_point() + fc::seconds(60);
+   };
+
+   // Go to first whole interval
    t.produce_to(interval_start.to_time_point() + fc::milliseconds(120'500));
    interval_start = interval_start.to_time_point() + fc::seconds(120);
-   REQUIRE_MATCHING_OBJECT(mvo()                              //
-                           ("prod_rate", 0.0)                 //
-                           ("voter_rate", 0.0)                //
-                           ("interval_start", interval_start) //
-                           ("unpaid_blocks", 120),            //
-                           t.get_vpoolstate());
+   check_vote_pay();
 
-   auto supply = t.get_token_supply();
-   BOOST_REQUIRE_EQUAL(t.success(), t.updatepay(alice, alice));
-   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("already processed pay for this time interval"), t.updatepay(bpa, bpa));
+   // enable producer inflation; no bps are automatically counted yet
+   prod_rate = 0.5;
+   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, nullopt, nullopt, prod_rate));
+   next_interval();
+   check_vote_pay();
 
-   REQUIRE_MATCHING_OBJECT(mvo()                              //
-                           ("prod_rate", 0.0)                 //
-                           ("voter_rate", 0.0)                //
-                           ("interval_start", interval_start) //
-                           ("unpaid_blocks", 0),              //
-                           t.get_vpoolstate());
+   // manually update bpa, bpb votes; they'll be automatically counted from now on
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("unknown producer"), t.updatevotes(alice, alice, alice));
+   BOOST_REQUIRE_EQUAL("missing authority of bpa111111111", t.updatevotes(alice, bpa, bpa));
+   BOOST_REQUIRE_EQUAL(t.success(), t.updatevotes(alice, alice, bpa));
+   BOOST_REQUIRE_EQUAL(t.success(), t.updatevotes(bpb, bpb, bpb));
+   bpa_factor = 0.5;
+   bpb_factor = 0.5;
+   next_interval();
+   check_vote_pay();
 
-   // inflation is 0
-   BOOST_REQUIRE_EQUAL(supply, t.get_token_supply());
-   BOOST_REQUIRE_EQUAL(t.get_balance(bvpay), a("0.0000 TST"));
+   // bpc joins
+   BOOST_REQUIRE_EQUAL(t.success(), t.updatevotes(bpc, bpc, bpc));
+   bpa_factor = 1.0 / 3;
+   bpb_factor = 1.0 / 3;
+   bpc_factor = 1.0 / 3;
+   next_interval();
+   check_vote_pay();
+
 } // prod_inflation
 FC_LOG_AND_RETHROW()
 

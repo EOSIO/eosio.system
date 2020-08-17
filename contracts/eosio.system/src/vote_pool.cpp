@@ -418,7 +418,7 @@ namespace eosiosystem {
          for (auto* prod : prods) {
             _producers.modify(*prod, same_payer, [&](auto& prod) {
                if (auto* pv = get_prod_pool_votes(prod)) {
-                  int64_t pay = (target_prod_pay * total_votes) / prod.total_votes;
+                  int64_t pay = (target_prod_pay * prod.total_votes) / total_votes;
                   pv->vote_pay.amount += pay;
                   total_prod_pay += pay;
                }

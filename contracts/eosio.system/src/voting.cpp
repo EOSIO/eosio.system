@@ -323,9 +323,9 @@ namespace eosiosystem {
                }
                _gstate.total_producer_vote_weight += pd.second.delta_weight;
                //check( p.total_votes >= 0, "something bad happened" );
-               if (pool_votes)
+               if (pd.second.old_vote && pool_votes)
                   sub_pool_votes(p, pool_votes->last_votes, "bug: producer lost its pool");
-               if (new_pool_votes)
+               if (pd.second.new_vote && new_pool_votes)
                   add_pool_votes(p, *new_pool_votes, "producer has not upgraded to support pool votes");
             });
             auto prod2 = _producers2.find( pd.first.value );
