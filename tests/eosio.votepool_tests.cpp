@@ -764,6 +764,18 @@ BOOST_AUTO_TEST_CASE(prod_inflation) try {
       BOOST_REQUIRE_EQUAL(t.get_balance(bvpay), bvpay_bal);
    };
 
+   auto claimvotepay = [&](auto bp, auto& vote_pay) {
+      auto bal = t.get_balance(bp);
+      BOOST_REQUIRE_EQUAL(t.get_producer_info(bp)["pool_votes"]["vote_pay"].template as<asset>(), vote_pay);
+      BOOST_REQUIRE_EQUAL(t.get_balance(bvpay), bvpay_bal);
+      BOOST_REQUIRE_EQUAL(t.success(), t.claimvotepay(bp, bp));
+      BOOST_REQUIRE_EQUAL(t.get_producer_info(bp)["pool_votes"]["vote_pay"].template as<asset>(), a("0.0000 TST"));
+      bvpay_bal -= vote_pay;
+      BOOST_REQUIRE_EQUAL(t.get_balance(bvpay), bvpay_bal);
+      BOOST_REQUIRE_EQUAL(t.get_balance(bp), bal + vote_pay);
+      vote_pay = a("0.0000 TST");
+   };
+
    auto next_interval = [&]() {
       t.produce_to(interval_start.to_time_point() + fc::milliseconds(60'500));
       interval_start = interval_start.to_time_point() + fc::seconds(60);
@@ -798,6 +810,20 @@ BOOST_AUTO_TEST_CASE(prod_inflation) try {
    next_interval();
    check_vote_pay();
 
+   // bpb claims
+   BOOST_REQUIRE_EQUAL("missing authority of bpb111111111", t.claimvotepay(alice, bpb));
+   claimvotepay(bpb, bpb_vote_pay);
+   t.produce_block();
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("no pay available"), t.claimvotepay(bpb, bpb));
+
+   // more claims
+   next_interval();
+   check_vote_pay();
+   claimvotepay(bpa, bpa_vote_pay);
+   claimvotepay(bpb, bpb_vote_pay);
+   t.produce_block();
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("no pay available"), t.claimvotepay(bpa, bpa));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("no pay available"), t.claimvotepay(bpb, bpb));
 } // prod_inflation
 FC_LOG_AND_RETHROW()
 
