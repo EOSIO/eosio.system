@@ -1367,11 +1367,13 @@ namespace eosiosystem {
          void rentbw( const name& payer, const name& receiver, uint32_t days, int64_t net_frac, int64_t cpu_frac, const asset& max_payment );
 
          using uint32_vector = std::vector<uint32_t>;
+         using double_vector = std::vector<double>;
 
          [[eosio::action]]
          void cfgvpool(
             const std::optional<uint32_vector>& durations,
             const std::optional<uint32_vector>& claim_periods,
+            const std::optional<double_vector>& vote_weights,
             const std::optional<double>& prod_rate,
             const std::optional<double>& voter_rate);
          [[eosio::action]]

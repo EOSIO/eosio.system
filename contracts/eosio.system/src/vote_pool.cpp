@@ -32,6 +32,7 @@ namespace eosiosystem {
 
    void system_contract::cfgvpool(const std::optional<std::vector<uint32_t>>& durations,
                                   const std::optional<std::vector<uint32_t>>& claim_periods,
+                                  const std::optional<std::vector<double>>&   vote_weights,
                                   const std::optional<double>& prod_rate, const std::optional<double>& voter_rate) {
       // TODO: convert rates from yearly compound to per-minute compound? Keep args per-minute compound?
       require_auth(get_self());
@@ -39,21 +40,26 @@ namespace eosiosystem {
       if (!get_vote_pool_state_singleton().exists()) {
          eosio::check(durations.has_value(), "durations is required on first use of cfgvpool");
          eosio::check(claim_periods.has_value(), "claim_periods is required on first use of cfgvpool");
+         eosio::check(vote_weights.has_value(), "vote_weights is required on first use of cfgvpool");
       } else {
          eosio::check(!durations.has_value(), "durations can't change");
          eosio::check(!claim_periods.has_value(), "claim_periods can't change");
+         eosio::check(!vote_weights.has_value(), "vote_weights can't change");
       }
 
       auto& state = get_vote_pool_state_mutable(true);
       if (durations.has_value()) {
          eosio::check(!durations->empty(), "durations is empty");
          eosio::check(claim_periods->size() == durations->size(), "mismatched vector sizes");
+         eosio::check(vote_weights->size() == durations->size(), "mismatched vector sizes");
 
          for (size_t i = 0; i < durations->size(); ++i) {
             auto d = durations.value()[i];
             auto c = claim_periods.value()[i];
+            auto w = vote_weights.value()[i];
             eosio::check(d > 0, "duration must be positive");
             eosio::check(c > 0, "claim_period must be positive");
+            eosio::check(w > 0, "vote_weight must be positive");
             eosio::check(c < d, "claim_period must be less than duration");
          }
 
@@ -61,6 +67,7 @@ namespace eosiosystem {
             eosio::check(durations.value()[i - 1] < durations.value()[i], "durations must be increasing");
             eosio::check(claim_periods.value()[i - 1] <= claim_periods.value()[i],
                          "claim_periods must be non-decreasing");
+            eosio::check(vote_weights.value()[i - 1] <= vote_weights.value()[i], "vote_weights must be non-decreasing");
          }
 
          auto sym = get_core_symbol();
@@ -69,6 +76,7 @@ namespace eosiosystem {
             auto& pool        = state.pools[i];
             pool.duration     = durations.value()[i];
             pool.claim_period = claim_periods.value()[i];
+            pool.vote_weight  = vote_weights.value()[i];
             pool.token_pool.init(sym);
          }
       }

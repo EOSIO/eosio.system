@@ -68,9 +68,10 @@ namespace eosiosystem {
    struct vote_pool {
       uint32_t          duration;     // duration, seconds
       uint32_t          claim_period; // how often owners may claim, seconds
+      double            vote_weight;  // voting power. if vote_weight == 1, then 1.0000 SYS in pool has 1.0 votes.
       eosiosystem::pool token_pool;   // token tracking
 
-      EOSLIB_SERIALIZE(vote_pool, (duration)(claim_period)(token_pool))
+      EOSLIB_SERIALIZE(vote_pool, (duration)(claim_period)(vote_weight)(token_pool))
    };
 
    struct [[eosio::table("vpoolstate"), eosio::contract("eosio.system")]] vote_pool_state {

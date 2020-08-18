@@ -189,6 +189,7 @@ struct votepool_tester : eosio_system_tester {
 
    action_result cfgvpool(name authorizer, const std::optional<std::vector<uint32_t>>& durations = nullopt,
                           const std::optional<std::vector<uint32_t>>& claim_periods = nullopt,
+                          const std::optional<std::vector<double>>&   vote_weights  = nullopt,
                           const std::optional<double>&                prod_rate     = nullopt,
                           const std::optional<double>&                voter_rate    = nullopt) {
       mvo v;
@@ -200,6 +201,10 @@ struct votepool_tester : eosio_system_tester {
          v("claim_periods", *claim_periods);
       else
          v("claim_periods", nullptr);
+      if (vote_weights)
+         v("vote_weights", *vote_weights);
+      else
+         v("vote_weights", nullptr);
       if (prod_rate)
          v("prod_rate", *prod_rate);
       else
@@ -250,33 +255,50 @@ BOOST_AUTO_TEST_CASE(cfgvpool) try {
                        t.cfgvpool(sys, nullopt, nullopt));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("claim_periods is required on first use of cfgvpool"),
                        t.cfgvpool(sys, { { 1 } }, nullopt));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("vote_weights is required on first use of cfgvpool"),
+                       t.cfgvpool(sys, { { 2 } }, { { 1 } }));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("durations is empty"),
-                       t.cfgvpool(sys, std::vector<uint32_t>{}, std::vector<uint32_t>{}));
+                       t.cfgvpool(sys, std::vector<uint32_t>{}, std::vector<uint32_t>{}, std::vector<double>{}));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("mismatched vector sizes"),
-                       t.cfgvpool(sys, { { 1 } }, std::vector<uint32_t>{}));
-   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("mismatched vector sizes"), t.cfgvpool(sys, { { 1, 2 } }, { { 1, 3, 4 } }));
-   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("duration must be positive"), t.cfgvpool(sys, { { 0 } }, { { 1 } }));
-   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("claim_period must be positive"), t.cfgvpool(sys, { { 1 } }, { { 0 } }));
+                       t.cfgvpool(sys, { { 1 } }, std::vector<uint32_t>{}, { { 1 } }));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("mismatched vector sizes"),
+                       t.cfgvpool(sys, { { 1, 2 } }, { { 1, 3, 4 } }, { { 1, 2 } }));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("mismatched vector sizes"),
+                       t.cfgvpool(sys, { { 10, 20 } }, { { 1, 2 } }, { { 1, 2, 3 } }));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("duration must be positive"),
+                       t.cfgvpool(sys, { { 0 } }, { { 1 } }, { { 1 } }));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("claim_period must be positive"),
+                       t.cfgvpool(sys, { { 1 } }, { { 0 } }, { { 1 } }));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("vote_weight must be positive"),
+                       t.cfgvpool(sys, { { 2 } }, { { 1 } }, { { -1 } }));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("vote_weight must be positive"),
+                       t.cfgvpool(sys, { { 2 } }, { { 1 } }, { { 0 } }));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("claim_period must be less than duration"),
-                       t.cfgvpool(sys, { { 1 } }, { { 1 } }));
+                       t.cfgvpool(sys, { { 1 } }, { { 1 } }, { { 1 } }));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("claim_period must be less than duration"),
-                       t.cfgvpool(sys, { { 10, 20 } }, { { 9, 20 } }));
+                       t.cfgvpool(sys, { { 10, 20 } }, { { 9, 20 } }, { { 1, 2 } }));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("durations must be increasing"),
-                       t.cfgvpool(sys, { { 2, 3, 4, 3 } }, { { 1, 1, 1, 1 } }));
+                       t.cfgvpool(sys, { { 2, 3, 4, 3 } }, { { 1, 1, 1, 1 } }, { { 1, 2, 3, 4 } }));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("durations must be increasing"),
-                       t.cfgvpool(sys, { { 2, 3, 4, 4 } }, { { 1, 1, 1, 1 } }));
+                       t.cfgvpool(sys, { { 2, 3, 4, 4 } }, { { 1, 1, 1, 1 } }, { { 1, 2, 3, 4 } }));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("claim_periods must be non-decreasing"),
-                       t.cfgvpool(sys, { { 3, 4, 5, 6 } }, { { 2, 2, 2, 1 } }));
-   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, { { 2, 3, 4, 5 } }, { { 1, 1, 3, 3 } }));
+                       t.cfgvpool(sys, { { 3, 4, 5, 6 } }, { { 2, 2, 2, 1 } }, { { 1, 2, 3, 4 } }));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("vote_weights must be non-decreasing"),
+                       t.cfgvpool(sys, { { 2, 3, 4, 5 } }, { { 1, 1, 1, 1 } }, { { 1, 2, 3, 2 } }));
+   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, { { 2, 3, 4, 5 } }, { { 1, 1, 3, 3 } }, { { 1, 2, 2, 3 } }));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("durations can't change"), t.cfgvpool(sys, { { 1, 2, 3 } }, nullopt));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("claim_periods can't change"), t.cfgvpool(sys, nullopt, { { 1, 2, 3 } }));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("vote_weights can't change"),
+                       t.cfgvpool(sys, nullopt, nullopt, { { 1, 2, 3 } }));
 
-   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, nullopt, nullopt, 0, .999));
-   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, nullopt, nullopt, .999, 0));
-   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("prod_rate out of range"), t.cfgvpool(sys, nullopt, nullopt, -.001));
-   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("prod_rate out of range"), t.cfgvpool(sys, nullopt, nullopt, 1));
-   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("voter_rate out of range"), t.cfgvpool(sys, nullopt, nullopt, nullopt, -.001));
-   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("voter_rate out of range"), t.cfgvpool(sys, nullopt, nullopt, nullopt, 1));
+   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, nullopt, nullopt, nullopt, 0, .999));
+   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, nullopt, nullopt, nullopt, .999, 0));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("prod_rate out of range"), t.cfgvpool(sys, nullopt, nullopt, nullopt, -.001));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("prod_rate out of range"), t.cfgvpool(sys, nullopt, nullopt, nullopt, 1));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("voter_rate out of range"),
+                       t.cfgvpool(sys, nullopt, nullopt, nullopt, nullopt, -.001));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("voter_rate out of range"),
+                       t.cfgvpool(sys, nullopt, nullopt, nullopt, nullopt, 1));
 } // cfgvpool
 FC_LOG_AND_RETHROW()
 
@@ -304,7 +326,7 @@ BOOST_AUTO_TEST_CASE(checks) try {
    BOOST_REQUIRE_EQUAL("missing authority of bob111111111", t.updatepay(alice, bob));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("vote pools not initialized"), t.updatepay(alice, alice));
 
-   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, { { 2, 3, 4, 5 } }, { { 1, 1, 3, 3 } }));
+   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, { { 2, 3, 4, 5 } }, { { 1, 1, 3, 3 } }, { { 1, 1, 1, 1 } }));
 
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("invalid pool"), t.stake2pool(alice, alice, 4, a("1.0000 TST")));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("amount doesn't match core symbol"),
@@ -346,7 +368,7 @@ FC_LOG_AND_RETHROW()
 BOOST_AUTO_TEST_CASE(no_inflation) try {
    votepool_tester   t;
    std::vector<name> users = { alice, bob, jane };
-   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, { { 1024, 2048 } }, { { 64, 256 } }));
+   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, { { 1024, 2048 } }, { { 64, 256 } }, { { 1.0, 1.0 } }));
    t.create_accounts_with_resources(users, sys);
    BOOST_REQUIRE_EQUAL(t.success(), t.stake(sys, alice, a("1000.0000 TST"), a("1000.0000 TST")));
    BOOST_REQUIRE_EQUAL(t.success(), t.stake(sys, bob, a("1000.0000 TST"), a("1000.0000 TST")));
@@ -549,7 +571,7 @@ BOOST_AUTO_TEST_CASE(pool_inflation) try {
    votepool_tester   t;
    std::vector<name> users     = { alice, bob, jane, bpa, bpb, bpc };
    int               num_pools = 2;
-   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, { { 1024, 2048 } }, { { 64, 256 } }));
+   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, { { 1024, 2048 } }, { { 64, 256 } }, { { 1.0, 1.0 } }));
    t.create_accounts_with_resources(users, sys);
    BOOST_REQUIRE_EQUAL(t.success(), t.stake(sys, alice, a("1000.0000 TST"), a("1000.0000 TST")));
    BOOST_REQUIRE_EQUAL(t.success(), t.stake(sys, bob, a("1000.0000 TST"), a("1000.0000 TST")));
@@ -641,7 +663,7 @@ BOOST_AUTO_TEST_CASE(pool_inflation) try {
 
    // enable voter pool inflation
    double rate = 0.5;
-   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, nullopt, nullopt, nullopt, rate));
+   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, nullopt, nullopt, nullopt, nullopt, rate));
 
    t.produce_to(interval_start.to_time_point() + fc::milliseconds(60'500));
    interval_start = interval_start.to_time_point() + fc::seconds(60);
@@ -786,7 +808,7 @@ BOOST_AUTO_TEST_CASE(prod_inflation) try {
    votepool_tester   t;
    std::vector<name> users     = { alice, bpa, bpb, bpc };
    int               num_pools = 2;
-   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, { { 1024, 2048 } }, { { 64, 256 } }));
+   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, { { 1024, 2048 } }, { { 64, 256 } }, { { 1.0, 1.0 } }));
    t.create_accounts_with_resources(users, sys);
    BOOST_REQUIRE_EQUAL(t.success(), t.stake(sys, alice, a("1000.0000 TST"), a("1000.0000 TST")));
    t.transfer(sys, alice, a("1000.0000 TST"), sys);
@@ -870,7 +892,7 @@ BOOST_AUTO_TEST_CASE(prod_inflation) try {
 
    // enable producer inflation; no bps are automatically counted yet
    prod_rate = 0.5;
-   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, nullopt, nullopt, prod_rate));
+   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, nullopt, nullopt, nullopt, prod_rate));
    next_interval();
    check_vote_pay();
 
@@ -919,7 +941,7 @@ BOOST_AUTO_TEST_CASE(voting) try {
    votepool_tester   t;
    std::vector<name> users     = { alice, bob, jane, sue, bpa, bpb, bpc };
    int               num_pools = 2;
-   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, { { 1024, 2048 } }, { { 64, 256 } }));
+   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, { { 1024, 2048 } }, { { 64, 256 } }, { { 1.0, 1.0 } }));
    t.create_accounts_with_resources(users, sys);
    BOOST_REQUIRE_EQUAL(t.success(), t.stake(sys, alice, a("1000.0000 TST"), a("1000.0000 TST")));
    BOOST_REQUIRE_EQUAL(t.success(), t.stake(sys, bob, a("1000.0000 TST"), a("1000.0000 TST")));
@@ -948,14 +970,14 @@ BOOST_AUTO_TEST_CASE(voting) try {
    interval_start = interval_start.to_time_point() + fc::seconds(120);
 
    // inflate pool 1
-   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, nullopt, nullopt, nullopt, 0.5));
+   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, nullopt, nullopt, nullopt, nullopt, 0.5));
    BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(jane, jane, 1, a("1.0000 TST")));
    // ilog("pool 1: ${x}", ("x", t.get_vpoolstate()["pools"][1]));
    t.produce_to(interval_start.to_time_point() + fc::milliseconds(60'500));
    interval_start = interval_start.to_time_point() + fc::seconds(60);
    BOOST_REQUIRE_EQUAL(t.success(), t.updatepay(jane, jane));
    // ilog("pool 1: ${x}", ("x", t.get_vpoolstate()["pools"][1]));
-   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, nullopt, nullopt, nullopt, 0.0));
+   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, nullopt, nullopt, nullopt, nullopt, 0.0));
 
    t.produce_to(interval_start.to_time_point() + fc::milliseconds(60'500));
    interval_start = interval_start.to_time_point() + fc::seconds(60);
