@@ -344,16 +344,14 @@ namespace eosiosystem {
                                        const std::string& memo) {
       // TODO: notifications. require_recipient doesn't work because requested and actual amount may differ
       // TODO: assert if requested is too far below actual?
-      // TODO: enfource last_claim?
       // TODO: need way to upgrade receiver's account
       require_auth(from);
       eosio::check(memo.size() <= 256, "memo has more than 256 bytes");
       eosio::check(from != to, "from = to");
       eosio::check(eosio::is_account(to), "invalid account");
 
-      auto& state        = get_vote_pool_state_mutable();
-      auto  core_symbol  = get_core_symbol();
-      auto  current_time = eosio::current_block_time();
+      auto& state       = get_vote_pool_state_mutable();
+      auto  core_symbol = get_core_symbol();
 
       eosio::check(pool_index < state.pools.size(), "invalid pool");
       eosio::check(requested.symbol == core_symbol, "requested doesn't match core symbol");
@@ -381,7 +379,37 @@ namespace eosiosystem {
       update_votes(from, from_voter.proxy, from_voter.producers, false);
       update_votes(to, to_voter.proxy, to_voter.producers, false);
       save_vote_pool_state();
-   }
+   } // system_contract::transferstake
+
+   void system_contract::movepool(name owner, uint32_t from_pool_index, uint32_t to_pool_index, asset requested) {
+      require_auth(owner);
+
+      auto& state       = get_vote_pool_state_mutable();
+      auto  core_symbol = get_core_symbol();
+
+      eosio::check(from_pool_index < state.pools.size(), "invalid pool");
+      eosio::check(to_pool_index < state.pools.size(), "invalid pool");
+      eosio::check(from_pool_index < to_pool_index, "may only move from a shorter-term pool to a longer-term one");
+      eosio::check(requested.symbol == core_symbol, "requested doesn't match core symbol");
+      eosio::check(requested.amount > 0, "requested must be positive");
+
+      auto& from_pool = state.pools[from_pool_index];
+      auto& to_pool   = state.pools[to_pool_index];
+      auto& voter     = _voters.get(owner.value, "voter record missing");
+
+      _voters.modify(voter, same_payer, [&](auto& voter) {
+         auto* v                  = get_voter_pool_votes(voter, true);
+         auto  transferred_amount = withdraw_pool(from_pool, v->owned_shares[from_pool_index], requested, false);
+         eosio::check(transferred_amount.amount > 0, "transferred 0");
+         deposit_pool(to_pool, v->owned_shares[to_pool_index], v->next_claim[to_pool_index], transferred_amount);
+      });
+
+      eosio::check(from_pool.token_pool.shares() >= 0, "pool shares is negative");
+      eosio::check(from_pool.token_pool.bal().amount >= 0, "pool amount is negative");
+
+      update_votes(owner, voter.proxy, voter.producers, false);
+      save_vote_pool_state();
+   } // system_contract::movepool
 
    void system_contract::onblock_update_vpool(block_timestamp production_time) {
       if (!get_vote_pool_state_singleton().exists())
