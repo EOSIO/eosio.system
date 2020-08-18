@@ -154,7 +154,7 @@ struct votepool_tester : eosio_system_tester {
             //                                "z", token_pool["total_shares"].as<double>()));
             if (ppv.pool_votes[i])
                total += ppv.pool_votes[i] * token_pool["balance"].as<asset>().get_amount() /
-                        token_pool["total_shares"].as<double>();
+                        token_pool["total_shares"].as<double>() * pools[i]["vote_weight"].as<double>();
          }
          ppv.total_pool_votes = total * time_to_vote_weight(state["interval_start"].as<block_timestamp_type>());
       }
@@ -941,7 +941,7 @@ BOOST_AUTO_TEST_CASE(voting) try {
    votepool_tester   t;
    std::vector<name> users     = { alice, bob, jane, sue, bpa, bpb, bpc };
    int               num_pools = 2;
-   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, { { 1024, 2048 } }, { { 64, 256 } }, { { 1.0, 1.0 } }));
+   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, { { 1024, 2048 } }, { { 64, 256 } }, { { 1.0, 1.5 } }));
    t.create_accounts_with_resources(users, sys);
    BOOST_REQUIRE_EQUAL(t.success(), t.stake(sys, alice, a("1000.0000 TST"), a("1000.0000 TST")));
    BOOST_REQUIRE_EQUAL(t.success(), t.stake(sys, bob, a("1000.0000 TST"), a("1000.0000 TST")));

@@ -214,7 +214,8 @@ namespace eosiosystem {
       eosio::check(prod_pool_votes->pool_votes.size() == vote_pool_state.pools.size(), "vote pool corruption");
       for (size_t i = 0; i < vote_pool_state.pools.size(); ++i)
          prod_pool_votes->total_pool_votes +=
-               vote_pool_state.pools[i].token_pool.simulate_sell(prod_pool_votes->pool_votes[i]).amount;
+               vote_pool_state.pools[i].token_pool.simulate_sell(prod_pool_votes->pool_votes[i]).amount *
+               vote_pool_state.pools[i].vote_weight;
       prod_pool_votes->total_pool_votes *= pool_vote_weight;
       prod.total_votes += prod_pool_votes->total_pool_votes;
    }
