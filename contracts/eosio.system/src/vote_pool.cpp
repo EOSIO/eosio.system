@@ -381,7 +381,7 @@ namespace eosiosystem {
       save_vote_pool_state();
    } // system_contract::transferstake
 
-   void system_contract::movepool(name owner, uint32_t from_pool_index, uint32_t to_pool_index, asset requested) {
+   void system_contract::upgradestake(name owner, uint32_t from_pool_index, uint32_t to_pool_index, asset requested) {
       require_auth(owner);
 
       auto& state       = get_vote_pool_state_mutable();
@@ -409,7 +409,7 @@ namespace eosiosystem {
 
       update_votes(owner, voter.proxy, voter.producers, false);
       save_vote_pool_state();
-   } // system_contract::movepool
+   } // system_contract::upgradestake
 
    void system_contract::onblock_update_vpool(block_timestamp production_time) {
       if (!get_vote_pool_state_singleton().exists())

@@ -231,6 +231,13 @@ struct votepool_tester : eosio_system_tester {
                          mvo()("from", from)("to", to)("pool_index", pool_index)("requested", requested)("memo", memo));
    }
 
+   action_result upgradestake(name authorizer, name owner, uint32_t from_pool_index, uint32_t to_pool_index,
+                              asset requested) {
+      return push_action(authorizer, N(upgradestake),
+                         mvo()("owner", owner)("from_pool_index", from_pool_index)("to_pool_index", to_pool_index)(
+                               "requested", requested));
+   }
+
    action_result updatevotes(name authorizer, name user, name producer) {
       return push_action(authorizer, N(updatevotes), mvo()("user", user)("producer", producer));
    }
@@ -323,6 +330,10 @@ BOOST_AUTO_TEST_CASE(checks) try {
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("vote pools not initialized"),
                        t.transferstake(alice, alice, bob, 0, a("1.0000 TST"), ""));
 
+   BOOST_REQUIRE_EQUAL("missing authority of bob111111111", t.upgradestake(alice, bob, 0, 1, a("1.0000 TST")));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("vote pools not initialized"),
+                       t.upgradestake(alice, alice, 0, 1, a("1.0000 TST")));
+
    BOOST_REQUIRE_EQUAL("missing authority of bob111111111", t.updatepay(alice, bob));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("vote pools not initialized"), t.updatepay(alice, alice));
 
@@ -361,6 +372,20 @@ BOOST_AUTO_TEST_CASE(checks) try {
                        t.transferstake(bob, bob, alice, 0, a("1.0000 TST"), ""));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("to voter record missing"),
                        t.transferstake(alice, alice, bob, 0, a("1.0000 TST"), ""));
+
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("invalid pool"), t.upgradestake(alice, alice, 0, 4, a("1.0000 TST")));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("invalid pool"), t.upgradestake(alice, alice, 4, 0, a("1.0000 TST")));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("may only move from a shorter-term pool to a longer-term one"),
+                       t.upgradestake(alice, alice, 3, 0, a("1.0000 TST")));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("requested doesn't match core symbol"),
+                       t.upgradestake(alice, alice, 0, 1, a("1.0000 OOPS")));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("requested doesn't match core symbol"),
+                       t.upgradestake(alice, alice, 0, 1, a("1.000 TST")));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("requested must be positive"),
+                       t.upgradestake(alice, alice, 0, 1, a("0.0000 TST")));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("requested must be positive"),
+                       t.upgradestake(alice, alice, 0, 1, a("-1.0000 TST")));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("voter record missing"), t.upgradestake(bob, bob, 0, 1, a("1.0000 TST")));
 } // checks
 FC_LOG_AND_RETHROW()
 

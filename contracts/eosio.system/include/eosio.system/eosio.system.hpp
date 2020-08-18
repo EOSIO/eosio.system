@@ -1383,7 +1383,7 @@ namespace eosiosystem {
          [[eosio::action]]
          void transferstake(name from, name to, uint32_t pool_index, asset requested, const std::string& memo);
          [[eosio::action]]
-         void movepool(name owner, uint32_t from_pool_index, uint32_t to_pool_index, asset requested);
+         void upgradestake(name owner, uint32_t from_pool_index, uint32_t to_pool_index, asset requested);
          [[eosio::action]]
          void updatevotes( name user, name producer );
          [[eosio::action]]
@@ -1444,7 +1444,7 @@ namespace eosiosystem {
          using stake2pool_action = eosio::action_wrapper<"stake2pool"_n, &system_contract::stake2pool>;
          using claimstake_action = eosio::action_wrapper<"claimstake"_n, &system_contract::claimstake>;
          using transferstake_action = eosio::action_wrapper<"transferstake"_n, &system_contract::transferstake>;
-         using movepool_action = eosio::action_wrapper<"movepool"_n, &system_contract::movepool>;
+         using upgradestake_action = eosio::action_wrapper<"upgradestake"_n, &system_contract::upgradestake>;
          using updatevotes_action = eosio::action_wrapper<"updatevotes"_n, &system_contract::updatevotes>;
          using updatepay_action = eosio::action_wrapper<"updatepay"_n, &system_contract::updatepay>;
          using claimvotepay_action = eosio::action_wrapper<"claimvotepay"_n, &system_contract::claimvotepay>;
