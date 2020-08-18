@@ -25,6 +25,7 @@ constexpr auto bvpay = N(eosio.bvpay);
 constexpr auto alice = N(alice1111111);
 constexpr auto bob   = N(bob111111111);
 constexpr auto jane  = N(jane11111111);
+constexpr auto sue   = N(sue111111111);
 constexpr auto bpa   = N(bpa111111111);
 constexpr auto bpb   = N(bpb111111111);
 constexpr auto bpc   = N(bpc111111111);
@@ -131,6 +132,34 @@ struct votepool_tester : eosio_system_tester {
       }
    }; // check_pool_votes
 
+   double time_to_vote_weight(const time_point& time) {
+      double weight = int64_t((time.sec_since_epoch() - (eosio::chain::config::block_timestamp_epoch / 1000)) /
+                              (eosiosystem::seconds_per_day * 7)) /
+                      double(52);
+      return std::pow(2, weight);
+   }
+
+   void update_bps(int num_pools, std::map<name, prod_pool_votes>& pool_votes, const std::vector<name>& voters,
+                   const std::vector<name>& bps) {
+      auto state = get_vpoolstate();
+      auto pools = state["pools"];
+      BOOST_REQUIRE_EQUAL(pools.size(), num_pools);
+      for (auto bp : bps) {
+         auto& ppv = pool_votes[bp];
+         BOOST_REQUIRE_EQUAL(ppv.pool_votes.size(), num_pools);
+         double total = 0;
+         for (int i = 0; i < num_pools; ++i) {
+            auto token_pool = pools[i]["token_pool"];
+            // elog("${x}, ${y}, ${z}", ("x", ppv.pool_votes[i])("y", token_pool["balance"].as<asset>().get_amount())(
+            //                                "z", token_pool["total_shares"].as<double>()));
+            if (ppv.pool_votes[i])
+               total += ppv.pool_votes[i] * token_pool["balance"].as<asset>().get_amount() /
+                        token_pool["total_shares"].as<double>();
+         }
+         ppv.total_pool_votes = total * time_to_vote_weight(state["interval_start"].as<block_timestamp_type>());
+      }
+   }
+
    void check_total_pool_votes(std::map<name, prod_pool_votes>& pool_votes) {
       for (auto& [prod, ppv] : pool_votes) {
          BOOST_REQUIRE_EQUAL(ppv.total_pool_votes,
@@ -138,8 +167,10 @@ struct votepool_tester : eosio_system_tester {
       }
    }
 
-   void check_votes(int num_pools, std::map<name, prod_pool_votes>& pool_votes, const std::vector<name>& voters) {
+   void check_votes(int num_pools, std::map<name, prod_pool_votes>& pool_votes, const std::vector<name>& voters,
+                    const std::vector<name>& updating_bps = {}) {
       check_pool_votes(num_pools, pool_votes, voters);
+      update_bps(num_pools, pool_votes, voters, updating_bps);
       check_total_pool_votes(pool_votes);
    }
 
@@ -886,11 +917,21 @@ FC_LOG_AND_RETHROW()
 
 BOOST_AUTO_TEST_CASE(voting) try {
    votepool_tester   t;
-   std::vector<name> users     = { alice, bob, bpa, bpb, bpc };
+   std::vector<name> users     = { alice, bob, jane, sue, bpa, bpb, bpc };
    int               num_pools = 2;
    BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, { { 1024, 2048 } }, { { 64, 256 } }));
    t.create_accounts_with_resources(users, sys);
+   BOOST_REQUIRE_EQUAL(t.success(), t.stake(sys, alice, a("1000.0000 TST"), a("1000.0000 TST")));
+   BOOST_REQUIRE_EQUAL(t.success(), t.stake(sys, bob, a("1000.0000 TST"), a("1000.0000 TST")));
+   BOOST_REQUIRE_EQUAL(t.success(), t.stake(sys, jane, a("1000.0000 TST"), a("1000.0000 TST")));
+   BOOST_REQUIRE_EQUAL(t.success(), t.stake(sys, sue, a("1000.0000 TST"), a("1000.0000 TST")));
+   BOOST_REQUIRE_EQUAL(t.success(), t.stake(sys, bpa, a("1000.0000 TST"), a("1000.0000 TST")));
+   BOOST_REQUIRE_EQUAL(t.success(), t.stake(sys, bpb, a("1000.0000 TST"), a("1000.0000 TST")));
+   BOOST_REQUIRE_EQUAL(t.success(), t.stake(sys, bpc, a("1000.0000 TST"), a("1000.0000 TST")));
    t.transfer(sys, alice, a("1000.0000 TST"), sys);
+   t.transfer(sys, bob, a("1000.0000 TST"), sys);
+   t.transfer(sys, jane, a("1000.0000 TST"), sys);
+   t.transfer(sys, sue, a("1000.0000 TST"), sys);
    BOOST_REQUIRE_EQUAL(t.success(), t.regproducer(bpa));
    BOOST_REQUIRE_EQUAL(t.success(), t.regproducer(bpb));
    BOOST_REQUIRE_EQUAL(t.success(), t.regproducer(bpc));
@@ -906,13 +947,66 @@ BOOST_AUTO_TEST_CASE(voting) try {
    t.produce_to(interval_start.to_time_point() + fc::milliseconds(120'500));
    interval_start = interval_start.to_time_point() + fc::seconds(120);
 
-   t.check_votes(num_pools, pool_votes, users);
+   // inflate pool 1
+   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, nullopt, nullopt, nullopt, 0.5));
+   BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(jane, jane, 1, a("1.0000 TST")));
+   // ilog("pool 1: ${x}", ("x", t.get_vpoolstate()["pools"][1]));
+   t.produce_to(interval_start.to_time_point() + fc::milliseconds(60'500));
+   interval_start = interval_start.to_time_point() + fc::seconds(60);
+   BOOST_REQUIRE_EQUAL(t.success(), t.updatepay(jane, jane));
+   // ilog("pool 1: ${x}", ("x", t.get_vpoolstate()["pools"][1]));
+   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, nullopt, nullopt, nullopt, 0.0));
 
+   t.produce_to(interval_start.to_time_point() + fc::milliseconds(60'500));
+   interval_start = interval_start.to_time_point() + fc::seconds(60);
+
+   // alice buys pool 0 and votes
+   t.check_votes(num_pools, pool_votes, users);
    BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(alice, alice, 0, a("1.0000 TST")));
    t.check_votes(num_pools, pool_votes, users);
    BOOST_REQUIRE_EQUAL(t.success(), t.vote(alice, { bpa, bpb }));
    t.check_votes(num_pools, pool_votes, users);
+   BOOST_REQUIRE_EQUAL(t.success(), t.updatevotes(bpa, bpa, bpa));
+   t.check_votes(num_pools, pool_votes, users, { bpa });
+   BOOST_REQUIRE_EQUAL(t.success(), t.updatevotes(bpb, bpb, bpb));
+   t.check_votes(num_pools, pool_votes, users, { bpb });
 
+   // bob buys pool 0 and votes
+   BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(bob, bob, 0, a("1.0000 TST")));
+   t.check_votes(num_pools, pool_votes, users);
+   BOOST_REQUIRE_EQUAL(t.success(), t.vote(bob, { bpb, bpc }));
+   t.check_votes(num_pools, pool_votes, users);
+   BOOST_REQUIRE_EQUAL(t.success(), t.updatepay(jane, jane));
+   BOOST_REQUIRE_EQUAL(t.success(), t.updatevotes(bpc, bpc, bpc));
+   t.check_votes(num_pools, pool_votes, users, { bpb, bpc });
+
+   // sue buys pool 1 and votes
+   BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(sue, sue, 1, a("1.0000 TST")));
+   t.produce_block();
+   BOOST_REQUIRE_EQUAL(t.success(), t.updatevotes(bpa, bpa, bpa));
+   BOOST_REQUIRE_EQUAL(t.success(), t.updatevotes(bpc, bpc, bpc));
+   t.check_votes(num_pools, pool_votes, users, { bpa, bpc });
+
+   // check balance between pool 0 (not inflated) and pool 1 (inflated)
+   BOOST_REQUIRE_EQUAL(t.success(), t.vote(alice, {}));
+   BOOST_REQUIRE_EQUAL(t.success(), t.vote(bob, { bpb })); // 1.0000 TST in pool 0; 100000.0 shares
+   BOOST_REQUIRE_EQUAL(t.success(), t.vote(sue, { bpc })); // 1.0000 TST in pool 1; small shares
+   t.produce_block();
+   BOOST_REQUIRE_EQUAL(t.success(), t.updatevotes(bpa, bpa, bpa));
+   BOOST_REQUIRE_EQUAL(t.success(), t.updatevotes(bpb, bpb, bpb));
+   BOOST_REQUIRE_EQUAL(t.success(), t.updatevotes(bpc, bpc, bpc));
+   t.check_votes(num_pools, pool_votes, users, { bpa, bpb, bpc });
+   // ilog("bpa: ${x}", ("x", t.get_producer_info(bpa)["pool_votes"]));
+   // ilog("bpb: ${x}", ("x", t.get_producer_info(bpb)["pool_votes"]));
+   // ilog("bpc: ${x}", ("x", t.get_producer_info(bpc)["pool_votes"]));
+
+   // bob is now in both pools
+   BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(bob, bob, 1, a("1.0000 TST")));
+   t.produce_block();
+   BOOST_REQUIRE_EQUAL(t.success(), t.updatevotes(bpa, bpa, bpa));
+   BOOST_REQUIRE_EQUAL(t.success(), t.updatevotes(bpb, bpb, bpb));
+   BOOST_REQUIRE_EQUAL(t.success(), t.updatevotes(bpc, bpc, bpc));
+   t.check_votes(num_pools, pool_votes, users, { bpa, bpb, bpc });
 } // voting
 FC_LOG_AND_RETHROW()
 
