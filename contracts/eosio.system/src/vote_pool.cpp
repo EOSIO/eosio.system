@@ -203,7 +203,6 @@ namespace eosiosystem {
    }
 
    void system_contract::update_total_pool_votes(producer_info& prod, double pool_vote_weight) {
-      // TODO: reconsider pool weights
       // TODO: transition weighting between old and new systems
       auto* prod_pool_votes = get_prod_pool_votes(prod);
       if (!prod_pool_votes)
@@ -276,7 +275,7 @@ namespace eosiosystem {
 
       eosio::check(pool_index < state.pools.size(), "invalid pool");
       eosio::check(amount.symbol == core_symbol, "amount doesn't match core symbol");
-      eosio::check(amount.amount > 0, "amount must be positive"); // TODO: higher minimum amount?
+      eosio::check(amount.amount > 0, "amount must be positive");
 
       auto voter_itr = _voters.find(owner.value);
       if (voter_itr != _voters.end()) {
@@ -313,7 +312,7 @@ namespace eosiosystem {
 
       eosio::check(pool_index < state.pools.size(), "invalid pool");
       eosio::check(requested.symbol == core_symbol, "requested doesn't match core symbol");
-      eosio::check(requested.amount > 0, "requested must be positive"); // TODO: higher minimum amount?
+      eosio::check(requested.amount > 0, "requested must be positive");
 
       auto& pool  = state.pools[pool_index];
       auto& voter = _voters.get(owner.value, "voter record missing");
@@ -355,7 +354,7 @@ namespace eosiosystem {
 
       eosio::check(pool_index < state.pools.size(), "invalid pool");
       eosio::check(requested.symbol == core_symbol, "requested doesn't match core symbol");
-      eosio::check(requested.amount > 0, "requested must be positive"); // TODO: higher minimum amount?
+      eosio::check(requested.amount > 0, "requested must be positive");
 
       auto& pool       = state.pools[pool_index];
       auto& from_voter = _voters.get(from.value, "from voter record missing");

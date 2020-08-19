@@ -515,6 +515,8 @@ BOOST_AUTO_TEST_CASE(no_inflation) try {
                        t.transferstake(bob, bob, jane, 1, a("1.0000 TST"), ""));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("voter is not upgraded"),
                        t.transferstake(jane, jane, bob, 1, a("1.0000 TST"), ""));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("voter is not upgraded"), t.upgradestake(jane, jane, 0, 1, a("1.0000 TST")));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("transferred 0"), t.upgradestake(bob, bob, 0, 1, a("1.0000 TST")));
 
    BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(jane, jane, 0, a("1.0000 TST")));
    t.check_vpool_totals(users);

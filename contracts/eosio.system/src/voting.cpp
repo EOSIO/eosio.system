@@ -290,10 +290,10 @@ namespace eosiosystem {
          check( !voting || new_proxy->is_proxy, "proxy not found" );
          if ( new_vote_weight >= 0 || new_pool_votes ) {
             _voters.modify( new_proxy, same_payer, [&]( auto& vp ) {
-                  vp.proxied_vote_weight += new_vote_weight;
+               vp.proxied_vote_weight += new_vote_weight;
                if (new_pool_votes)
                   add_proxied_shares(vp, *new_pool_votes, "proxy has not upgraded to support pool votes");
-               });
+            });
             propagate_weight_change( *new_proxy );
          }
       } else {
