@@ -122,7 +122,7 @@ struct votepool_tester : eosio_system_tester {
                auto& ppv = pool_votes[prod];
                BOOST_REQUIRE_EQUAL(ppv.pool_votes.size(), shares.size());
                for (size_t i = 0; i < shares.size(); ++i)
-                  ppv.pool_votes[i] += shares[i];
+                  ppv.pool_votes[i] += shares[i] / prods.size();
             }
          }
       }

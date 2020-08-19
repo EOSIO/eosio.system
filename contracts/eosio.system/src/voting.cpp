@@ -256,6 +256,9 @@ namespace eosiosystem {
          if (voter->is_proxy)
             for (size_t i = 0; i < new_pool_votes->size(); ++i)
                new_pool_votes.value()[i] += pool_votes->proxied_shares[i];
+         if (producers.size())
+            for (size_t i = 0; i < new_pool_votes->size(); ++i)
+               new_pool_votes.value()[i] /= producers.size();
       }
 
       struct producer_delta {
@@ -404,6 +407,9 @@ namespace eosiosystem {
          if (voter.is_proxy)
             for (size_t i = 0; i < new_pool_votes->size(); ++i)
                new_pool_votes.value()[i] += pool_votes->proxied_shares[i];
+         if (voter.producers.size())
+            for (size_t i = 0; i < new_pool_votes->size(); ++i)
+               new_pool_votes.value()[i] /= voter.producers.size();
       }
 
       /// don't propagate small changes (1 ~= epsilon)
