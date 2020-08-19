@@ -4,7 +4,7 @@
 #include <eosio/asset.hpp>
 #include <eosio/singleton.hpp>
 
-#include <eosio.system/time_constants.hpp>
+#include <eosio.system/constants.hpp>
 
 namespace eosiosystem {
 

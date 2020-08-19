@@ -11,7 +11,7 @@
 #include <eosio.system/exchange_state.hpp>
 #include <eosio.system/native.hpp>
 #include <eosio.system/stream_extensions.hpp>
-#include <eosio.system/time_constants.hpp>
+#include <eosio.system/constants.hpp>
 #include <eosio.system/vote_pool.hpp>
 
 #include <deque>
