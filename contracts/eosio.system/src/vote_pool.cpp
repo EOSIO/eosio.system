@@ -15,7 +15,7 @@ namespace eosiosystem {
       if (!state) {
          if (init_if_not_exist && !get_vote_pool_state_singleton().exists()) {
             state.emplace();
-            state->interval_start.slot = (eosio::current_block_time().slot / blocks_per_minute) * blocks_per_minute;
+            state->interval_start.slot = (eosio::current_block_time().slot / blocks_per_round) * blocks_per_round;
          } else {
             eosio::check(get_vote_pool_state_singleton().exists(), "vote pools not initialized");
             state = get_vote_pool_state_singleton().get();
@@ -414,10 +414,10 @@ namespace eosiosystem {
       if (!get_vote_pool_state_singleton().exists())
          return;
       auto& state = get_vote_pool_state_mutable();
-      if (production_time.slot >= state.interval_start.slot + blocks_per_minute) {
+      if (production_time.slot >= state.interval_start.slot + blocks_per_round) {
          state.unpaid_blocks       = state.blocks;
          state.blocks              = 0;
-         state.interval_start.slot = (production_time.slot / blocks_per_minute) * blocks_per_minute;
+         state.interval_start.slot = (production_time.slot / blocks_per_round) * blocks_per_round;
       }
       ++state.blocks;
       save_vote_pool_state();
@@ -446,8 +446,8 @@ namespace eosiosystem {
       }
 
       const asset token_supply    = eosio::token::get_supply(token_account, core_symbol().code());
-      auto        pay_scale       = pow((double)state.unpaid_blocks / blocks_per_minute, 10);
-      int64_t     target_prod_pay = pay_scale * state.prod_rate / minutes_per_year * token_supply.amount;
+      auto        pay_scale       = pow((double)state.unpaid_blocks / blocks_per_round, 10);
+      int64_t     target_prod_pay = pay_scale * state.prod_rate / rounds_per_year * token_supply.amount;
       int64_t     total_prod_pay  = 0;
 
       if (target_prod_pay > 0 && total_votes > 0) {
@@ -462,7 +462,7 @@ namespace eosiosystem {
          }
       }
 
-      int64_t per_pool_pay = pay_scale * state.voter_rate / minutes_per_year * token_supply.amount / state.pools.size();
+      int64_t per_pool_pay = pay_scale * state.voter_rate / rounds_per_year * token_supply.amount / state.pools.size();
       int64_t total_voter_pay = 0;
       for (auto& pool : state.pools) {
          if (pool.token_pool.shares()) {

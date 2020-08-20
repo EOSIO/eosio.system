@@ -30,6 +30,9 @@ constexpr auto bpa   = N(bpa111111111);
 constexpr auto bpb   = N(bpb111111111);
 constexpr auto bpc   = N(bpc111111111);
 
+constexpr auto blocks_per_round  = eosiosystem::blocks_per_round;
+constexpr auto seconds_per_round = blocks_per_round / 2;
+
 struct prod_pool_votes {
    std::vector<double> pool_votes;           // shares in each pool
    double              total_pool_votes = 0; // total shares in all pools, weighted by update time and pool strength
@@ -150,12 +153,23 @@ struct votepool_tester : eosio_system_tester {
          double total = 0;
          for (int i = 0; i < num_pools; ++i) {
             auto token_pool = pools[i]["token_pool"];
-            // elog("${x}, ${y}, ${z}", ("x", ppv.pool_votes[i])("y", token_pool["balance"].as<asset>().get_amount())(
-            //                                "z", token_pool["total_shares"].as<double>()));
-            if (ppv.pool_votes[i])
-               total += ppv.pool_votes[i] * token_pool["balance"].as<asset>().get_amount() /
-                        token_pool["total_shares"].as<double>() * pools[i]["vote_weight"].as<double>();
+            if (ppv.pool_votes[i]) {
+               int64_t sim_sell = ppv.pool_votes[i] * token_pool["balance"].as<asset>().get_amount() /
+                                  token_pool["total_shares"].as<double>();
+               total += sim_sell * pools[i]["vote_weight"].as<double>();
+
+               // elog("${bp}: [${i}] ${x}, ${y}, ${z}, sim=${sim} => ${res}", //
+               //      ("bp", bp)("i", i)("x", ppv.pool_votes[i])              //
+               //      ("y", token_pool["balance"].as<asset>().get_amount())   //
+               //      ("z", token_pool["total_shares"].as<double>())          //
+               //      ("sim", sim_sell)                                       //
+               //      ("res", sim_sell * pools[i]["vote_weight"].as<double>()));
+            }
          }
+         // elog("   total:         ${t}", ("t", total));
+         // elog("   time weight:   ${t}", ("t", time_to_vote_weight(state["interval_start"].as<block_timestamp_type>())));
+         // elog("   weighted:      ${w}",
+         //      ("w", total * time_to_vote_weight(state["interval_start"].as<block_timestamp_type>())));
          ppv.total_pool_votes = total * time_to_vote_weight(state["interval_start"].as<block_timestamp_type>());
       }
    }
@@ -607,7 +621,7 @@ BOOST_AUTO_TEST_CASE(pool_inflation) try {
    t.transfer(sys, bob, a("1000.0000 TST"), sys);
    t.transfer(sys, jane, a("1000.0000 TST"), sys);
 
-   btime interval_start(time_point::from_iso_string("2020-01-01T00:00:00.000"));
+   btime interval_start(time_point::from_iso_string("2020-01-01T00:00:18.000"));
 
    REQUIRE_MATCHING_OBJECT(mvo()                              //
                            ("prod_rate", 0.0)                 //
@@ -621,7 +635,7 @@ BOOST_AUTO_TEST_CASE(pool_inflation) try {
    // Note: on_block sees the previous block produced, not the pending block, so it won't
    //       trigger the rollover until 1 block later.
 
-   t.produce_to(interval_start.to_time_point() + fc::seconds(60));
+   t.produce_to(interval_start.to_time_point() + fc::seconds(seconds_per_round));
 
    REQUIRE_MATCHING_OBJECT(mvo()                              //
                            ("prod_rate", 0.0)                 //
@@ -632,44 +646,44 @@ BOOST_AUTO_TEST_CASE(pool_inflation) try {
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("already processed pay for this time interval"), t.updatepay(alice, alice));
 
    t.produce_block();
-   interval_start = interval_start.to_time_point() + fc::seconds(60);
+   interval_start = interval_start.to_time_point() + fc::seconds(seconds_per_round);
 
    // First interval is partial
    REQUIRE_MATCHING_OBJECT(mvo()                              //
                            ("prod_rate", 0.0)                 //
                            ("voter_rate", 0.0)                //
                            ("interval_start", interval_start) //
-                           ("unpaid_blocks", 11),             //
+                           ("unpaid_blocks", 179),            //
                            t.get_vpoolstate());
 
-   t.produce_to(interval_start.to_time_point() + fc::seconds(60));
+   t.produce_to(interval_start.to_time_point() + fc::seconds(seconds_per_round));
    REQUIRE_MATCHING_OBJECT(mvo()                              //
                            ("prod_rate", 0.0)                 //
                            ("voter_rate", 0.0)                //
                            ("interval_start", interval_start) //
-                           ("unpaid_blocks", 11),             //
+                           ("unpaid_blocks", 179),            //
                            t.get_vpoolstate());
 
    t.produce_block();
-   interval_start = interval_start.to_time_point() + fc::seconds(60);
+   interval_start = interval_start.to_time_point() + fc::seconds(seconds_per_round);
 
    // unpaid_blocks doesn't accumulate
-   REQUIRE_MATCHING_OBJECT(mvo()                              //
-                           ("prod_rate", 0.0)                 //
-                           ("voter_rate", 0.0)                //
-                           ("interval_start", interval_start) //
-                           ("unpaid_blocks", 120),            //
+   REQUIRE_MATCHING_OBJECT(mvo()                                //
+                           ("prod_rate", 0.0)                   //
+                           ("voter_rate", 0.0)                  //
+                           ("interval_start", interval_start)   //
+                           ("unpaid_blocks", blocks_per_round), //
                            t.get_vpoolstate());
 
-   t.produce_to(interval_start.to_time_point() + fc::milliseconds(60'500));
-   interval_start = interval_start.to_time_point() + fc::seconds(60);
+   interval_start = interval_start.to_time_point() + fc::seconds(seconds_per_round);
+   t.produce_to(interval_start.to_time_point() + fc::milliseconds(500));
 
    // unpaid_blocks doesn't accumulate
-   REQUIRE_MATCHING_OBJECT(mvo()                              //
-                           ("prod_rate", 0.0)                 //
-                           ("voter_rate", 0.0)                //
-                           ("interval_start", interval_start) //
-                           ("unpaid_blocks", 120),            //
+   REQUIRE_MATCHING_OBJECT(mvo()                                //
+                           ("prod_rate", 0.0)                   //
+                           ("voter_rate", 0.0)                  //
+                           ("interval_start", interval_start)   //
+                           ("unpaid_blocks", blocks_per_round), //
                            t.get_vpoolstate());
 
    auto supply = t.get_token_supply();
@@ -692,13 +706,13 @@ BOOST_AUTO_TEST_CASE(pool_inflation) try {
    double rate = 0.5;
    BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, nullopt, nullopt, nullopt, nullopt, rate));
 
-   t.produce_to(interval_start.to_time_point() + fc::milliseconds(60'500));
-   interval_start = interval_start.to_time_point() + fc::seconds(60);
-   REQUIRE_MATCHING_OBJECT(mvo()                              //
-                           ("prod_rate", 0.0)                 //
-                           ("voter_rate", rate)               //
-                           ("interval_start", interval_start) //
-                           ("unpaid_blocks", 120),            //
+   interval_start = interval_start.to_time_point() + fc::seconds(seconds_per_round);
+   t.produce_to(interval_start.to_time_point() + fc::milliseconds(500));
+   REQUIRE_MATCHING_OBJECT(mvo()                                //
+                           ("prod_rate", 0.0)                   //
+                           ("voter_rate", rate)                 //
+                           ("interval_start", interval_start)   //
+                           ("unpaid_blocks", blocks_per_round), //
                            t.get_vpoolstate());
    BOOST_REQUIRE_EQUAL(t.success(), t.updatepay(alice, alice));
 
@@ -723,19 +737,20 @@ BOOST_AUTO_TEST_CASE(pool_inflation) try {
    BOOST_REQUIRE_EQUAL(t.get_vpoolstate()["pools"][int(1)]["token_pool"]["balance"].as<asset>(), a("0.0000 TST"));
 
    // produce inflation
-   t.produce_to(interval_start.to_time_point() + fc::milliseconds(60'500));
-   interval_start = interval_start.to_time_point() + fc::seconds(60);
-   REQUIRE_MATCHING_OBJECT(mvo()                              //
-                           ("prod_rate", 0.0)                 //
-                           ("voter_rate", rate)               //
-                           ("interval_start", interval_start) //
-                           ("unpaid_blocks", 120),            //
+
+   interval_start = interval_start.to_time_point() + fc::seconds(seconds_per_round);
+   t.produce_to(interval_start.to_time_point() + fc::milliseconds(500));
+   REQUIRE_MATCHING_OBJECT(mvo()                                //
+                           ("prod_rate", 0.0)                   //
+                           ("voter_rate", rate)                 //
+                           ("interval_start", interval_start)   //
+                           ("unpaid_blocks", blocks_per_round), //
                            t.get_vpoolstate());
    BOOST_REQUIRE_EQUAL(t.success(), t.updatepay(jane, jane));
 
    // check inflation
    auto per_pool_inflation =
-         asset(supply.get_amount() * rate / eosiosystem::minutes_per_year / num_pools, symbol{ CORE_SYM });
+         asset(supply.get_amount() * rate / eosiosystem::rounds_per_year / num_pools, symbol{ CORE_SYM });
    pool_0_balance += per_pool_inflation;
    supply += per_pool_inflation;
    BOOST_REQUIRE_EQUAL(t.get_token_supply(), supply);
@@ -760,19 +775,19 @@ BOOST_AUTO_TEST_CASE(pool_inflation) try {
    BOOST_REQUIRE_EQUAL(t.get_vpoolstate()["pools"][int(1)]["token_pool"]["balance"].as<asset>(), pool_1_balance);
 
    // produce inflation
-   t.produce_to(interval_start.to_time_point() + fc::milliseconds(60'500));
-   interval_start = interval_start.to_time_point() + fc::seconds(60);
-   REQUIRE_MATCHING_OBJECT(mvo()                              //
-                           ("prod_rate", 0.0)                 //
-                           ("voter_rate", rate)               //
-                           ("interval_start", interval_start) //
-                           ("unpaid_blocks", 120),            //
+   interval_start = interval_start.to_time_point() + fc::seconds(seconds_per_round);
+   t.produce_to(interval_start.to_time_point() + fc::milliseconds(500));
+   REQUIRE_MATCHING_OBJECT(mvo()                                //
+                           ("prod_rate", 0.0)                   //
+                           ("voter_rate", rate)                 //
+                           ("interval_start", interval_start)   //
+                           ("unpaid_blocks", blocks_per_round), //
                            t.get_vpoolstate());
    BOOST_REQUIRE_EQUAL(t.success(), t.updatepay(jane, jane));
 
    // check inflation
    per_pool_inflation =
-         asset(supply.get_amount() * rate / eosiosystem::minutes_per_year / num_pools, symbol{ CORE_SYM });
+         asset(supply.get_amount() * rate / eosiosystem::rounds_per_year / num_pools, symbol{ CORE_SYM });
    pool_0_balance += per_pool_inflation;
    pool_1_balance += per_pool_inflation;
    supply = supply + per_pool_inflation + per_pool_inflation;
@@ -784,7 +799,7 @@ BOOST_AUTO_TEST_CASE(pool_inflation) try {
 
    // alice made a profit
    auto alice_approx_sell_shares = alice_shares * 64 / 1024; // easier formula, but rounds different from actual
-   auto alice_sell_shares        = 624.9998690972549;        // calculated by contract
+   auto alice_sell_shares        = 624.9996257869700;        // calculated by contract
    BOOST_REQUIRE(abs(alice_sell_shares - alice_approx_sell_shares) < 0.001);
    auto alice_returned_funds =
          asset(pool_0_balance.get_amount() * alice_sell_shares / alice_shares, symbol{ CORE_SYM });
@@ -806,20 +821,20 @@ BOOST_AUTO_TEST_CASE(pool_inflation) try {
    // BPs miss 30 blocks
    t.produce_block();
    t.produce_block(fc::milliseconds(15'500));
-   t.produce_to(interval_start.to_time_point() + fc::milliseconds(60'500));
-   interval_start = interval_start.to_time_point() + fc::seconds(60);
-   REQUIRE_MATCHING_OBJECT(mvo()                              //
-                           ("prod_rate", 0.0)                 //
-                           ("voter_rate", 0.5)                //
-                           ("interval_start", interval_start) //
-                           ("unpaid_blocks", 90),             //
+   interval_start = interval_start.to_time_point() + fc::seconds(seconds_per_round);
+   t.produce_to(interval_start.to_time_point() + fc::milliseconds(500));
+   REQUIRE_MATCHING_OBJECT(mvo()                                     //
+                           ("prod_rate", 0.0)                        //
+                           ("voter_rate", 0.5)                       //
+                           ("interval_start", interval_start)        //
+                           ("unpaid_blocks", blocks_per_round - 30), //
                            t.get_vpoolstate());
 
    // check inflation with missed blocks
    BOOST_REQUIRE_EQUAL(t.success(), t.updatepay(jane, jane));
-   auto pay_scale = pow((double)90 / 120, 10);
+   auto pay_scale = pow((double)(blocks_per_round - 30) / blocks_per_round, 10);
    per_pool_inflation =
-         asset(supply.get_amount() * rate * pay_scale / eosiosystem::minutes_per_year / num_pools, symbol{ CORE_SYM });
+         asset(supply.get_amount() * rate * pay_scale / eosiosystem::rounds_per_year / num_pools, symbol{ CORE_SYM });
    pool_0_balance += per_pool_inflation;
    pool_1_balance += per_pool_inflation;
    supply = supply + per_pool_inflation + per_pool_inflation;
@@ -845,7 +860,7 @@ BOOST_AUTO_TEST_CASE(prod_inflation) try {
    BOOST_REQUIRE_EQUAL(t.success(), t.regproducer(bpc));
    BOOST_REQUIRE_EQUAL(t.success(), t.vote(alice, { bpa, bpb, bpc }));
 
-   btime interval_start(time_point::from_iso_string("2020-01-01T00:00:00.000"));
+   btime interval_start(time_point::from_iso_string("2020-01-01T00:00:18.000"));
 
    double prod_rate    = 0.0;
    auto   supply       = t.get_token_supply();
@@ -866,14 +881,14 @@ BOOST_AUTO_TEST_CASE(prod_inflation) try {
                               t.get_vpoolstate());
    };
 
-   auto check_vote_pay = [&](uint32_t unpaid_blocks = 120) {
+   auto check_vote_pay = [&](uint32_t unpaid_blocks = blocks_per_round) {
       check_vpoolstate(unpaid_blocks);
       BOOST_REQUIRE_EQUAL(t.success(), t.updatepay(alice, alice));
       check_vpoolstate(0);
 
-      auto pay_scale = pow(double(unpaid_blocks) / 120, 10);
+      auto pay_scale = pow(double(unpaid_blocks) / blocks_per_round, 10);
       auto target_pay =
-            asset(pay_scale * prod_rate * supply.get_amount() / eosiosystem::minutes_per_year, symbol{ CORE_SYM });
+            asset(pay_scale * prod_rate * supply.get_amount() / eosiosystem::rounds_per_year, symbol{ CORE_SYM });
       // ilog("target_pay: ${x}", ("x", target_pay));
 
       auto check_pay = [&](auto bp, auto& bp_vote_pay, double ratio) {
@@ -908,13 +923,13 @@ BOOST_AUTO_TEST_CASE(prod_inflation) try {
    };
 
    auto next_interval = [&]() {
-      t.produce_to(interval_start.to_time_point() + fc::milliseconds(60'500));
-      interval_start = interval_start.to_time_point() + fc::seconds(60);
+      interval_start = interval_start.to_time_point() + fc::seconds(seconds_per_round);
+      t.produce_to(interval_start.to_time_point() + fc::milliseconds(500));
    };
 
    // Go to first whole interval
-   t.produce_to(interval_start.to_time_point() + fc::milliseconds(120'500));
-   interval_start = interval_start.to_time_point() + fc::seconds(120);
+   interval_start = interval_start.to_time_point() + fc::seconds(seconds_per_round * 2);
+   t.produce_to(interval_start.to_time_point() + fc::milliseconds(500));
    check_vote_pay();
 
    // enable producer inflation; no bps are automatically counted yet
@@ -960,7 +975,7 @@ BOOST_AUTO_TEST_CASE(prod_inflation) try {
    t.produce_block();
    t.produce_block(fc::milliseconds(15'500));
    next_interval();
-   check_vote_pay(90);
+   check_vote_pay(blocks_per_round - 30);
 } // prod_inflation
 FC_LOG_AND_RETHROW()
 
@@ -990,7 +1005,7 @@ BOOST_AUTO_TEST_CASE(voting) try {
    pool_votes[bpb];
    pool_votes[bpc];
 
-   btime interval_start(time_point::from_iso_string("2020-01-01T00:00:00.000"));
+   btime interval_start(time_point::from_iso_string("2020-01-01T00:00:18.000"));
 
    // Go to first whole interval
    t.produce_to(interval_start.to_time_point() + fc::milliseconds(120'500));
@@ -1000,14 +1015,14 @@ BOOST_AUTO_TEST_CASE(voting) try {
    BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, nullopt, nullopt, nullopt, nullopt, 0.5));
    BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(jane, jane, 1, a("1.0000 TST")));
    // ilog("pool 1: ${x}", ("x", t.get_vpoolstate()["pools"][1]));
-   t.produce_to(interval_start.to_time_point() + fc::milliseconds(60'500));
-   interval_start = interval_start.to_time_point() + fc::seconds(60);
+   interval_start = interval_start.to_time_point() + fc::seconds(seconds_per_round);
+   t.produce_to(interval_start.to_time_point() + fc::milliseconds(500));
    BOOST_REQUIRE_EQUAL(t.success(), t.updatepay(jane, jane));
    // ilog("pool 1: ${x}", ("x", t.get_vpoolstate()["pools"][1]));
    BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, nullopt, nullopt, nullopt, nullopt, 0.0));
 
-   t.produce_to(interval_start.to_time_point() + fc::milliseconds(60'500));
-   interval_start = interval_start.to_time_point() + fc::seconds(60);
+   interval_start = interval_start.to_time_point() + fc::seconds(seconds_per_round);
+   t.produce_to(interval_start.to_time_point() + fc::milliseconds(500));
 
    // alice buys pool 0 and votes
    t.check_votes(num_pools, pool_votes, users);
