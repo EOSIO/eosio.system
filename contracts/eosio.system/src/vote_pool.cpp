@@ -30,6 +30,13 @@ namespace eosiosystem {
       get_vote_pool_state_singleton().set(get_vote_pool_state_mutable(), get_self());
    }
 
+   total_pool_votes_table& system_contract::get_total_pool_votes_table() {
+      static std::optional<total_pool_votes_table> table;
+      if (!table)
+         table.emplace(get_self(), get_self().value);
+      return *table;
+   }
+
    void system_contract::cfgvpool(const std::optional<std::vector<uint32_t>>& durations,
                                   const std::optional<std::vector<uint32_t>>& claim_periods,
                                   const std::optional<std::vector<double>>&   vote_weights,
@@ -94,27 +101,49 @@ namespace eosiosystem {
       save_vote_pool_state();
    }
 
-   const prod_pool_votes* system_contract::get_prod_pool_votes(const producer_info& info) {
+   const std::vector<double>* system_contract::get_prod_pool_votes(const producer_info& info) {
       if (info.pool_votes.has_value() && info.pool_votes.value().has_value())
          return &info.pool_votes.value().value();
       return nullptr;
    }
 
-   prod_pool_votes* system_contract::get_prod_pool_votes(producer_info& info) {
+   std::vector<double>* system_contract::get_prod_pool_votes(producer_info& info) {
       if (info.pool_votes.has_value() && info.pool_votes.value().has_value())
          return &info.pool_votes.value().value();
       return nullptr;
    }
 
    void system_contract::enable_prod_pool_votes(producer_info& info) {
-      if (get_prod_pool_votes(info) || !get_vote_pool_state_singleton().exists())
+      if (!get_vote_pool_state_singleton().exists())
          return;
+
+      auto& total_table = get_total_pool_votes_table();
+      if (get_prod_pool_votes(info)) {
+         total_table.modify(total_table.get(info.owner.value), same_payer, [](auto& tot) { tot.active = true; });
+         return;
+      }
 
       info.pool_votes.emplace();
       info.pool_votes.value().emplace();
       auto& v = info.pool_votes.value().value();
-      v.pool_votes.resize(get_vote_pool_state().pools.size());
-      v.vote_pay = { 0, get_core_symbol() };
+      v.resize(get_vote_pool_state().pools.size());
+
+      total_table.emplace(info.owner, [&](auto& tot) {
+         tot.owner    = info.owner;
+         tot.active   = true;
+         tot.votes    = 0;
+         tot.vote_pay = { 0, get_core_symbol() };
+      });
+   }
+
+   void system_contract::deactivate_producer(name producer) {
+      auto& prod = _producers.get(producer.value, "producer not found");
+      _producers.modify(prod, same_payer, [](auto& info) { info.deactivate(); });
+
+      auto& total_table = get_total_pool_votes_table();
+      auto  it          = total_table.find(producer.value);
+      if (it != total_table.end())
+         total_table.modify(*it, same_payer, [](auto& tot) { tot.active = false; });
    }
 
    const voter_pool_votes* system_contract::get_voter_pool_votes(const voter_info& info, bool required) {
@@ -181,47 +210,43 @@ namespace eosiosystem {
 
    void system_contract::add_pool_votes(producer_info& prod, const std::vector<double>& deltas, const char* error) {
       auto* votes = get_prod_pool_votes(prod);
-      eosio::check(votes && votes->pool_votes.size() == deltas.size(), error);
+      eosio::check(votes && votes->size() == deltas.size(), error);
       for (size_t i = 0; i < deltas.size(); ++i)
-         votes->pool_votes[i] += deltas[i];
+         (*votes)[i] += deltas[i];
    }
 
    void system_contract::sub_pool_votes(producer_info& prod, const std::vector<double>& deltas, const char* error) {
       auto* votes = get_prod_pool_votes(prod);
-      eosio::check(votes && votes->pool_votes.size() == deltas.size(), error);
+      eosio::check(votes && votes->size() == deltas.size(), error);
       for (size_t i = 0; i < deltas.size(); ++i)
-         votes->pool_votes[i] -= deltas[i];
+         (*votes)[i] -= deltas[i];
    }
 
-   std::vector<const producer_info*> system_contract::top_active_producers(size_t n) {
-      std::vector<const producer_info*> prods;
+   std::vector<const total_pool_votes*> system_contract::top_active_producers(size_t n) {
+      std::vector<const total_pool_votes*> prods;
       prods.reserve(n);
-      auto idx = _producers.get_index<"prototalvote"_n>();
-      for (auto it = idx.begin(); it != idx.end() && prods.size() < n && it->total_votes > 0 && it->active(); ++it)
+      auto idx = get_total_pool_votes_table().get_index<"byvotes"_n>();
+      for (auto it = idx.begin(); it != idx.end() && prods.size() < n && it->votes > 0 && it->active; ++it)
          prods.push_back(&*it);
       return prods;
    }
 
-   void system_contract::update_total_pool_votes(producer_info& prod) {
-      // TODO: transition weighting between old and new systems
-      auto* prod_pool_votes = get_prod_pool_votes(prod);
-      if (!prod_pool_votes)
-         return;
-      auto& vote_pool_state = get_vote_pool_state();
-      prod.total_votes -= prod_pool_votes->total_pool_votes;
-      prod_pool_votes->total_pool_votes = 0;
-      eosio::check(prod_pool_votes->pool_votes.size() == vote_pool_state.pools.size(), "vote pool corruption");
-      for (size_t i = 0; i < vote_pool_state.pools.size(); ++i)
-         prod_pool_votes->total_pool_votes +=
-               vote_pool_state.pools[i].token_pool.simulate_sell(prod_pool_votes->pool_votes[i]).amount *
-               vote_pool_state.pools[i].vote_weight;
-      prod.total_votes += prod_pool_votes->total_pool_votes;
+   double system_contract::calc_votes(const std::vector<double>& pool_votes) {
+      auto&  pools  = get_vote_pool_state().pools;
+      double result = 0;
+      eosio::check(pool_votes.size() == pools.size(), "vote pool corruption");
+      for (size_t i = 0; i < pools.size(); ++i)
+         result += pools[i].token_pool.simulate_sell(pool_votes[i]).amount * pools[i].vote_weight;
+      return result;
    }
 
    void system_contract::update_total_pool_votes(size_t n) {
-      auto prods = top_active_producers(n);
+      auto& total_table = get_total_pool_votes_table();
+      auto  prods       = top_active_producers(n);
       for (auto* prod : prods)
-         _producers.modify(*prod, same_payer, [&](auto& prod) { update_total_pool_votes(prod); });
+         total_table.modify(*prod, same_payer, [&](auto& prod) {
+            prod.votes = calc_votes(*get_prod_pool_votes(_producers.get(prod.owner.value)));
+         });
    }
 
    void system_contract::deposit_pool(vote_pool& pool, double& owned_shares, block_timestamp& next_claim,
@@ -425,22 +450,25 @@ namespace eosiosystem {
       require_auth(user);
       auto& prod = _producers.get(producer.value, "unknown producer");
       eosio::check(prod.is_active, "producer is not active");
-      _producers.modify(prod, same_payer, [&](auto& prod) { update_total_pool_votes(prod); });
+      auto* pool_votes = get_prod_pool_votes(_producers.get(prod.owner.value));
+      eosio::check(pool_votes, "producer is not upgraded to support pool votes");
+      auto& total_table = get_total_pool_votes_table();
+      total_table.modify(total_table.get(prod.owner.value), same_payer,
+                         [&](auto& prod) { prod.votes = calc_votes(*pool_votes); });
    }
 
    void system_contract::updatepay(name user) {
       require_auth(user);
-      auto& state = get_vote_pool_state_mutable();
+      auto& state       = get_vote_pool_state_mutable();
+      auto& total_table = get_total_pool_votes_table();
       eosio::check(state.unpaid_blocks > 0, "already processed pay for this time interval");
 
       update_total_pool_votes(50);
       auto prods = top_active_producers(50);
 
       double total_votes = 0;
-      for (auto* prod : prods) {
-         if (get_prod_pool_votes(*prod))
-            total_votes += prod->total_votes;
-      }
+      for (auto* prod : prods)
+         total_votes += prod->votes;
 
       const asset token_supply    = eosio::token::get_supply(token_account, core_symbol().code());
       auto        pay_scale       = pow((double)state.unpaid_blocks / blocks_per_round, 10);
@@ -449,12 +477,10 @@ namespace eosiosystem {
 
       if (target_prod_pay > 0 && total_votes > 0) {
          for (auto* prod : prods) {
-            _producers.modify(*prod, same_payer, [&](auto& prod) {
-               if (auto* pv = get_prod_pool_votes(prod)) {
-                  int64_t pay = (target_prod_pay * prod.total_votes) / total_votes;
-                  pv->vote_pay.amount += pay;
-                  total_prod_pay += pay;
-               }
+            total_table.modify(*prod, same_payer, [&](auto& prod) {
+               int64_t pay = (target_prod_pay * prod.votes) / total_votes;
+               prod.vote_pay.amount += pay;
+               total_prod_pay += pay;
             });
          }
       }
@@ -492,13 +518,13 @@ namespace eosiosystem {
 
    void system_contract::claimvotepay(name producer) {
       require_auth(producer);
-      auto& prod = _producers.get(producer.value, "unknown producer");
-      _producers.modify(prod, same_payer, [&](auto& prod) {
-         auto* pv = get_prod_pool_votes(prod);
-         eosio::check(pv && pv->vote_pay.amount > 0, "no pay available");
+      auto& total_table = get_total_pool_votes_table();
+      auto& prod        = total_table.get(producer.value, "unknown producer");
+      total_table.modify(prod, same_payer, [&](auto& prod) {
+         eosio::check(prod.vote_pay.amount > 0, "no pay available");
          eosio::token::transfer_action transfer_act{ token_account, { bvpay_account, active_permission } };
-         transfer_act.send(bvpay_account, producer, pv->vote_pay, "producer pay");
-         pv->vote_pay.amount = 0;
+         transfer_act.send(bvpay_account, producer, prod.vote_pay, "producer pay");
+         prod.vote_pay.amount = 0;
       });
    }
 

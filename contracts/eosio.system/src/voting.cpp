@@ -98,11 +98,7 @@ namespace eosiosystem {
 
    void system_contract::unregprod( const name& producer ) {
       require_auth( producer );
-
-      const auto& prod = _producers.get( producer.value, "producer not found" );
-      _producers.modify( prod, same_payer, [&]( producer_info& info ){
-         info.deactivate();
-      });
+      deactivate_producer( producer );
    }
 
    void system_contract::update_elected_producers( const block_timestamp& block_time ) {

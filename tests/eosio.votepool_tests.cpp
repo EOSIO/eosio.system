@@ -81,7 +81,16 @@ struct votepool_tester : eosio_system_tester {
 
    fc::variant get_vpoolstate() const {
       vector<char> data = get_row_by_account(sys, {}, N(vpoolstate), N(vpoolstate));
-      return data.empty() ? fc::variant() : abi_ser.binary_to_variant("vote_pool_state", data, abi_serializer_max_time);
+      return data.empty() ? fc::variant()
+                          : abi_ser.binary_to_variant("vote_pool_state", data,
+                                                      abi_serializer::create_yield_function(abi_serializer_max_time));
+   }
+
+   fc::variant get_total_pool_votes(name producer) const {
+      vector<char> data = get_row_by_account(sys, sys, N(totpoolvotes), producer);
+      return data.empty() ? fc::variant()
+                          : abi_ser.binary_to_variant("total_pool_votes", data,
+                                                      abi_serializer::create_yield_function(abi_serializer_max_time));
    }
 
    void check_vpool_totals(const std::vector<name>& users) {
@@ -131,7 +140,7 @@ struct votepool_tester : eosio_system_tester {
       }
 
       for (auto& [prod, ppv] : pool_votes) {
-         BOOST_REQUIRE(ppv.pool_votes == get_producer_info(prod)["pool_votes"]["pool_votes"].as<vector<double>>());
+         BOOST_REQUIRE(ppv.pool_votes == get_producer_info(prod)["pool_votes"].as<vector<double>>());
       }
    }; // check_pool_votes
 
@@ -166,8 +175,7 @@ struct votepool_tester : eosio_system_tester {
 
    void check_total_pool_votes(std::map<name, prod_pool_votes>& pool_votes) {
       for (auto& [prod, ppv] : pool_votes) {
-         BOOST_REQUIRE_EQUAL(ppv.total_pool_votes,
-                             get_producer_info(prod)["pool_votes"]["total_pool_votes"].as<double>());
+         BOOST_REQUIRE_EQUAL(ppv.total_pool_votes, get_total_pool_votes(prod)["votes"].as<double>());
       }
    }
 
@@ -882,15 +890,16 @@ BOOST_AUTO_TEST_CASE(prod_inflation) try {
       // ilog("target_pay: ${x}", ("x", target_pay));
 
       auto check_pay = [&](auto bp, auto& bp_vote_pay, double ratio) {
-         auto pay = asset(target_pay.get_amount() * ratio, symbol{ CORE_SYM });
-         auto adj = t.get_producer_info(bp)["pool_votes"]["vote_pay"].template as<asset>() - bp_vote_pay - pay;
+         auto pay    = asset(target_pay.get_amount() * ratio, symbol{ CORE_SYM });
+         auto actual = t.get_total_pool_votes(bp)["vote_pay"].template as<asset>();
+         auto adj    = actual - bp_vote_pay - pay;
          if (abs(adj.get_amount()) <= 2)
             pay += adj; // allow slight rounding difference
          // ilog("${bp} pay: ${x}", ("bp", bp)("x", pay));
          supply += pay;
          bvpay_bal += pay;
          bp_vote_pay += pay;
-         BOOST_REQUIRE_EQUAL(t.get_producer_info(bp)["pool_votes"]["vote_pay"].template as<asset>(), bp_vote_pay);
+         BOOST_REQUIRE_EQUAL(actual, bp_vote_pay);
       };
       check_pay(bpa, bpa_vote_pay, bpa_factor);
       check_pay(bpb, bpb_vote_pay, bpb_factor);
@@ -902,10 +911,10 @@ BOOST_AUTO_TEST_CASE(prod_inflation) try {
 
    auto claimvotepay = [&](auto bp, auto& vote_pay) {
       auto bal = t.get_balance(bp);
-      BOOST_REQUIRE_EQUAL(t.get_producer_info(bp)["pool_votes"]["vote_pay"].template as<asset>(), vote_pay);
+      BOOST_REQUIRE_EQUAL(t.get_total_pool_votes(bp)["vote_pay"].template as<asset>(), vote_pay);
       BOOST_REQUIRE_EQUAL(t.get_balance(bvpay), bvpay_bal);
       BOOST_REQUIRE_EQUAL(t.success(), t.claimvotepay(bp, bp));
-      BOOST_REQUIRE_EQUAL(t.get_producer_info(bp)["pool_votes"]["vote_pay"].template as<asset>(), a("0.0000 TST"));
+      BOOST_REQUIRE_EQUAL(t.get_total_pool_votes(bp)["vote_pay"].template as<asset>(), a("0.0000 TST"));
       bvpay_bal -= vote_pay;
       BOOST_REQUIRE_EQUAL(t.get_balance(bvpay), bvpay_bal);
       BOOST_REQUIRE_EQUAL(t.get_balance(bp), bal + vote_pay);

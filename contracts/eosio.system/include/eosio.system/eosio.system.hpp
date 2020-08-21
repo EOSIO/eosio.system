@@ -43,6 +43,9 @@ namespace eosiosystem {
    using eosio::time_point_sec;
    using eosio::unsigned_int;
 
+   using uint32_vector = std::vector<uint32_t>;
+   using double_vector = std::vector<double>;
+
    inline constexpr int64_t rentbw_frac = 1'000'000'000'000'000ll;  // 1.0 = 10^15
 
    template<typename E, typename F>
@@ -183,14 +186,6 @@ namespace eosiosystem {
       return eosio::block_signing_authority_v0{ .threshold = 1, .keys = {{producer_key, 1}} };
    }
 
-   struct prod_pool_votes {
-      std::vector<double> pool_votes;           // shares in each pool
-      double              total_pool_votes = 0; // total shares in all pools, weighted by update time and pool strength
-      eosio::asset        vote_pay;             // unclaimed vote pay
-
-      EOSLIB_SERIALIZE(prod_pool_votes, (pool_votes)(total_pool_votes)(vote_pay))
-   };
-
    // Defines `producer_info` structure to be stored in `producer_info` table, added after version 1.0
    struct [[eosio::table, eosio::contract("eosio.system")]] producer_info {
       name                                                     owner;
@@ -202,7 +197,7 @@ namespace eosiosystem {
       time_point                                               last_claim_time;
       uint16_t                                                 location = 0;
       eosio::binary_extension<eosio::block_signing_authority>  producer_authority; // added in version 1.9.0
-      eosio::binary_extension<std::optional<prod_pool_votes>>  pool_votes;
+      eosio::binary_extension<std::optional<double_vector>>    pool_votes;
 
       uint64_t primary_key()const { return owner.value;                             }
       double   by_votes()const    { return is_active ? -total_votes : total_votes;  }
@@ -269,6 +264,18 @@ namespace eosiosystem {
 
       // explicit serialization macro is not necessary, used here only to improve compilation time
       EOSLIB_SERIALIZE( producer_info2, (owner)(votepay_share)(last_votepay_share_update) )
+   };
+
+   struct [[eosio::table, eosio::contract("eosio.system")]] total_pool_votes {
+      name         owner;
+      bool         active = true;
+      double       votes  = 0; // total shares in all pools, weighted by pool strength
+      eosio::asset vote_pay;   // unclaimed vote pay
+
+      EOSLIB_SERIALIZE(total_pool_votes, (owner)(active)(votes)(vote_pay))
+
+      uint64_t primary_key() const { return owner.value; }
+      double   by_votes() const { return active ? -votes : votes; }
    };
 
    struct voter_pool_votes {
@@ -356,6 +363,9 @@ namespace eosiosystem {
 
    typedef eosio::multi_index< "producers2"_n, producer_info2 > producers_table2;
 
+   typedef eosio::multi_index< "totpoolvotes"_n, total_pool_votes,
+                               indexed_by<"byvotes"_n, const_mem_fun<total_pool_votes, double, &total_pool_votes::by_votes> >
+                             > total_pool_votes_table;
 
    typedef eosio::singleton< "global"_n, eosio_global_state >   global_state_singleton;
 
@@ -1367,9 +1377,6 @@ namespace eosiosystem {
          [[eosio::action]]
          void rentbw( const name& payer, const name& receiver, uint32_t days, int64_t net_frac, int64_t cpu_frac, const asset& max_payment );
 
-         using uint32_vector = std::vector<uint32_t>;
-         using double_vector = std::vector<double>;
-
          [[eosio::action]]
          void cfgvpool(
             const std::optional<uint32_vector>& durations,
@@ -1562,9 +1569,11 @@ namespace eosiosystem {
          vote_pool_state& get_vote_pool_state_mutable(bool init_if_not_exist = false);
          const vote_pool_state& get_vote_pool_state();
          void save_vote_pool_state();
-         const prod_pool_votes* get_prod_pool_votes(const producer_info& info);
-         prod_pool_votes* get_prod_pool_votes(producer_info& info);
+         total_pool_votes_table& get_total_pool_votes_table();
+         const std::vector<double>* get_prod_pool_votes(const producer_info& info);
+         std::vector<double>* get_prod_pool_votes(producer_info& info);
          void enable_prod_pool_votes(producer_info& info);
+         void deactivate_producer(name producer);
          const voter_pool_votes* get_voter_pool_votes(const voter_info& info, bool required = false);
          voter_pool_votes* get_voter_pool_votes(voter_info& info, bool required = false);
          void enable_voter_pool_votes(voter_info& info);
@@ -1572,8 +1581,8 @@ namespace eosiosystem {
          void sub_proxied_shares(voter_info& proxy, const std::vector<double>& deltas, const char* error);
          void add_pool_votes(producer_info& prod, const std::vector<double>& deltas, const char* error);
          void sub_pool_votes(producer_info& prod, const std::vector<double>& deltas, const char* error);
-         std::vector<const producer_info*> top_active_producers(size_t n);
-         void update_total_pool_votes(producer_info& prod);
+         std::vector<const total_pool_votes*> top_active_producers(size_t n);
+         double calc_votes(const std::vector<double>& pool_votes);
          void update_total_pool_votes(size_t n);
          void deposit_pool(vote_pool& pool, double& owned_shares, block_timestamp& next_claim, asset new_unvested);
          asset withdraw_pool(vote_pool& pool, double& owned_shares, asset max_requested, bool claiming);
