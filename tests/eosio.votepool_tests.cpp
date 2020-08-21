@@ -135,13 +135,6 @@ struct votepool_tester : eosio_system_tester {
       }
    }; // check_pool_votes
 
-   double time_to_vote_weight(const time_point& time) {
-      double weight = int64_t((time.sec_since_epoch() - (eosio::chain::config::block_timestamp_epoch / 1000)) /
-                              (eosiosystem::seconds_per_day * 7)) /
-                      double(52);
-      return std::pow(2, weight);
-   }
-
    void update_bps(int num_pools, std::map<name, prod_pool_votes>& pool_votes, const std::vector<name>& voters,
                    const std::vector<name>& bps) {
       auto state = get_vpoolstate();
@@ -167,10 +160,7 @@ struct votepool_tester : eosio_system_tester {
             }
          }
          // elog("   total:         ${t}", ("t", total));
-         // elog("   time weight:   ${t}", ("t", time_to_vote_weight(state["interval_start"].as<block_timestamp_type>())));
-         // elog("   weighted:      ${w}",
-         //      ("w", total * time_to_vote_weight(state["interval_start"].as<block_timestamp_type>())));
-         ppv.total_pool_votes = total * time_to_vote_weight(state["interval_start"].as<block_timestamp_type>());
+         ppv.total_pool_votes = total;
       }
    }
 

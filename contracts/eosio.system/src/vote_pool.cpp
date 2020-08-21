@@ -202,7 +202,7 @@ namespace eosiosystem {
       return prods;
    }
 
-   void system_contract::update_total_pool_votes(producer_info& prod, double pool_vote_weight) {
+   void system_contract::update_total_pool_votes(producer_info& prod) {
       // TODO: transition weighting between old and new systems
       auto* prod_pool_votes = get_prod_pool_votes(prod);
       if (!prod_pool_votes)
@@ -215,15 +215,13 @@ namespace eosiosystem {
          prod_pool_votes->total_pool_votes +=
                vote_pool_state.pools[i].token_pool.simulate_sell(prod_pool_votes->pool_votes[i]).amount *
                vote_pool_state.pools[i].vote_weight;
-      prod_pool_votes->total_pool_votes *= pool_vote_weight;
       prod.total_votes += prod_pool_votes->total_pool_votes;
    }
 
    void system_contract::update_total_pool_votes(size_t n) {
-      auto pool_vote_weight = time_to_vote_weight(get_vote_pool_state().interval_start);
-      auto prods            = top_active_producers(n);
+      auto prods = top_active_producers(n);
       for (auto* prod : prods)
-         _producers.modify(*prod, same_payer, [&](auto& prod) { update_total_pool_votes(prod, pool_vote_weight); });
+         _producers.modify(*prod, same_payer, [&](auto& prod) { update_total_pool_votes(prod); });
    }
 
    void system_contract::deposit_pool(vote_pool& pool, double& owned_shares, block_timestamp& next_claim,
@@ -425,10 +423,9 @@ namespace eosiosystem {
 
    void system_contract::updatevotes(name user, name producer) {
       require_auth(user);
-      auto  pool_vote_weight = time_to_vote_weight(get_vote_pool_state().interval_start);
-      auto& prod             = _producers.get(producer.value, "unknown producer");
+      auto& prod = _producers.get(producer.value, "unknown producer");
       eosio::check(prod.is_active, "producer is not active");
-      _producers.modify(prod, same_payer, [&](auto& prod) { update_total_pool_votes(prod, pool_vote_weight); });
+      _producers.modify(prod, same_payer, [&](auto& prod) { update_total_pool_votes(prod); });
    }
 
    void system_contract::updatepay(name user) {

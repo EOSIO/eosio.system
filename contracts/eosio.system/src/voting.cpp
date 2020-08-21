@@ -150,11 +150,6 @@ namespace eosiosystem {
       return double(staked) * std::pow( 2, weight );
    }
 
-   double system_contract::time_to_vote_weight( const time_point& time ) {
-      double weight = int64_t( (time.sec_since_epoch() - (block_timestamp::block_timestamp_epoch / 1000)) / (seconds_per_day * 7) )  / double( 52 );
-      return std::pow( 2, weight );
-   }
-
    double system_contract::update_total_votepay_share( const time_point& ct,
                                                        double additional_shares_delta,
                                                        double shares_rate_delta )
