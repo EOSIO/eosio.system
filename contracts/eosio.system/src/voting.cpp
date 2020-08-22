@@ -110,7 +110,30 @@ namespace eosiosystem {
       std::vector< value_type > top_producers;
       top_producers.reserve(21);
 
+      std::vector<name> pool_producers;
+      if( get_vote_pool_state_singleton().exists() ) {
+         auto& state = get_vote_pool_state();
+         int   n     = state.transition(block_time, uint128_t(21));
+         if( n >= 1 ) {
+            auto top = top_active_producers(n);
+            pool_producers.reserve(top.size());
+            for( auto* p : top ) {
+               pool_producers.push_back(p->owner);
+               auto& prod = _producers.get(p->owner.value);
+               top_producers.emplace_back(
+                  eosio::producer_authority{
+                     .producer_name = prod.owner,
+                     .authority     = prod.get_producer_authority()
+                  },
+                  prod.location);
+            }
+            std::sort(pool_producers.begin(), pool_producers.end());
+         }
+      }
+
       for( auto it = idx.cbegin(); it != idx.cend() && top_producers.size() < 21 && 0 < it->total_votes && it->active(); ++it ) {
+         if( std::lower_bound(pool_producers.begin(), pool_producers.end(), it->owner) != pool_producers.end() )
+            continue;
          top_producers.emplace_back(
             eosio::producer_authority{
                .producer_name = it->owner,

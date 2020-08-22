@@ -1075,5 +1075,6 @@ FC_LOG_AND_RETHROW()
 
 // TODO: proxy
 // TODO: producer pay: 50, 80/20 rule
+// TODO: verify producer schedule during transition
 
 BOOST_AUTO_TEST_SUITE_END()

@@ -81,8 +81,20 @@ namespace eosiosystem {
       eosio::block_timestamp interval_start;    // Beginning of current 1-minute block production interval
       uint32_t               blocks        = 0; // Blocks produced in current interval
       uint32_t               unpaid_blocks = 0; // Blocks produced in previous interval
+      eosio::block_timestamp begin_transition;  // Beginning of transition
+      eosio::block_timestamp end_transition;    // End of transition
 
-      EOSLIB_SERIALIZE(vote_pool_state, (pools)(prod_rate)(voter_rate)(interval_start)(blocks)(unpaid_blocks))
+      template <typename T>
+      T transition(eosio::block_timestamp time, T val) const {
+         if (time.slot >= end_transition.slot)
+            return val;
+         if (time.slot <= begin_transition.slot)
+            return 0;
+         return val * (time.slot - begin_transition.slot) / (end_transition.slot - begin_transition.slot);
+      }
+
+      EOSLIB_SERIALIZE(vote_pool_state, (pools)(prod_rate)(voter_rate)(interval_start)(blocks)(unpaid_blocks)(
+                                              begin_transition)(end_transition))
    };
 
    typedef eosio::singleton<"vpoolstate"_n, vote_pool_state> vote_pool_state_singleton;
