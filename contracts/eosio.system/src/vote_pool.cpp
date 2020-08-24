@@ -37,9 +37,11 @@ namespace eosiosystem {
       return *table;
    }
 
-   void system_contract::cfgvpool(const std::optional<std::vector<uint32_t>>& durations,
-                                  const std::optional<std::vector<uint32_t>>& claim_periods,
-                                  const std::optional<std::vector<double>>&   vote_weights,
+   void system_contract::cfgvpool(const std::optional<std::vector<uint32_t>>&  durations,
+                                  const std::optional<std::vector<uint32_t>>&  claim_periods,
+                                  const std::optional<std::vector<double>>&    vote_weights,
+                                  const std::optional<eosio::block_timestamp>& begin_transition,
+                                  const std::optional<eosio::block_timestamp>& end_transition,
                                   const std::optional<double>& prod_rate, const std::optional<double>& voter_rate) {
       // TODO: convert rates from yearly compound to per-minute compound? Keep args per-minute compound?
       require_auth(get_self());
@@ -48,6 +50,8 @@ namespace eosiosystem {
          eosio::check(durations.has_value(), "durations is required on first use of cfgvpool");
          eosio::check(claim_periods.has_value(), "claim_periods is required on first use of cfgvpool");
          eosio::check(vote_weights.has_value(), "vote_weights is required on first use of cfgvpool");
+         eosio::check(begin_transition.has_value(), "begin_transition is required on first use of cfgvpool");
+         eosio::check(end_transition.has_value(), "end_transition is required on first use of cfgvpool");
       } else {
          eosio::check(!durations.has_value(), "durations can't change");
          eosio::check(!claim_periods.has_value(), "claim_periods can't change");
@@ -88,6 +92,12 @@ namespace eosiosystem {
          }
       }
 
+      if (begin_transition)
+         state.begin_transition = *begin_transition;
+      if (end_transition)
+         state.end_transition = *end_transition;
+      eosio::check(state.begin_transition <= state.end_transition, "begin_transition > end_transition");
+
       if (prod_rate) {
          eosio::check(*prod_rate >= 0 && *prod_rate < 1, "prod_rate out of range");
          state.prod_rate = *prod_rate;
@@ -99,7 +109,7 @@ namespace eosiosystem {
       }
 
       save_vote_pool_state();
-   }
+   } // system_contract::cfgvpool
 
    const std::vector<double>* system_contract::get_prod_pool_votes(const producer_info& info) {
       if (info.pool_votes.has_value() && info.pool_votes.value().has_value())
