@@ -12,6 +12,15 @@
 
 #include "eosio.system_tester.hpp"
 
+namespace std {
+   std::ostream& operator<<(std::ostream& os, const std::vector<name>& v) {
+      os << "[";
+      for (auto n : v)
+         os << n << ",";
+      return os << "]";
+   }
+} // namespace std
+
 using namespace eosio_system;
 using std::nullopt;
 using btime = block_timestamp_type;
@@ -70,6 +79,8 @@ struct votepool_tester : eosio_system_tester {
       while (control->pending_block_time() < t)
          produce_block();
    }
+
+   void skip_to(time_point t) { produce_block(t - control->pending_block_time()); }
 
    fc::variant voter_pool_votes(name owner) {
       auto info = get_voter_info(owner);
@@ -263,7 +274,15 @@ struct votepool_tester : eosio_system_tester {
    action_result claimvotepay(name authorizer, name producer) {
       return push_action(authorizer, N(claimvotepay), mvo()("producer", producer));
    }
-};
+
+   std::vector<name> active_producers() {
+      std::vector<name> result;
+      auto&             prods = control->active_producers().producers;
+      for (auto& prod : prods)
+         result.push_back(prod.producer_name);
+      return result;
+   }
+}; // votepool_tester
 
 BOOST_AUTO_TEST_SUITE(eosio_system_votepool_tests)
 
@@ -1094,8 +1113,116 @@ BOOST_AUTO_TEST_CASE(voting) try {
 } // voting
 FC_LOG_AND_RETHROW()
 
+BOOST_AUTO_TEST_CASE(transition_voting) try {
+   votepool_tester t;
+
+   auto start_transition = btime(time_point::from_iso_string("2020-04-10T10:00:00.000"));
+   auto end_transition   = btime(time_point::from_iso_string("2020-08-10T10:00:00.000"));
+
+   struct bp_votes {
+      name  bp;
+      asset cpu_votes;
+      asset pool_votes;
+   };
+
+   vector<bp_votes> bps{
+      { N(bp111111111a), a("1000.0000 TST"), a("000.0000 TST") },
+      { N(bp111111111b), a("1001.0000 TST"), a("170.0000 TST") },
+      { N(bp111111111c), a("1002.0000 TST"), a("190.0000 TST") },
+      { N(bp111111111d), a("1003.0000 TST"), a("000.0000 TST") },
+      { N(bp111111111e), a("1004.0000 TST"), a("180.0000 TST") },
+      { N(bp111111111f), a("1005.0000 TST"), a("000.0000 TST") },
+      { N(bp111111111g), a("1006.0000 TST"), a("130.0000 TST") },
+      { N(bp111111111h), a("1007.0000 TST"), a("000.0000 TST") },
+      { N(bp111111111i), a("1008.0000 TST"), a("000.0000 TST") },
+      { N(bp111111111j), a("1009.0000 TST"), a("000.0000 TST") },
+      { N(bp111111111k), a("1010.0000 TST"), a("000.0000 TST") },
+      { N(bp111111111l), a("1011.0000 TST"), a("000.0000 TST") },
+      { N(bp111111111m), a("1012.0000 TST"), a("160.0000 TST") },
+      { N(bp111111111n), a("1013.0000 TST"), a("000.0000 TST") },
+      { N(bp111111111o), a("1014.0000 TST"), a("000.0000 TST") },
+      { N(bp111111111p), a("1015.0000 TST"), a("140.0000 TST") },
+      { N(bp111111111q), a("1016.0000 TST"), a("000.0000 TST") },
+      { N(bp111111111r), a("1017.0000 TST"), a("000.0000 TST") },
+      { N(bp111111111s), a("1018.0000 TST"), a("150.0000 TST") },
+      { N(bp111111111t), a("1019.0000 TST"), a("000.0000 TST") },
+      { N(bp111111111u), a("1020.0000 TST"), a("000.0000 TST") },
+      { N(bp111111111v), a("1021.0000 TST"), a("000.0000 TST") },
+      { N(bp111111111w), a("1022.0000 TST"), a("000.0000 TST") },
+      { N(bp111111111x), a("1023.0000 TST"), a("000.0000 TST") },
+      { N(bp111111111y), a("1024.0000 TST"), a("000.0000 TST") },
+      { N(bp111111111z), a("1025.0000 TST"), a("000.0000 TST") },
+   };
+
+   BOOST_REQUIRE_EQUAL(t.success(),
+                       t.cfgvpool(sys, { { 1024 } }, { { 64 } }, { { 1.0 } }, start_transition, end_transition));
+   for (auto& bp : bps) {
+      t.create_account_with_resources(bp.bp, sys);
+      BOOST_REQUIRE_EQUAL(t.success(), t.regproducer(bp.bp));
+      if (bp.cpu_votes.get_amount()) {
+         t.transfer(sys, bp.bp, bp.cpu_votes, sys);
+         BOOST_REQUIRE_EQUAL(t.success(), t.stake(bp.bp, bp.bp, a("0.0000 TST"), bp.cpu_votes));
+         BOOST_REQUIRE_EQUAL(t.success(), t.vote(bp.bp, { bp.bp }));
+      }
+      if (bp.pool_votes.get_amount()) {
+         t.transfer(sys, bp.bp, bp.pool_votes, sys);
+         BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(bp.bp, bp.bp, 0, bp.pool_votes));
+         BOOST_REQUIRE_EQUAL(t.success(), t.vote(bp.bp, { bp.bp }));
+         BOOST_REQUIRE_EQUAL(t.success(), t.updatevotes(bp.bp, bp.bp, bp.bp));
+      }
+   }
+
+   auto transition = [&](int i, auto& prods) {
+      t.skip_to(btime(start_transition.slot + i * (end_transition.slot - start_transition.slot) / 21));
+      t.produce_blocks(blocks_per_round);
+      t.produce_blocks(blocks_per_round);
+      t.produce_blocks(blocks_per_round);
+      t.produce_blocks(blocks_per_round);
+      BOOST_REQUIRE_EQUAL(t.active_producers(), prods);
+   };
+
+   vector<name> p0 = { N(bp111111111f), N(bp111111111g), N(bp111111111h), N(bp111111111i), N(bp111111111j),
+                       N(bp111111111k), N(bp111111111l), N(bp111111111m), N(bp111111111n), N(bp111111111o),
+                       N(bp111111111p), N(bp111111111q), N(bp111111111r), N(bp111111111s), N(bp111111111t),
+                       N(bp111111111u), N(bp111111111v), N(bp111111111w), N(bp111111111x), N(bp111111111y),
+                       N(bp111111111z) };
+   vector<name> p1 = { N(bp111111111c), N(bp111111111g), N(bp111111111h), N(bp111111111i), N(bp111111111j),
+                       N(bp111111111k), N(bp111111111l), N(bp111111111m), N(bp111111111n), N(bp111111111o),
+                       N(bp111111111p), N(bp111111111q), N(bp111111111r), N(bp111111111s), N(bp111111111t),
+                       N(bp111111111u), N(bp111111111v), N(bp111111111w), N(bp111111111x), N(bp111111111y),
+                       N(bp111111111z) };
+   vector<name> p2 = { N(bp111111111c), N(bp111111111e), N(bp111111111h), N(bp111111111i), N(bp111111111j),
+                       N(bp111111111k), N(bp111111111l), N(bp111111111m), N(bp111111111n), N(bp111111111o),
+                       N(bp111111111p), N(bp111111111q), N(bp111111111r), N(bp111111111s), N(bp111111111t),
+                       N(bp111111111u), N(bp111111111v), N(bp111111111w), N(bp111111111x), N(bp111111111y),
+                       N(bp111111111z) };
+   vector<name> p3 = { N(bp111111111b), N(bp111111111c), N(bp111111111e), N(bp111111111i), N(bp111111111j),
+                       N(bp111111111k), N(bp111111111l), N(bp111111111m), N(bp111111111n), N(bp111111111o),
+                       N(bp111111111p), N(bp111111111q), N(bp111111111r), N(bp111111111s), N(bp111111111t),
+                       N(bp111111111u), N(bp111111111v), N(bp111111111w), N(bp111111111x), N(bp111111111y),
+                       N(bp111111111z) };
+   vector<name> p7 = { N(bp111111111b), N(bp111111111c), N(bp111111111e), N(bp111111111g), N(bp111111111j),
+                       N(bp111111111k), N(bp111111111l), N(bp111111111m), N(bp111111111n), N(bp111111111o),
+                       N(bp111111111p), N(bp111111111q), N(bp111111111r), N(bp111111111s), N(bp111111111t),
+                       N(bp111111111u), N(bp111111111v), N(bp111111111w), N(bp111111111x), N(bp111111111y),
+                       N(bp111111111z) };
+
+   t.produce_blocks(100);
+   BOOST_REQUIRE_EQUAL(t.active_producers(), p0);
+
+   transition(0, p0);
+   transition(1, p1);
+   transition(2, p2);
+   transition(3, p3);
+   transition(4, p3); // bp111111111m stays
+   transition(5, p3); // bp111111111s stays
+   transition(6, p3); // bp111111111p stays
+   transition(7, p7);
+
+} // transition_voting
+FC_LOG_AND_RETHROW()
+
 // TODO: proxy
 // TODO: producer pay: 50, 80/20 rule
-// TODO: verify producer schedule during transition
 
 BOOST_AUTO_TEST_SUITE_END()

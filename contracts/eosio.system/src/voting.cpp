@@ -132,7 +132,8 @@ namespace eosiosystem {
       }
 
       for( auto it = idx.cbegin(); it != idx.cend() && top_producers.size() < 21 && 0 < it->total_votes && it->active(); ++it ) {
-         if( std::lower_bound(pool_producers.begin(), pool_producers.end(), it->owner) != pool_producers.end() )
+         auto lb = std::lower_bound(pool_producers.begin(), pool_producers.end(), it->owner);
+         if( lb != pool_producers.end() && *lb == it->owner )
             continue;
          top_producers.emplace_back(
             eosio::producer_authority{
