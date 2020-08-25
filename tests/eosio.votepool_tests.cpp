@@ -1300,11 +1300,19 @@ BOOST_AUTO_TEST_CASE(transition_inflation) try {
    BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(bpa, bpa, 0, a("1.0000 TST")));
    BOOST_REQUIRE_EQUAL(t.success(), t.updatevotes(bpa, bpa, bpa));
 
+   for (name claimer : { N(claimer1111a), N(claimer1111b), N(claimer1111c), N(claimer1111d), N(claimer1111e),
+                         N(claimer1111f), N(claimer1111g) }) {
+      t.create_account_with_resources(claimer, sys);
+      BOOST_REQUIRE_EQUAL(t.success(), t.stake(sys, claimer, a("1000.0000 TST"), a("1000.0000 TST")));
+      BOOST_REQUIRE_EQUAL(t.success(), t.regproducer(claimer));
+      BOOST_REQUIRE_EQUAL(t.success(), t.push_action(claimer, N(unregprod), mvo()("producer", claimer)));
+   }
+
    auto supply    = t.get_token_supply();
    auto vpool_bal = a("1.0000 TST");
    auto bvpay_bal = a("0.0000 TST");
 
-   auto transition = [&](double r) {
+   auto transition = [&](double r, name claimer) {
       t.produce_block();
       t.skip_to(btime(uint32_t((uint64_t(r * (end_transition.slot - start_transition.slot) + start_transition.slot) +
                                 blocks_per_round - 1) /
@@ -1324,15 +1332,29 @@ BOOST_AUTO_TEST_CASE(transition_inflation) try {
       BOOST_REQUIRE_EQUAL(t.get_balance(vpool), vpool_bal);
       BOOST_REQUIRE_EQUAL(t.get_vpoolstate()["pools"][int(0)]["token_pool"]["balance"].as<asset>(), vpool_bal);
       BOOST_REQUIRE_EQUAL(t.get_token_supply(), supply);
+
+      auto    ct                    = t.pending_time(0.5).to_time_point();
+      auto    gstate                = t.get_global_state();
+      auto    gstate4               = t.get_global_state4();
+      auto    claim_transition      = 1.0 - calc_transition(ct, 1.0);
+      auto    usecs_since_last_fill = (ct - gstate["last_pervote_bucket_fill"].as<time_point>()).count();
+      int64_t claim_inflation       = (claim_transition * gstate4["continuous_rate"].as<double>() *
+                                 double(supply.get_amount()) * double(usecs_since_last_fill)) /
+                                double(eosiosystem::useconds_per_year);
+      supply += asset(claim_inflation, symbol{ CORE_SYM });
+      BOOST_REQUIRE_EQUAL(t.success(), t.regproducer(claimer));
+      BOOST_REQUIRE_EQUAL(t.success(), t.push_action(claimer, N(claimrewards), mvo()("owner", claimer)));
+      BOOST_REQUIRE_EQUAL(t.success(), t.push_action(claimer, N(unregprod), mvo()("producer", claimer)));
+      BOOST_REQUIRE_EQUAL(t.get_token_supply(), supply);
    };
 
-   transition(-0.2);
-   transition(0.0);
-   transition(0.2);
-   transition(0.8);
-   transition(1.0);
-   transition(1.2);
-   transition(1.4);
+   transition(-0.2, N(claimer1111a));
+   transition(0.0, N(claimer1111b));
+   transition(0.2, N(claimer1111c));
+   transition(0.8, N(claimer1111d));
+   transition(1.0, N(claimer1111e));
+   transition(1.2, N(claimer1111f));
+   transition(1.4, N(claimer1111g));
 } // transition_inflation
 FC_LOG_AND_RETHROW()
 
