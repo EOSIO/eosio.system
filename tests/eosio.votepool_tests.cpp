@@ -1126,32 +1126,32 @@ BOOST_AUTO_TEST_CASE(transition_voting) try {
    };
 
    vector<bp_votes> bps{
-      { N(bp111111111a), a("1000.0000 TST"), a("000.0000 TST") },
+      { N(bp111111111a), a("1000.0000 TST"), a("120.0000 TST") },
       { N(bp111111111b), a("1001.0000 TST"), a("170.0000 TST") },
       { N(bp111111111c), a("1002.0000 TST"), a("190.0000 TST") },
-      { N(bp111111111d), a("1003.0000 TST"), a("000.0000 TST") },
+      { N(bp111111111d), a("1003.0000 TST"), a("110.0000 TST") },
       { N(bp111111111e), a("1004.0000 TST"), a("180.0000 TST") },
-      { N(bp111111111f), a("1005.0000 TST"), a("000.0000 TST") },
+      { N(bp111111111f), a("1005.0000 TST"), a("009.0000 TST") },
       { N(bp111111111g), a("1006.0000 TST"), a("130.0000 TST") },
-      { N(bp111111111h), a("1007.0000 TST"), a("000.0000 TST") },
-      { N(bp111111111i), a("1008.0000 TST"), a("000.0000 TST") },
-      { N(bp111111111j), a("1009.0000 TST"), a("000.0000 TST") },
-      { N(bp111111111k), a("1010.0000 TST"), a("000.0000 TST") },
+      { N(bp111111111h), a("1007.0000 TST"), a("100.0000 TST") },
+      { N(bp111111111i), a("1008.0000 TST"), a("010.0000 TST") },
+      { N(bp111111111j), a("1009.0000 TST"), a("008.0000 TST") },
+      { N(bp111111111k), a("1010.0000 TST"), a("030.0000 TST") },
       { N(bp111111111l), a("1011.0000 TST"), a("000.0000 TST") },
       { N(bp111111111m), a("1012.0000 TST"), a("160.0000 TST") },
       { N(bp111111111n), a("1013.0000 TST"), a("000.0000 TST") },
-      { N(bp111111111o), a("1014.0000 TST"), a("000.0000 TST") },
+      { N(bp111111111o), a("1014.0000 TST"), a("040.0000 TST") },
       { N(bp111111111p), a("1015.0000 TST"), a("140.0000 TST") },
-      { N(bp111111111q), a("1016.0000 TST"), a("000.0000 TST") },
+      { N(bp111111111q), a("1016.0000 TST"), a("020.0000 TST") },
       { N(bp111111111r), a("1017.0000 TST"), a("000.0000 TST") },
       { N(bp111111111s), a("1018.0000 TST"), a("150.0000 TST") },
       { N(bp111111111t), a("1019.0000 TST"), a("000.0000 TST") },
-      { N(bp111111111u), a("1020.0000 TST"), a("000.0000 TST") },
-      { N(bp111111111v), a("1021.0000 TST"), a("000.0000 TST") },
-      { N(bp111111111w), a("1022.0000 TST"), a("000.0000 TST") },
+      { N(bp111111111u), a("1020.0000 TST"), a("080.0000 TST") },
+      { N(bp111111111v), a("1021.0000 TST"), a("060.0000 TST") },
+      { N(bp111111111w), a("1022.0000 TST"), a("090.0000 TST") },
       { N(bp111111111x), a("1023.0000 TST"), a("000.0000 TST") },
-      { N(bp111111111y), a("1024.0000 TST"), a("000.0000 TST") },
-      { N(bp111111111z), a("1025.0000 TST"), a("000.0000 TST") },
+      { N(bp111111111y), a("1024.0000 TST"), a("050.0000 TST") },
+      { N(bp111111111z), a("1025.0000 TST"), a("070.0000 TST") },
    };
 
    BOOST_REQUIRE_EQUAL(t.success(),
@@ -1181,31 +1181,66 @@ BOOST_AUTO_TEST_CASE(transition_voting) try {
       BOOST_REQUIRE_EQUAL(t.active_producers(), prods);
    };
 
-   vector<name> p0 = { N(bp111111111f), N(bp111111111g), N(bp111111111h), N(bp111111111i), N(bp111111111j),
+   vector<name> p0  = { N(bp111111111f), N(bp111111111g), N(bp111111111h), N(bp111111111i), N(bp111111111j),
                        N(bp111111111k), N(bp111111111l), N(bp111111111m), N(bp111111111n), N(bp111111111o),
                        N(bp111111111p), N(bp111111111q), N(bp111111111r), N(bp111111111s), N(bp111111111t),
                        N(bp111111111u), N(bp111111111v), N(bp111111111w), N(bp111111111x), N(bp111111111y),
                        N(bp111111111z) };
-   vector<name> p1 = { N(bp111111111c), N(bp111111111g), N(bp111111111h), N(bp111111111i), N(bp111111111j),
+   vector<name> p1  = { N(bp111111111c), N(bp111111111g), N(bp111111111h), N(bp111111111i), N(bp111111111j),
                        N(bp111111111k), N(bp111111111l), N(bp111111111m), N(bp111111111n), N(bp111111111o),
                        N(bp111111111p), N(bp111111111q), N(bp111111111r), N(bp111111111s), N(bp111111111t),
                        N(bp111111111u), N(bp111111111v), N(bp111111111w), N(bp111111111x), N(bp111111111y),
                        N(bp111111111z) };
-   vector<name> p2 = { N(bp111111111c), N(bp111111111e), N(bp111111111h), N(bp111111111i), N(bp111111111j),
+   vector<name> p2  = { N(bp111111111c), N(bp111111111e), N(bp111111111h), N(bp111111111i), N(bp111111111j),
                        N(bp111111111k), N(bp111111111l), N(bp111111111m), N(bp111111111n), N(bp111111111o),
                        N(bp111111111p), N(bp111111111q), N(bp111111111r), N(bp111111111s), N(bp111111111t),
                        N(bp111111111u), N(bp111111111v), N(bp111111111w), N(bp111111111x), N(bp111111111y),
                        N(bp111111111z) };
-   vector<name> p3 = { N(bp111111111b), N(bp111111111c), N(bp111111111e), N(bp111111111i), N(bp111111111j),
+   vector<name> p3  = { N(bp111111111b), N(bp111111111c), N(bp111111111e), N(bp111111111i), N(bp111111111j),
                        N(bp111111111k), N(bp111111111l), N(bp111111111m), N(bp111111111n), N(bp111111111o),
                        N(bp111111111p), N(bp111111111q), N(bp111111111r), N(bp111111111s), N(bp111111111t),
                        N(bp111111111u), N(bp111111111v), N(bp111111111w), N(bp111111111x), N(bp111111111y),
                        N(bp111111111z) };
-   vector<name> p7 = { N(bp111111111b), N(bp111111111c), N(bp111111111e), N(bp111111111g), N(bp111111111j),
+   vector<name> p7  = { N(bp111111111b), N(bp111111111c), N(bp111111111e), N(bp111111111g), N(bp111111111j),
                        N(bp111111111k), N(bp111111111l), N(bp111111111m), N(bp111111111n), N(bp111111111o),
                        N(bp111111111p), N(bp111111111q), N(bp111111111r), N(bp111111111s), N(bp111111111t),
                        N(bp111111111u), N(bp111111111v), N(bp111111111w), N(bp111111111x), N(bp111111111y),
                        N(bp111111111z) };
+   vector<name> p8  = { N(bp111111111a), N(bp111111111b), N(bp111111111c), N(bp111111111e), N(bp111111111g),
+                       N(bp111111111k), N(bp111111111l), N(bp111111111m), N(bp111111111n), N(bp111111111o),
+                       N(bp111111111p), N(bp111111111q), N(bp111111111r), N(bp111111111s), N(bp111111111t),
+                       N(bp111111111u), N(bp111111111v), N(bp111111111w), N(bp111111111x), N(bp111111111y),
+                       N(bp111111111z) };
+   vector<name> p9  = { N(bp111111111a), N(bp111111111b), N(bp111111111c), N(bp111111111d), N(bp111111111e),
+                       N(bp111111111g), N(bp111111111l), N(bp111111111m), N(bp111111111n), N(bp111111111o),
+                       N(bp111111111p), N(bp111111111q), N(bp111111111r), N(bp111111111s), N(bp111111111t),
+                       N(bp111111111u), N(bp111111111v), N(bp111111111w), N(bp111111111x), N(bp111111111y),
+                       N(bp111111111z) };
+   vector<name> p10 = { N(bp111111111a), N(bp111111111b), N(bp111111111c), N(bp111111111d), N(bp111111111e),
+                        N(bp111111111g), N(bp111111111h), N(bp111111111m), N(bp111111111n), N(bp111111111o),
+                        N(bp111111111p), N(bp111111111q), N(bp111111111r), N(bp111111111s), N(bp111111111t),
+                        N(bp111111111u), N(bp111111111v), N(bp111111111w), N(bp111111111x), N(bp111111111y),
+                        N(bp111111111z) };
+   vector<name> p17 = { N(bp111111111a), N(bp111111111b), N(bp111111111c), N(bp111111111d), N(bp111111111e),
+                        N(bp111111111g), N(bp111111111h), N(bp111111111k), N(bp111111111m), N(bp111111111o),
+                        N(bp111111111p), N(bp111111111q), N(bp111111111r), N(bp111111111s), N(bp111111111t),
+                        N(bp111111111u), N(bp111111111v), N(bp111111111w), N(bp111111111x), N(bp111111111y),
+                        N(bp111111111z) };
+   vector<name> p19 = { N(bp111111111a), N(bp111111111b), N(bp111111111c), N(bp111111111d), N(bp111111111e),
+                        N(bp111111111g), N(bp111111111h), N(bp111111111i), N(bp111111111k), N(bp111111111m),
+                        N(bp111111111o), N(bp111111111p), N(bp111111111q), N(bp111111111s), N(bp111111111t),
+                        N(bp111111111u), N(bp111111111v), N(bp111111111w), N(bp111111111x), N(bp111111111y),
+                        N(bp111111111z) };
+   vector<name> p20 = { N(bp111111111a), N(bp111111111b), N(bp111111111c), N(bp111111111d), N(bp111111111e),
+                        N(bp111111111f), N(bp111111111g), N(bp111111111h), N(bp111111111i), N(bp111111111k),
+                        N(bp111111111m), N(bp111111111o), N(bp111111111p), N(bp111111111q), N(bp111111111s),
+                        N(bp111111111u), N(bp111111111v), N(bp111111111w), N(bp111111111x), N(bp111111111y),
+                        N(bp111111111z) };
+   vector<name> p21 = { N(bp111111111a), N(bp111111111b), N(bp111111111c), N(bp111111111d), N(bp111111111e),
+                        N(bp111111111f), N(bp111111111g), N(bp111111111h), N(bp111111111i), N(bp111111111j),
+                        N(bp111111111k), N(bp111111111m), N(bp111111111o), N(bp111111111p), N(bp111111111q),
+                        N(bp111111111s), N(bp111111111u), N(bp111111111v), N(bp111111111w), N(bp111111111y),
+                        N(bp111111111z) };
 
    t.produce_blocks(100);
    BOOST_REQUIRE_EQUAL(t.active_producers(), p0);
@@ -1214,11 +1249,27 @@ BOOST_AUTO_TEST_CASE(transition_voting) try {
    transition(1, p1);
    transition(2, p2);
    transition(3, p3);
-   transition(4, p3); // bp111111111m stays
-   transition(5, p3); // bp111111111s stays
-   transition(6, p3); // bp111111111p stays
+   transition(4, p3); // bp111111111m switches to being selected via pool
+   transition(5, p3); // bp111111111s switches to being selected via pool
+   transition(6, p3); // bp111111111p switches to being selected via pool
    transition(7, p7);
-
+   transition(8, p8);
+   transition(9, p9);
+   transition(10, p10);
+   transition(11, p10); // bp111111111w switches to being selected via pool
+   transition(12, p10); // bp111111111u switches to being selected via pool
+   transition(13, p10); // bp111111111z switches to being selected via pool
+   transition(14, p10); // bp111111111v switches to being selected via pool
+   transition(15, p10); // bp111111111y switches to being selected via pool
+   transition(16, p10); // bp111111111o switches to being selected via pool
+   transition(17, p17);
+   transition(18, p17); // bp111111111q switches to being selected via pool
+   transition(19, p19);
+   transition(20, p20);
+   transition(21, p21);
+   transition(22, p21);
+   transition(23, p21);
+   transition(100, p21);
 } // transition_voting
 FC_LOG_AND_RETHROW()
 
