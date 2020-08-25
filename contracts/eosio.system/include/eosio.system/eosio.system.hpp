@@ -1571,6 +1571,7 @@ namespace eosiosystem {
          vote_pool_state& get_vote_pool_state_mutable(bool init_if_not_exist = false);
          const vote_pool_state& get_vote_pool_state();
          void save_vote_pool_state();
+         double claimrewards_transition(block_timestamp time);
          total_pool_votes_table& get_total_pool_votes_table();
          const std::vector<double>* get_prod_pool_votes(const producer_info& info);
          std::vector<double>* get_prod_pool_votes(producer_info& info);

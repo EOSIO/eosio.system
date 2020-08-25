@@ -30,6 +30,12 @@ namespace eosiosystem {
       get_vote_pool_state_singleton().set(get_vote_pool_state_mutable(), get_self());
    }
 
+   double system_contract::claimrewards_transition(block_timestamp time) {
+      if (!get_vote_pool_state_singleton().exists())
+         return 1.0;
+      return 1.0 - get_vote_pool_state().transition(time, 1.0);
+   }
+
    total_pool_votes_table& system_contract::get_total_pool_votes_table() {
       static std::optional<total_pool_votes_table> table;
       if (!table)
@@ -480,10 +486,11 @@ namespace eosiosystem {
       for (auto* prod : prods)
          total_votes += prod->votes;
 
-      const asset token_supply    = eosio::token::get_supply(token_account, core_symbol().code());
-      auto        pay_scale       = pow((double)state.unpaid_blocks / blocks_per_round, 10);
-      int64_t     target_prod_pay = pay_scale * state.prod_rate / rounds_per_year * token_supply.amount;
-      int64_t     total_prod_pay  = 0;
+      const asset token_supply = eosio::token::get_supply(token_account, core_symbol().code());
+      auto        pay_scale =
+            pow((double)state.unpaid_blocks / blocks_per_round, 10) * state.transition(state.interval_start, 1.0);
+      int64_t target_prod_pay = pay_scale * state.prod_rate / rounds_per_year * token_supply.amount;
+      int64_t total_prod_pay  = 0;
 
       if (target_prod_pay > 0 && total_votes > 0) {
          for (auto* prod : prods) {

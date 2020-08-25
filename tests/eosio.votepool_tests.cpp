@@ -1273,6 +1273,69 @@ BOOST_AUTO_TEST_CASE(transition_voting) try {
 } // transition_voting
 FC_LOG_AND_RETHROW()
 
+BOOST_AUTO_TEST_CASE(transition_inflation) try {
+   votepool_tester t;
+
+   auto start_transition = btime(time_point::from_iso_string("2020-04-10T10:00:00.000"));
+   auto end_transition   = btime(time_point::from_iso_string("2020-08-10T10:00:00.000"));
+
+   auto calc_transition = [&](const btime& t, auto val) -> decltype(val) {
+      if (t.slot >= end_transition.slot)
+         return val;
+      if (t.slot <= start_transition.slot)
+         return 0;
+      return val * (t.slot - start_transition.slot) / (end_transition.slot - start_transition.slot);
+   };
+
+   double prod_rate  = .4;
+   double voter_rate = .5;
+   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, { { 1024 } }, { { 64 } }, { { 1.0 } }, start_transition,
+                                               end_transition, prod_rate, voter_rate));
+   t.create_account_with_resources(bpa, sys);
+   BOOST_REQUIRE_EQUAL(t.success(), t.stake(sys, bpa, a("1000.0000 TST"), a("1000.0000 TST")));
+   t.transfer(sys, bpa, a("2.0000 TST"), sys);
+   BOOST_REQUIRE_EQUAL(t.success(), t.regproducer(bpa));
+   BOOST_REQUIRE_EQUAL(t.success(), t.stake(bpa, bpa, a("0.0000 TST"), a("1.0000 TST")));
+   BOOST_REQUIRE_EQUAL(t.success(), t.vote(bpa, { bpa }));
+   BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(bpa, bpa, 0, a("1.0000 TST")));
+   BOOST_REQUIRE_EQUAL(t.success(), t.updatevotes(bpa, bpa, bpa));
+
+   auto supply    = t.get_token_supply();
+   auto vpool_bal = a("1.0000 TST");
+   auto bvpay_bal = a("0.0000 TST");
+
+   auto transition = [&](double r) {
+      t.produce_block();
+      t.skip_to(btime(uint32_t((uint64_t(r * (end_transition.slot - start_transition.slot) + start_transition.slot) +
+                                blocks_per_round - 1) /
+                               blocks_per_round * blocks_per_round)));
+      t.produce_blocks(blocks_per_round + 1);
+
+      auto pool_transition = calc_transition(t.get_vpoolstate()["interval_start"].as<btime>(), 1.0);
+      BOOST_REQUIRE_EQUAL(t.success(), t.updatepay(bpa, bpa));
+      auto bp_pay =
+            asset(pool_transition * prod_rate * supply.get_amount() / eosiosystem::rounds_per_year, symbol{ CORE_SYM });
+      auto pool_pay = asset(supply.get_amount() * voter_rate * pool_transition / eosiosystem::rounds_per_year,
+                            symbol{ CORE_SYM });
+      bvpay_bal += bp_pay;
+      vpool_bal += pool_pay;
+      supply += bp_pay + pool_pay;
+      BOOST_REQUIRE_EQUAL(t.get_balance(bvpay), bvpay_bal);
+      BOOST_REQUIRE_EQUAL(t.get_balance(vpool), vpool_bal);
+      BOOST_REQUIRE_EQUAL(t.get_vpoolstate()["pools"][int(0)]["token_pool"]["balance"].as<asset>(), vpool_bal);
+      BOOST_REQUIRE_EQUAL(t.get_token_supply(), supply);
+   };
+
+   transition(-0.2);
+   transition(0.0);
+   transition(0.2);
+   transition(0.8);
+   transition(1.0);
+   transition(1.2);
+   transition(1.4);
+} // transition_inflation
+FC_LOG_AND_RETHROW()
+
 // TODO: proxy
 // TODO: producer pay: 50, 80/20 rule
 
