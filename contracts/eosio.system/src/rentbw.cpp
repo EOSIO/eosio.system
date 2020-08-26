@@ -386,7 +386,7 @@ void system_contract::rentbw(const name& payer, const name& receiver, uint32_t d
 
    adjust_resources(payer, receiver, core_symbol, net_amount, cpu_amount, true);
    adjust_resources(get_self(), reserv_account, core_symbol, net_delta_available, cpu_delta_available, true);
-   channel_to_rex(payer, fee, true);
+   channel_to_rex_or_pools(payer, fee);
    state_sing.set(state, get_self());
 }
 

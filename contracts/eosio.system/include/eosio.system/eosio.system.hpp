@@ -1482,7 +1482,7 @@ namespace eosiosystem {
                                         const char* error_msg = "must vote for at least 21 producers or for a proxy before buying REX" )const;
          rex_order_outcome fill_rex_order( const rex_balance_table::const_iterator& bitr, const asset& rex );
          asset update_rex_account( const name& owner, const asset& proceeds, const asset& unstake_quant, bool force_vote_update = false );
-         void channel_to_rex( const name& from, const asset& amount, bool required = false );
+         void channel_to_rex( const name& from, const asset& amount );
          void channel_namebid_to_rex( const int64_t highest_bid );
          template <typename T>
          int64_t rent_rex( T& table, const name& from, const name& receiver, const asset& loan_payment, const asset& loan_fund );
@@ -1590,6 +1590,7 @@ namespace eosiosystem {
          void deposit_pool(vote_pool& pool, double& owned_shares, block_timestamp& next_claim, asset new_unvested);
          asset withdraw_pool(vote_pool& pool, double& owned_shares, asset max_requested, bool claiming);
          void onblock_update_vpool(block_timestamp production_time);
+         void channel_to_rex_or_pools(const name& from, const asset& amount);
    };
 
 }

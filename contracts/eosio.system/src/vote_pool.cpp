@@ -462,6 +462,48 @@ namespace eosiosystem {
       save_vote_pool_state();
    }
 
+   void system_contract::channel_to_rex_or_pools(const name& from, const asset& amount) {
+      eosio::check(amount.symbol == core_symbol(), "incorrect symbol");
+      if (!get_vote_pool_state_singleton().exists()) {
+         eosio::check(rex_available(), "can't channel fees to pools or to rex");
+         return channel_to_rex(from, amount);
+      }
+      auto&                   state = get_vote_pool_state_mutable();
+      std::vector<vote_pool*> active_pools;
+      active_pools.reserve(state.pools.size());
+      for (auto& pool : state.pools)
+         if (pool.token_pool.shares())
+            active_pools.push_back(&pool);
+      if (active_pools.empty()) {
+         eosio::check(rex_available(), "can't channel fees to pools or to rex");
+         return channel_to_rex(from, amount);
+      }
+
+      asset to_pools;
+      if (rex_available())
+         to_pools = asset(state.transition(eosio::current_block_time(), int128_t(amount.amount)), amount.symbol);
+      else
+         to_pools = amount;
+      asset to_rex = amount - to_pools;
+
+      if (to_rex.amount)
+         channel_to_rex(from, to_rex);
+
+      if (to_pools.amount) {
+         eosio::token::transfer_action transfer_act{ token_account, { from, active_permission } };
+         transfer_act.send(from, vpool_account, to_pools,
+                           std::string("transfer from ") + from.to_string() + " to eosio.vpool");
+         uint64_t distributed = 0;
+         for (size_t i = 0; i < active_pools.size(); ++i) {
+            int64_t amt = int128_t(to_pools.amount) * (i + 1) / active_pools.size() - distributed;
+            if (amt)
+               active_pools[i]->token_pool.adjust({ amt, core_symbol() });
+            distributed += amt;
+         }
+      }
+      save_vote_pool_state();
+   }
+
    void system_contract::updatevotes(name user, name producer) {
       require_auth(user);
       auto& prod = _producers.get(producer.value, "unknown producer");

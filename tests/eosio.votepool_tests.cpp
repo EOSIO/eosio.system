@@ -1137,13 +1137,13 @@ BOOST_AUTO_TEST_CASE(transition_voting) try {
       { N(bp111111111i), a("1008.0000 TST"), a("010.0000 TST") },
       { N(bp111111111j), a("1009.0000 TST"), a("008.0000 TST") },
       { N(bp111111111k), a("1010.0000 TST"), a("030.0000 TST") },
-      { N(bp111111111l), a("1011.0000 TST"), a("000.0000 TST") },
+      { N(bp111111111l), a("1011.0000 TST"), a("006.0000 TST") },
       { N(bp111111111m), a("1012.0000 TST"), a("160.0000 TST") },
       { N(bp111111111n), a("1013.0000 TST"), a("000.0000 TST") },
       { N(bp111111111o), a("1014.0000 TST"), a("040.0000 TST") },
       { N(bp111111111p), a("1015.0000 TST"), a("140.0000 TST") },
       { N(bp111111111q), a("1016.0000 TST"), a("020.0000 TST") },
-      { N(bp111111111r), a("1017.0000 TST"), a("000.0000 TST") },
+      { N(bp111111111r), a("1017.0000 TST"), a("007.0000 TST") },
       { N(bp111111111s), a("1018.0000 TST"), a("150.0000 TST") },
       { N(bp111111111t), a("1019.0000 TST"), a("000.0000 TST") },
       { N(bp111111111u), a("1020.0000 TST"), a("080.0000 TST") },
@@ -1360,5 +1360,6 @@ FC_LOG_AND_RETHROW()
 
 // TODO: proxy
 // TODO: producer pay: 50, 80/20 rule
+// TODO: channel_to_rex_or_pools
 
 BOOST_AUTO_TEST_SUITE_END()
