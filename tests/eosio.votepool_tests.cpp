@@ -27,20 +27,26 @@ using btime = block_timestamp_type;
 
 auto a(const char* s) { return asset::from_string(s); }
 
-constexpr auto sys   = N(eosio);
-constexpr auto vpool = N(eosio.vpool);
-constexpr auto bvpay = N(eosio.bvpay);
+constexpr auto sys    = N(eosio);
+constexpr auto vpool  = N(eosio.vpool);
+constexpr auto bvpay  = N(eosio.bvpay);
+constexpr auto reserv = N(eosio.reserv);
+constexpr auto rex    = N(eosio.rex);
 
 constexpr auto alice = N(alice1111111);
 constexpr auto bob   = N(bob111111111);
 constexpr auto jane  = N(jane11111111);
 constexpr auto sue   = N(sue111111111);
+constexpr auto prox  = N(proxy1111111);
 constexpr auto bpa   = N(bpa111111111);
 constexpr auto bpb   = N(bpb111111111);
 constexpr auto bpc   = N(bpc111111111);
 
 constexpr auto blocks_per_round  = eosiosystem::blocks_per_round;
 constexpr auto seconds_per_round = blocks_per_round / 2;
+
+inline constexpr int64_t rentbw_frac    = 1'000'000'000'000'000ll; // 1.0 = 10^15
+inline constexpr int64_t rentbw_percent = rentbw_frac / 100;
 
 struct prod_pool_votes {
    std::vector<double> pool_votes;           // shares in each pool
@@ -285,6 +291,13 @@ struct votepool_tester : eosio_system_tester {
 
    action_result claimvotepay(name authorizer, name producer) {
       return push_action(authorizer, N(claimvotepay), mvo()("producer", producer));
+   }
+
+   action_result rentbw(const name& payer, const name& receiver, uint32_t days, int64_t net_frac, int64_t cpu_frac,
+                        const asset& max_payment) {
+      return push_action(payer, N(rentbw),
+                         mvo()("payer", payer)("receiver", receiver)("days", days)("net_frac", net_frac)(
+                               "cpu_frac", cpu_frac)("max_payment", max_payment));
    }
 
    std::vector<name> active_producers() {
@@ -1362,8 +1375,129 @@ BOOST_AUTO_TEST_CASE(transition_inflation) try {
 } // transition_inflation
 FC_LOG_AND_RETHROW()
 
+BOOST_AUTO_TEST_CASE(rentbw_route_fees) try {
+   auto init = [](auto& t) {
+      t.create_accounts_with_resources({ reserv, prox, alice, bob, jane }, sys);
+      t.transfer(sys, alice, a("1000.0000 TST"), sys);
+      t.transfer(sys, bob, a("1000.0000 TST"), sys);
+      t.transfer(sys, jane, a("1000.0000 TST"), sys);
+      BOOST_REQUIRE_EQUAL(t.success(), t.stake(sys, alice, a("100000.0000 TST"), a("100000.0000 TST")));
+      BOOST_REQUIRE_EQUAL(t.success(), t.stake(sys, bob, a("100000.0000 TST"), a("100000.0000 TST")));
+      BOOST_REQUIRE_EQUAL(t.success(), t.stake(sys, jane, a("100000.0000 TST"), a("100000.0000 TST")));
+      BOOST_REQUIRE_EQUAL(t.success(), t.stake(bob, bob, a("1.0000 TST"), a("0.0000 TST")));
+      BOOST_REQUIRE_EQUAL("", t.push_action(prox, N(regproxy), mvo()("proxy", prox)("isproxy", true)));
+      BOOST_REQUIRE_EQUAL("", t.vote(bob, {}, prox));
+
+      t.start_transition = time_point::from_iso_string("2020-04-10T10:00:00.000");
+      t.end_transition   = time_point::from_iso_string("2020-08-10T10:00:00.000");
+      auto res           = mvo()                              //
+            ("current_weight_ratio", int64_t(10000000000000)) //
+            ("target_weight_ratio", int64_t(10000000000000))  //
+            ("assumed_stake_weight", int64_t(1000000000000))  //
+            ("target_timestamp", nullptr)                     //
+            ("exponent", 1.0)                                 //
+            ("decay_secs", nullptr)                           //
+            ("min_price", a("100.0000 TST"))                  //
+            ("max_price", a("100.0000 TST"));
+      auto conf = mvo()       //
+            ("net", res)      //
+            ("cpu", res)      //
+            ("rent_days", 30) //
+            ("min_rent_fee", a("0.0001 TST"));
+      BOOST_REQUIRE_EQUAL(t.success(), t.push_action(sys, N(configrentbw), mvo()("args", std::move(conf))));
+      t.produce_block();
+   };
+
+   auto check_fee = [](auto& t, asset rex_fee, asset pool_fee) {
+      auto jane_balance  = t.get_balance(jane);
+      auto rex_balance   = t.get_balance(rex);
+      auto vpool_balance = t.get_balance(vpool);
+      // ilog("before ${a} ${b} ${c}", ("a",t.get_balance(jane))("b",t.get_balance(rex))("c",t.get_balance(vpool)));
+      BOOST_REQUIRE_EQUAL(t.success(), t.rentbw(jane, jane, 30, rentbw_percent, 0, a("1.0000 TST")));
+      // ilog("after  ${a} ${b} ${c}", ("a",t.get_balance(jane))("b",t.get_balance(rex))("c",t.get_balance(vpool)));
+      BOOST_REQUIRE_EQUAL(t.get_balance(jane), jane_balance - rex_fee - pool_fee);
+      BOOST_REQUIRE_EQUAL(t.get_balance(rex), rex_balance + rex_fee);
+      BOOST_REQUIRE_EQUAL(t.get_balance(vpool), vpool_balance + pool_fee);
+   };
+
+   // rex not enabled, no pools exist or no pools active
+   {
+      votepool_tester t;
+      init(t);
+
+      // no pools exist
+      BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("can't channel fees to pools or to rex"),
+                          t.rentbw(alice, alice, 30, rentbw_percent, 0, a("1.0000 TST")));
+
+      BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, { { 1024 } }, { { 64 } }, { { 1.0 } }, t.start_transition,
+                                                  t.end_transition, 0.0, 0.0));
+      t.produce_block();
+
+      // no pools active
+      BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("can't channel fees to pools or to rex"),
+                          t.rentbw(alice, alice, 30, rentbw_percent, 0, a("1.0000 TST")));
+      t.skip_to(t.start_transition);
+      BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("can't channel fees to pools or to rex"),
+                          t.rentbw(alice, alice, 30, rentbw_percent, 0, a("1.0000 TST")));
+      t.skip_to(t.end_transition);
+      BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("can't channel fees to pools or to rex"),
+                          t.rentbw(alice, alice, 30, rentbw_percent, 0, a("1.0000 TST")));
+   }
+
+   // rex not enabled, pools active
+   {
+      votepool_tester t;
+      init(t);
+      BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, { { 1024 } }, { { 64 } }, { { 1.0 } }, t.start_transition,
+                                                  t.end_transition, 0.0, 0.0));
+      BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(jane, jane, 0, a("1.0000 TST")));
+      check_fee(t, a("0.0000 TST"), a("1.0000 TST"));
+      t.produce_block();
+      t.skip_to(t.start_transition);
+      check_fee(t, a("0.0000 TST"), a("1.0000 TST"));
+      t.produce_block();
+      t.skip_to(t.end_transition);
+      check_fee(t, a("0.0000 TST"), a("1.0000 TST"));
+   }
+
+   // transition between rex and pools
+   {
+      votepool_tester t;
+      init(t);
+      BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, { { 1024 } }, { { 64 } }, { { 1.0 } }, t.start_transition,
+                                                  t.end_transition, 0.0, 0.0));
+      BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(jane, jane, 0, a("1.0000 TST")));
+      BOOST_REQUIRE_EQUAL(t.success(), t.unstaketorex(bob, bob, a("1.0000 TST"), a("0.0000 TST")));
+      check_fee(t, a("1.0000 TST"), a("0.0000 TST"));
+      t.produce_block();
+
+      t.skip_to(t.start_transition);
+      check_fee(t, a("1.0000 TST"), a("0.0000 TST"));
+      t.produce_block();
+
+      t.skip_to(time_point::from_iso_string("2020-05-10T10:00:00.000"));
+      check_fee(t, a("0.7541 TST"), a("0.2459 TST"));
+      t.produce_block();
+
+      t.skip_to(time_point::from_iso_string("2020-06-10T10:00:00.000"));
+      check_fee(t, a("0.5000 TST"), a("0.5000 TST"));
+      t.produce_block();
+
+      t.skip_to(time_point::from_iso_string("2020-07-10T10:00:00.000"));
+      check_fee(t, a("0.2541 TST"), a("0.7459 TST"));
+      t.produce_block();
+
+      t.skip_to(t.end_transition);
+      check_fee(t, a("0.0000 TST"), a("1.0000 TST"));
+      t.produce_block();
+
+      t.skip_to(time_point::from_iso_string("2021-07-10T10:00:00.000"));
+      check_fee(t, a("0.0000 TST"), a("1.0000 TST"));
+   }
+} // rentbw_route_fees
+FC_LOG_AND_RETHROW()
+
 // TODO: proxy
 // TODO: producer pay: 50, 80/20 rule
-// TODO: channel_to_rex_or_pools
 
 BOOST_AUTO_TEST_SUITE_END()
