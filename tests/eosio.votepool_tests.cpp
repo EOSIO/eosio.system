@@ -49,6 +49,9 @@ struct prod_pool_votes {
 };
 
 struct votepool_tester : eosio_system_tester {
+   btime start_transition;
+   btime end_transition;
+
    votepool_tester() : eosio_system_tester(setup_level::none) {
       create_accounts({ vpool, bvpay });
       basic_setup();
@@ -81,6 +84,15 @@ struct votepool_tester : eosio_system_tester {
    }
 
    void skip_to(time_point t) { produce_block(t - control->pending_block_time()); }
+
+   template <typename T>
+   T transition(const btime& t, T val) {
+      if (t.slot >= end_transition.slot)
+         return val;
+      if (t.slot <= start_transition.slot)
+         return 0;
+      return val * (t.slot - start_transition.slot) / (end_transition.slot - start_transition.slot);
+   };
 
    fc::variant voter_pool_votes(name owner) {
       auto info = get_voter_info(owner);
@@ -1116,8 +1128,8 @@ FC_LOG_AND_RETHROW()
 BOOST_AUTO_TEST_CASE(transition_voting) try {
    votepool_tester t;
 
-   auto start_transition = btime(time_point::from_iso_string("2020-04-10T10:00:00.000"));
-   auto end_transition   = btime(time_point::from_iso_string("2020-08-10T10:00:00.000"));
+   t.start_transition = time_point::from_iso_string("2020-04-10T10:00:00.000");
+   t.end_transition   = time_point::from_iso_string("2020-08-10T10:00:00.000");
 
    struct bp_votes {
       name  bp;
@@ -1155,7 +1167,7 @@ BOOST_AUTO_TEST_CASE(transition_voting) try {
    };
 
    BOOST_REQUIRE_EQUAL(t.success(),
-                       t.cfgvpool(sys, { { 1024 } }, { { 64 } }, { { 1.0 } }, start_transition, end_transition));
+                       t.cfgvpool(sys, { { 1024 } }, { { 64 } }, { { 1.0 } }, t.start_transition, t.end_transition));
    for (auto& bp : bps) {
       t.create_account_with_resources(bp.bp, sys);
       BOOST_REQUIRE_EQUAL(t.success(), t.regproducer(bp.bp));
@@ -1173,7 +1185,7 @@ BOOST_AUTO_TEST_CASE(transition_voting) try {
    }
 
    auto transition = [&](int i, auto& prods) {
-      t.skip_to(btime(start_transition.slot + i * (end_transition.slot - start_transition.slot) / 21));
+      t.skip_to(btime(t.start_transition.slot + i * (t.end_transition.slot - t.start_transition.slot) / 21));
       t.produce_blocks(blocks_per_round);
       t.produce_blocks(blocks_per_round);
       t.produce_blocks(blocks_per_round);
@@ -1275,22 +1287,13 @@ FC_LOG_AND_RETHROW()
 
 BOOST_AUTO_TEST_CASE(transition_inflation) try {
    votepool_tester t;
-
-   auto start_transition = btime(time_point::from_iso_string("2020-04-10T10:00:00.000"));
-   auto end_transition   = btime(time_point::from_iso_string("2020-08-10T10:00:00.000"));
-
-   auto calc_transition = [&](const btime& t, auto val) -> decltype(val) {
-      if (t.slot >= end_transition.slot)
-         return val;
-      if (t.slot <= start_transition.slot)
-         return 0;
-      return val * (t.slot - start_transition.slot) / (end_transition.slot - start_transition.slot);
-   };
+   t.start_transition = time_point::from_iso_string("2020-04-10T10:00:00.000");
+   t.end_transition   = time_point::from_iso_string("2020-08-10T10:00:00.000");
 
    double prod_rate  = .4;
    double voter_rate = .5;
-   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, { { 1024 } }, { { 64 } }, { { 1.0 } }, start_transition,
-                                               end_transition, prod_rate, voter_rate));
+   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, { { 1024 } }, { { 64 } }, { { 1.0 } }, t.start_transition,
+                                               t.end_transition, prod_rate, voter_rate));
    t.create_account_with_resources(bpa, sys);
    BOOST_REQUIRE_EQUAL(t.success(), t.stake(sys, bpa, a("1000.0000 TST"), a("1000.0000 TST")));
    t.transfer(sys, bpa, a("2.0000 TST"), sys);
@@ -1314,12 +1317,13 @@ BOOST_AUTO_TEST_CASE(transition_inflation) try {
 
    auto transition = [&](double r, name claimer) {
       t.produce_block();
-      t.skip_to(btime(uint32_t((uint64_t(r * (end_transition.slot - start_transition.slot) + start_transition.slot) +
-                                blocks_per_round - 1) /
-                               blocks_per_round * blocks_per_round)));
+      t.skip_to(
+            btime(uint32_t((uint64_t(r * (t.end_transition.slot - t.start_transition.slot) + t.start_transition.slot) +
+                            blocks_per_round - 1) /
+                           blocks_per_round * blocks_per_round)));
       t.produce_blocks(blocks_per_round + 1);
 
-      auto pool_transition = calc_transition(t.get_vpoolstate()["interval_start"].as<btime>(), 1.0);
+      auto pool_transition = t.transition(t.get_vpoolstate()["interval_start"].as<btime>(), 1.0);
       BOOST_REQUIRE_EQUAL(t.success(), t.updatepay(bpa, bpa));
       auto bp_pay =
             asset(pool_transition * prod_rate * supply.get_amount() / eosiosystem::rounds_per_year, symbol{ CORE_SYM });
@@ -1336,7 +1340,7 @@ BOOST_AUTO_TEST_CASE(transition_inflation) try {
       auto    ct                    = t.pending_time(0.5).to_time_point();
       auto    gstate                = t.get_global_state();
       auto    gstate4               = t.get_global_state4();
-      auto    claim_transition      = 1.0 - calc_transition(ct, 1.0);
+      auto    claim_transition      = 1.0 - t.transition(ct, 1.0);
       auto    usecs_since_last_fill = (ct - gstate["last_pervote_bucket_fill"].as<time_point>()).count();
       int64_t claim_inflation       = (claim_transition * gstate4["continuous_rate"].as<double>() *
                                  double(supply.get_amount()) * double(usecs_since_last_fill)) /
