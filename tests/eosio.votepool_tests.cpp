@@ -1184,7 +1184,7 @@ BOOST_AUTO_TEST_CASE(transition_voting) try {
       }
    }
 
-   auto transition = [&](int i, auto& prods) {
+   auto transition_to = [&](int i, auto& prods) {
       t.skip_to(btime(t.start_transition.slot + i * (t.end_transition.slot - t.start_transition.slot) / 21));
       t.produce_blocks(blocks_per_round);
       t.produce_blocks(blocks_per_round);
@@ -1257,31 +1257,31 @@ BOOST_AUTO_TEST_CASE(transition_voting) try {
    t.produce_blocks(100);
    BOOST_REQUIRE_EQUAL(t.active_producers(), p0);
 
-   transition(0, p0);
-   transition(1, p1);
-   transition(2, p2);
-   transition(3, p3);
-   transition(4, p3); // bp111111111m switches to being selected via pool
-   transition(5, p3); // bp111111111s switches to being selected via pool
-   transition(6, p3); // bp111111111p switches to being selected via pool
-   transition(7, p7);
-   transition(8, p8);
-   transition(9, p9);
-   transition(10, p10);
-   transition(11, p10); // bp111111111w switches to being selected via pool
-   transition(12, p10); // bp111111111u switches to being selected via pool
-   transition(13, p10); // bp111111111z switches to being selected via pool
-   transition(14, p10); // bp111111111v switches to being selected via pool
-   transition(15, p10); // bp111111111y switches to being selected via pool
-   transition(16, p10); // bp111111111o switches to being selected via pool
-   transition(17, p17);
-   transition(18, p17); // bp111111111q switches to being selected via pool
-   transition(19, p19);
-   transition(20, p20);
-   transition(21, p21);
-   transition(22, p21);
-   transition(23, p21);
-   transition(100, p21);
+   transition_to(0, p0);
+   transition_to(1, p1);
+   transition_to(2, p2);
+   transition_to(3, p3);
+   transition_to(4, p3); // bp111111111m switches to being selected via pool
+   transition_to(5, p3); // bp111111111s switches to being selected via pool
+   transition_to(6, p3); // bp111111111p switches to being selected via pool
+   transition_to(7, p7);
+   transition_to(8, p8);
+   transition_to(9, p9);
+   transition_to(10, p10);
+   transition_to(11, p10); // bp111111111w switches to being selected via pool
+   transition_to(12, p10); // bp111111111u switches to being selected via pool
+   transition_to(13, p10); // bp111111111z switches to being selected via pool
+   transition_to(14, p10); // bp111111111v switches to being selected via pool
+   transition_to(15, p10); // bp111111111y switches to being selected via pool
+   transition_to(16, p10); // bp111111111o switches to being selected via pool
+   transition_to(17, p17);
+   transition_to(18, p17); // bp111111111q switches to being selected via pool
+   transition_to(19, p19);
+   transition_to(20, p20);
+   transition_to(21, p21);
+   transition_to(22, p21);
+   transition_to(23, p21);
+   transition_to(100, p21);
 } // transition_voting
 FC_LOG_AND_RETHROW()
 
@@ -1315,7 +1315,7 @@ BOOST_AUTO_TEST_CASE(transition_inflation) try {
    auto vpool_bal = a("1.0000 TST");
    auto bvpay_bal = a("0.0000 TST");
 
-   auto transition = [&](double r, name claimer) {
+   auto transition_to = [&](double r, name claimer) {
       t.produce_block();
       t.skip_to(
             btime(uint32_t((uint64_t(r * (t.end_transition.slot - t.start_transition.slot) + t.start_transition.slot) +
@@ -1352,13 +1352,13 @@ BOOST_AUTO_TEST_CASE(transition_inflation) try {
       BOOST_REQUIRE_EQUAL(t.get_token_supply(), supply);
    };
 
-   transition(-0.2, N(claimer1111a));
-   transition(0.0, N(claimer1111b));
-   transition(0.2, N(claimer1111c));
-   transition(0.8, N(claimer1111d));
-   transition(1.0, N(claimer1111e));
-   transition(1.2, N(claimer1111f));
-   transition(1.4, N(claimer1111g));
+   transition_to(-0.2, N(claimer1111a));
+   transition_to(0.0, N(claimer1111b));
+   transition_to(0.2, N(claimer1111c));
+   transition_to(0.8, N(claimer1111d));
+   transition_to(1.0, N(claimer1111e));
+   transition_to(1.2, N(claimer1111f));
+   transition_to(1.4, N(claimer1111g));
 } // transition_inflation
 FC_LOG_AND_RETHROW()
 
