@@ -465,16 +465,18 @@ FC_LOG_AND_RETHROW()
 // Without inflation, 1.0 share = 0.0001 TST
 BOOST_AUTO_TEST_CASE(no_inflation) try {
    votepool_tester   t;
-   std::vector<name> users = { alice, bob, jane };
+   std::vector<name> users = { alice, bob, jane, sue };
    BOOST_REQUIRE_EQUAL(t.success(),
                        t.cfgvpool(sys, { { 1024, 2048 } }, { { 64, 256 } }, { { 1.0, 1.0 } }, btime(), btime()));
    t.create_accounts_with_resources(users, sys);
    BOOST_REQUIRE_EQUAL(t.success(), t.stake(sys, alice, a("1000.0000 TST"), a("1000.0000 TST")));
    BOOST_REQUIRE_EQUAL(t.success(), t.stake(sys, bob, a("1000.0000 TST"), a("1000.0000 TST")));
    BOOST_REQUIRE_EQUAL(t.success(), t.stake(sys, jane, a("1000.0000 TST"), a("1000.0000 TST")));
+   BOOST_REQUIRE_EQUAL(t.success(), t.stake(sys, sue, a("1000.0000 TST"), a("1000.0000 TST")));
    t.transfer(sys, alice, a("1000.0000 TST"), sys);
    t.transfer(sys, bob, a("1000.0000 TST"), sys);
    t.transfer(sys, jane, a("1000.0000 TST"), sys);
+   t.transfer(sys, sue, a("1000.0000 TST"), sys);
    BOOST_REQUIRE_EQUAL(t.success(), t.stake(jane, jane, a("0.0001 TST"), a("0.0001 TST")));
    BOOST_REQUIRE_EQUAL(t.success(), t.unstake(jane, jane, a("0.0001 TST"), a("0.0001 TST")));
    t.check_vpool_totals(users);
@@ -665,6 +667,28 @@ BOOST_AUTO_TEST_CASE(no_inflation) try {
                            ("proxied_shares", vector({ 0.0, 0.0 }))                            //
                            ("last_votes", vector({ 1'0000.0, 1'0000.0 })),                     //
                            t.voter_pool_votes(jane));
+
+   // setup for upgradestake
+   BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(sue, sue, 0, a("1.0000 TST")));
+   BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(sue, sue, 1, a("2.0000 TST")));
+   t.check_vpool_totals(users);
+   t.produce_blocks(48 * 2);
+   REQUIRE_MATCHING_OBJECT(mvo()                                                               //
+                           ("next_claim", vector({ t.pending_time(16), t.pending_time(208) })) //
+                           ("owned_shares", vector({ 1'0000.0, 2'0000.0 }))                    //
+                           ("proxied_shares", vector({ 0.0, 0.0 }))                            //
+                           ("last_votes", vector({ 1'0000.0, 2'0000.0 })),                     //
+                           t.voter_pool_votes(sue));
+
+   // Upgraded amount counts as fresh (256 s)
+   // (2.0000, 208s), (0.50000, 256s) => (2.5000, 217.5)
+   BOOST_REQUIRE_EQUAL(t.success(), t.upgradestake(sue, sue, 0, 1, a("0.5000 TST")));
+   REQUIRE_MATCHING_OBJECT(mvo()                                                                 //
+                           ("next_claim", vector({ t.pending_time(16), t.pending_time(217.5) })) //
+                           ("owned_shares", vector({ 0'5000.0, 2'5000.0 }))                      //
+                           ("proxied_shares", vector({ 0.0, 0.0 }))                              //
+                           ("last_votes", vector({ 0'5000.0, 2'5000.0 })),                       //
+                           t.voter_pool_votes(sue));
 } // no_inflation
 FC_LOG_AND_RETHROW()
 
