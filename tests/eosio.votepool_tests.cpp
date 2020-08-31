@@ -139,10 +139,10 @@ struct votepool_tester : eosio_system_tester {
 
       for (size_t i = 0; i < pools.size(); ++i) {
          auto& pool = pools[i]["token_pool"];
-         BOOST_REQUIRE_EQUAL(total_shares[i], pool["total_shares"].as<double>());
+         BOOST_TEST(total_shares[i] == pool["total_shares"].as<double>());
          total_balance += pool["balance"].as<asset>();
       }
-      BOOST_REQUIRE_EQUAL(get_balance(vpool), total_balance);
+      BOOST_TEST(get_balance(vpool) == total_balance);
    }
 
    void check_pool_votes(int num_pools, std::map<name, prod_pool_votes>& pool_votes, const std::vector<name>& voters) {
@@ -159,6 +159,9 @@ struct votepool_tester : eosio_system_tester {
          if (!v.is_null()) {
             auto shares = v["owned_shares"].as<vector<double>>();
             auto prods  = info["producers"].as<vector<name>>();
+            auto proxy  = info["proxy"].as<name>();
+            if (proxy.to_uint64_t() && get_voter_info(proxy)["is_proxy"].as<bool>())
+               prods = get_voter_info(proxy)["producers"].as<vector<name>>();
             for (auto prod : prods) {
                auto& ppv = pool_votes[prod];
                BOOST_REQUIRE_EQUAL(ppv.pool_votes.size(), shares.size());
@@ -169,7 +172,8 @@ struct votepool_tester : eosio_system_tester {
       }
 
       for (auto& [prod, ppv] : pool_votes) {
-         BOOST_REQUIRE(ppv.pool_votes == get_producer_info(prod)["pool_votes"].as<vector<double>>());
+         for (size_t i = 0; i < ppv.pool_votes.size(); ++i)
+            BOOST_TEST(ppv.pool_votes[i] == get_producer_info(prod)["pool_votes"].as<vector<double>>()[i]);
       }
    }; // check_pool_votes
 
@@ -1066,7 +1070,7 @@ BOOST_AUTO_TEST_CASE(prod_inflation) try {
 } // prod_inflation
 FC_LOG_AND_RETHROW()
 
-BOOST_AUTO_TEST_CASE(voting) try {
+BOOST_AUTO_TEST_CASE(voting, *boost::unit_test::tolerance(1e-8)) try {
    votepool_tester   t;
    std::vector<name> users     = { alice, bob, jane, sue, bpa, bpb, bpc };
    int               num_pools = 2;
@@ -1159,6 +1163,58 @@ BOOST_AUTO_TEST_CASE(voting) try {
    BOOST_REQUIRE_EQUAL(t.success(), t.updatevotes(bpb, bpb, bpb));
    BOOST_REQUIRE_EQUAL(t.success(), t.updatevotes(bpc, bpc, bpc));
    t.check_votes(num_pools, pool_votes, users, { bpa, bpb, bpc });
+
+   auto update_and_check = [&] {
+      t.produce_block();
+      BOOST_REQUIRE_EQUAL(t.success(), t.updatevotes(bpa, bpa, bpa));
+      BOOST_REQUIRE_EQUAL(t.success(), t.updatevotes(bpb, bpb, bpb));
+      BOOST_REQUIRE_EQUAL(t.success(), t.updatevotes(bpc, bpc, bpc));
+      t.check_votes(num_pools, pool_votes, users, { bpa, bpb, bpc });
+   };
+
+   // bob: {b, c}; alice: {a, b}
+   BOOST_REQUIRE_EQUAL(t.success(), t.vote(alice, { bpa, bpb }));
+   BOOST_REQUIRE_EQUAL(t.success(), t.vote(bob, { bpb, bpc }));
+   update_and_check();
+
+   // bob becomes proxy and alice switches to proxy
+   BOOST_REQUIRE_EQUAL("", t.push_action(bob, N(regproxy), mvo()("proxy", bob)("isproxy", true)));
+   BOOST_REQUIRE_EQUAL(t.success(), t.vote(alice, {}, bob));
+   update_and_check();
+
+   // alice stakes more
+   BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(alice, alice, 0, a("4.0000 TST")));
+   BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(alice, alice, 1, a("5.0000 TST")));
+   update_and_check();
+
+   // bob stakes more
+   BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(bob, bob, 0, a("4.0000 TST")));
+   BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(bob, bob, 1, a("5.0000 TST")));
+   update_and_check();
+
+   // alice upgrades some stake
+   BOOST_REQUIRE_EQUAL(t.success(), t.upgradestake(alice, alice, 0, 1, a("0.5000 TST")));
+   update_and_check();
+
+   // bob upgrades some stake
+   BOOST_REQUIRE_EQUAL(t.success(), t.upgradestake(bob, bob, 0, 1, a("0.5000 TST")));
+   update_and_check();
+
+   // alice switches back to manual voting
+   BOOST_REQUIRE_EQUAL(t.success(), t.vote(alice, { bpa, bpb }));
+   update_and_check();
+
+   // alice uses bob as a proxy again
+   BOOST_REQUIRE_EQUAL(t.success(), t.vote(alice, {}, bob));
+   update_and_check();
+
+   // bob unregisters
+   BOOST_REQUIRE_EQUAL("", t.push_action(bob, N(regproxy), mvo()("proxy", bob)("isproxy", false)));
+   update_and_check();
+
+   // alice switches back to manual voting
+   BOOST_REQUIRE_EQUAL(t.success(), t.vote(alice, { bpa, bpb }));
+   update_and_check();
 } // voting
 FC_LOG_AND_RETHROW()
 
@@ -1521,7 +1577,6 @@ BOOST_AUTO_TEST_CASE(rentbw_route_fees) try {
 } // rentbw_route_fees
 FC_LOG_AND_RETHROW()
 
-// TODO: proxy
 // TODO: producer pay: 50, 80/20 rule
 
 BOOST_AUTO_TEST_SUITE_END()
