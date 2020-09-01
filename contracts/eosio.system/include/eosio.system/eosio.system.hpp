@@ -266,27 +266,6 @@ namespace eosiosystem {
       EOSLIB_SERIALIZE( producer_info2, (owner)(votepay_share)(last_votepay_share_update) )
    };
 
-   struct [[eosio::table, eosio::contract("eosio.system")]] total_pool_votes {
-      name         owner;
-      bool         active = true;
-      double       votes  = 0; // total shares in all pools, weighted by pool strength
-      eosio::asset vote_pay;   // unclaimed vote pay
-
-      EOSLIB_SERIALIZE(total_pool_votes, (owner)(active)(votes)(vote_pay))
-
-      uint64_t primary_key() const { return owner.value; }
-      double   by_votes() const { return active ? -votes : votes; }
-   };
-
-   struct voter_pool_votes {
-      std::vector<block_timestamp> next_claim;     // next time user may claim shares
-      std::vector<double>          owned_shares;   // shares in each pool
-      std::vector<double>          proxied_shares; // shares in each pool delegated to this voter as a proxy
-      std::vector<double>          last_votes;     // vote weights cast the last time the vote was updated
-
-      EOSLIB_SERIALIZE(voter_pool_votes, (next_claim)(owned_shares)(proxied_shares)(last_votes))
-   };
-
    // Voter info. Voter info stores information about the voter:
    // - `owner` the voter
    // - `proxy` the proxy set by the voter, if any
@@ -363,9 +342,6 @@ namespace eosiosystem {
 
    typedef eosio::multi_index< "producers2"_n, producer_info2 > producers_table2;
 
-   typedef eosio::multi_index< "totpoolvotes"_n, total_pool_votes,
-                               indexed_by<"byvotes"_n, const_mem_fun<total_pool_votes, double, &total_pool_votes::by_votes> >
-                             > total_pool_votes_table;
 
    typedef eosio::singleton< "global"_n, eosio_global_state >   global_state_singleton;
 

@@ -99,4 +99,30 @@ namespace eosiosystem {
 
    typedef eosio::singleton<"vpoolstate"_n, vote_pool_state> vote_pool_state_singleton;
 
+   struct voter_pool_votes {
+      std::vector<eosio::block_timestamp> next_claim;     // next time user may claim shares
+      std::vector<double>                 owned_shares;   // shares in each pool
+      std::vector<double>                 proxied_shares; // shares in each pool delegated to this voter as a proxy
+      std::vector<double>                 last_votes;     // vote weights cast the last time the vote was updated
+
+      EOSLIB_SERIALIZE(voter_pool_votes, (next_claim)(owned_shares)(proxied_shares)(last_votes))
+   };
+
+   struct [[eosio::table, eosio::contract("eosio.system")]] total_pool_votes {
+      name         owner;
+      bool         active = true;
+      double       votes  = 0; // total shares in all pools, weighted by pool strength
+      eosio::asset vote_pay;   // unclaimed vote pay
+
+      EOSLIB_SERIALIZE(total_pool_votes, (owner)(active)(votes)(vote_pay))
+
+      uint64_t primary_key() const { return owner.value; }
+      double   by_votes() const { return active ? -votes : votes; }
+   };
+
+   typedef eosio::multi_index<
+         "totpoolvotes"_n, total_pool_votes,
+         eosio::indexed_by<"byvotes"_n, eosio::const_mem_fun<total_pool_votes, double, &total_pool_votes::by_votes>>>
+         total_pool_votes_table;
+
 } // namespace eosiosystem
