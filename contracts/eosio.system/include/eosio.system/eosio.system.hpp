@@ -291,8 +291,6 @@ namespace eosiosystem {
       uint32_t            reserved2 = 0;
       eosio::asset        reserved3;
 
-      eosio::binary_extension<std::optional<voter_pool_votes>> pool_votes;
-
       uint64_t primary_key()const { return owner.value; }
 
       enum class flags1_fields : uint32_t {
@@ -301,35 +299,8 @@ namespace eosiosystem {
          cpu_managed = 4
       };
 
-      template <typename DataStream>
-      friend DataStream& operator<<(DataStream& ds, const voter_info& v) {
-         ds << v.owner
-            << v.proxy
-            << v.producers
-            << v.staked
-            << v.last_vote_weight
-            << v.proxied_vote_weight
-            << v.is_proxy
-            << v.flags1
-            << v.reserved2
-            << v.reserved3;
-         return write_extensions(ds, v.pool_votes);
-      }
-
-      template <typename DataStream>
-      friend DataStream& operator>>(DataStream& ds, voter_info& v) {
-         return ds >> v.owner
-                   >> v.proxy
-                   >> v.producers
-                   >> v.staked
-                   >> v.last_vote_weight
-                   >> v.proxied_vote_weight
-                   >> v.is_proxy
-                   >> v.flags1
-                   >> v.reserved2
-                   >> v.reserved3
-                   >> v.pool_votes;
-      }
+      // explicit serialization macro is not necessary, used here only to improve compilation time
+      EOSLIB_SERIALIZE( voter_info, (owner)(proxy)(producers)(staked)(last_vote_weight)(proxied_vote_weight)(is_proxy)(flags1)(reserved2)(reserved3) )
    };
 
 
@@ -1371,6 +1342,8 @@ namespace eosiosystem {
          [[eosio::action]]
          void upgradestake(name owner, uint32_t from_pool_index, uint32_t to_pool_index, asset requested);
          [[eosio::action]]
+         void votewithpool(const name& voter, const name& proxy, const std::vector<name>& producers);
+         [[eosio::action]]
          void updatevotes( name user, name producer );
          [[eosio::action]]
          void updatepay( name user );
@@ -1431,6 +1404,7 @@ namespace eosiosystem {
          using claimstake_action = eosio::action_wrapper<"claimstake"_n, &system_contract::claimstake>;
          using transferstake_action = eosio::action_wrapper<"transferstake"_n, &system_contract::transferstake>;
          using upgradestake_action = eosio::action_wrapper<"upgradestake"_n, &system_contract::upgradestake>;
+         using votewithpool_action = eosio::action_wrapper<"votewithpool"_n, &system_contract::votewithpool>;
          using updatevotes_action = eosio::action_wrapper<"updatevotes"_n, &system_contract::updatevotes>;
          using updatepay_action = eosio::action_wrapper<"updatepay"_n, &system_contract::updatepay>;
          using claimvotepay_action = eosio::action_wrapper<"claimvotepay"_n, &system_contract::claimvotepay>;
@@ -1553,13 +1527,15 @@ namespace eosiosystem {
          std::vector<double>* get_prod_pool_votes(producer_info& info);
          void enable_prod_pool_votes(producer_info& info);
          void deactivate_producer(name producer);
-         const voter_pool_votes* get_voter_pool_votes(const voter_info& info, bool required = false);
-         voter_pool_votes* get_voter_pool_votes(voter_info& info, bool required = false);
-         void enable_voter_pool_votes(voter_info& info);
-         void add_proxied_shares(voter_info& proxy, const std::vector<double>& deltas, const char* error);
-         void sub_proxied_shares(voter_info& proxy, const std::vector<double>& deltas, const char* error);
+         pool_voter_table& get_pool_voter_table();
+         const pool_voter& create_pool_voter(name voter_name);
+         const pool_voter& get_or_create_pool_voter(name voter_name);
+         void add_proxied_shares(pool_voter& proxy, const std::vector<double>& deltas, const char* error);
+         void sub_proxied_shares(pool_voter& proxy, const std::vector<double>& deltas, const char* error);
          void add_pool_votes(producer_info& prod, const std::vector<double>& deltas, const char* error);
          void sub_pool_votes(producer_info& prod, const std::vector<double>& deltas, const char* error);
+         void update_pool_votes(const name& voter, const name& proxy, const std::vector<name>& producers, bool voting);
+         void update_pool_proxy(const pool_voter& voter);
          std::vector<const total_pool_votes*> top_active_producers(size_t n);
          double calc_votes(const std::vector<double>& pool_votes);
          void update_total_pool_votes(size_t n);

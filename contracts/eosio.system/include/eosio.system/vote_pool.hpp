@@ -99,14 +99,23 @@ namespace eosiosystem {
 
    typedef eosio::singleton<"vpoolstate"_n, vote_pool_state> vote_pool_state_singleton;
 
-   struct voter_pool_votes {
-      std::vector<eosio::block_timestamp> next_claim;     // next time user may claim shares
-      std::vector<double>                 owned_shares;   // shares in each pool
-      std::vector<double>                 proxied_shares; // shares in each pool delegated to this voter as a proxy
-      std::vector<double>                 last_votes;     // vote weights cast the last time the vote was updated
+   struct [[eosio::table, eosio::contract("eosio.system")]] pool_voter {
+      name                                owner;
+      std::vector<eosio::block_timestamp> next_claim;       // next time user may claim shares
+      std::vector<double>                 owned_shares;     // shares in each pool
+      std::vector<double>                 proxied_shares;   // shares in each pool delegated to this voter as a proxy
+      std::vector<double>                 last_votes;       // vote weights cast the last time the vote was updated
+      name                                proxy;            // the proxy set by the voter, if any
+      std::vector<name>                   producers;        // the producers approved by this voter if no proxy set
+      bool                                is_proxy = false; // whether the voter is a proxy for others
 
-      EOSLIB_SERIALIZE(voter_pool_votes, (next_claim)(owned_shares)(proxied_shares)(last_votes))
+      uint64_t primary_key() const { return owner.value; }
+
+      EOSLIB_SERIALIZE(pool_voter,
+                       (owner)(next_claim)(owned_shares)(proxied_shares)(last_votes)(proxy)(producers)(is_proxy))
    };
+
+   typedef eosio::multi_index<"poolvoter"_n, pool_voter> pool_voter_table;
 
    struct [[eosio::table, eosio::contract("eosio.system")]] total_pool_votes {
       name         owner;

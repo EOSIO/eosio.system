@@ -264,41 +264,21 @@ namespace eosiosystem {
          new_vote_weight += voter->proxied_vote_weight;
       }
 
-      auto*                              pool_votes = get_voter_pool_votes(*voter);
-      std::optional<std::vector<double>> new_pool_votes;
-      if (pool_votes) {
-         new_pool_votes = pool_votes->owned_shares;
-         if (voter->is_proxy)
-            for (size_t i = 0; i < new_pool_votes->size(); ++i)
-               new_pool_votes.value()[i] += pool_votes->proxied_shares[i];
-         if (producers.size())
-            for (size_t i = 0; i < new_pool_votes->size(); ++i)
-               new_pool_votes.value()[i] /= producers.size();
-      }
-
-      struct producer_delta {
-         double delta_weight = 0;
-         bool   old_vote     = false;
-         bool   new_vote     = false;
-      };
-
-      std::map<name, producer_delta> producer_deltas;
-      if ( voter->proxy ) {
-         auto old_proxy = _voters.find( voter->proxy.value );
-         check( old_proxy != _voters.end(), "old proxy not found" ); // data corruption
-         _voters.modify( old_proxy, same_payer, [&]( auto& vp ) {
-            if (voter->last_vote_weight > 0)
-               vp.proxied_vote_weight -= voter->last_vote_weight;
-            if (pool_votes)
-               sub_proxied_shares(vp, pool_votes->last_votes, "bug: proxy lost its pool");
-         });
-         propagate_weight_change( *old_proxy );
-      } else {
-         for( const auto& p : voter->producers ) {
-            auto& d = producer_deltas[p];
-            if (voter->last_vote_weight > 0)
-               d.delta_weight -= voter->last_vote_weight;
-            d.old_vote = true;
+      std::map<name, std::pair<double, bool /*new*/> > producer_deltas;
+      if ( voter->last_vote_weight > 0 ) {
+         if( voter->proxy ) {
+            auto old_proxy = _voters.find( voter->proxy.value );
+            check( old_proxy != _voters.end(), "old proxy not found" ); //data corruption
+            _voters.modify( old_proxy, same_payer, [&]( auto& vp ) {
+                  vp.proxied_vote_weight -= voter->last_vote_weight;
+               });
+            propagate_weight_change( *old_proxy );
+         } else {
+            for( const auto& p : voter->producers ) {
+               auto& d = producer_deltas[p];
+               d.first -= voter->last_vote_weight;
+               d.second = false;
+            }
          }
       }
 
@@ -306,20 +286,18 @@ namespace eosiosystem {
          auto new_proxy = _voters.find( proxy.value );
          check( new_proxy != _voters.end(), "invalid proxy specified" ); //if ( !voting ) { data corruption } else { wrong vote }
          check( !voting || new_proxy->is_proxy, "proxy not found" );
-         if ( new_vote_weight >= 0 || new_pool_votes ) {
+         if ( new_vote_weight >= 0 ) {
             _voters.modify( new_proxy, same_payer, [&]( auto& vp ) {
-               vp.proxied_vote_weight += new_vote_weight;
-               if (new_pool_votes)
-                  add_proxied_shares(vp, *new_pool_votes, "proxy has not upgraded to support pool votes");
-            });
+                  vp.proxied_vote_weight += new_vote_weight;
+               });
             propagate_weight_change( *new_proxy );
          }
       } else {
          if( new_vote_weight >= 0 ) {
             for( const auto& p : producers ) {
                auto& d = producer_deltas[p];
-               d.delta_weight += new_vote_weight;
-               d.new_vote = true;
+               d.first += new_vote_weight;
+               d.second = true;
             }
          }
       }
@@ -330,21 +308,17 @@ namespace eosiosystem {
       for( const auto& pd : producer_deltas ) {
          auto pitr = _producers.find( pd.first.value );
          if( pitr != _producers.end() ) {
-            if( voting && !pitr->active() && pd.second.new_vote /* from new set */ ) {
+            if( voting && !pitr->active() && pd.second.second /* from new set */ ) {
                check( false, ( "producer " + pitr->owner.to_string() + " is not currently registered" ).data() );
             }
             double init_total_votes = pitr->total_votes;
             _producers.modify( pitr, same_payer, [&]( auto& p ) {
-               p.total_votes += pd.second.delta_weight;
+               p.total_votes += pd.second.first;
                if ( p.total_votes < 0 ) { // floating point arithmetics can give small negative numbers
                   p.total_votes = 0;
                }
-               _gstate.total_producer_vote_weight += pd.second.delta_weight;
+               _gstate.total_producer_vote_weight += pd.second.first;
                //check( p.total_votes >= 0, "something bad happened" );
-               if (pd.second.old_vote && pool_votes)
-                  sub_pool_votes(p, pool_votes->last_votes, "bug: producer lost its pool");
-               if (pd.second.new_vote && new_pool_votes)
-                  add_pool_votes(p, *new_pool_votes, "producer has not upgraded to support pool votes");
             });
             auto prod2 = _producers2.find( pd.first.value );
             if( prod2 != _producers2.end() ) {
@@ -360,14 +334,14 @@ namespace eosiosystem {
                                           );
 
                if( !crossed_threshold ) {
-                  delta_change_rate += pd.second.delta_weight;
+                  delta_change_rate += pd.second.first;
                } else if( !updated_after_threshold ) {
                   total_inactive_vpay_share += new_votepay_share;
                   delta_change_rate -= init_total_votes;
                }
             }
          } else {
-            if( pd.second.new_vote ) {
+            if( pd.second.second ) {
                check( false, ( "producer " + pd.first.to_string() + " is not registered" ).data() );
             }
          }
@@ -379,8 +353,6 @@ namespace eosiosystem {
          av.last_vote_weight = new_vote_weight;
          av.producers = producers;
          av.proxy     = proxy;
-         if (new_pool_votes)
-            get_voter_pool_votes(av)->last_votes = std::move(*new_pool_votes);
       });
    }
 
@@ -389,21 +361,16 @@ namespace eosiosystem {
 
       auto pitr = _voters.find( proxy.value );
       if ( pitr != _voters.end() ) {
-         if (!(isproxy && !get_voter_pool_votes(*pitr) && get_vote_pool_state_singleton().exists()))
-            check( isproxy != pitr->is_proxy, "action has no effect" );
+         check( isproxy != pitr->is_proxy, "action has no effect" );
          check( !isproxy || !pitr->proxy, "account that uses a proxy is not allowed to become a proxy" );
          _voters.modify( pitr, same_payer, [&]( auto& p ) {
                p.is_proxy = isproxy;
-               if (isproxy)
-                  enable_voter_pool_votes(p);
             });
          propagate_weight_change( *pitr );
       } else {
          _voters.emplace( proxy, [&]( auto& p ) {
                p.owner  = proxy;
                p.is_proxy = isproxy;
-               if (isproxy)
-                  enable_voter_pool_votes(p);
             });
       }
    }
@@ -415,28 +382,12 @@ namespace eosiosystem {
          new_weight += voter.proxied_vote_weight;
       }
 
-      auto*                              pool_votes = get_voter_pool_votes(voter);
-      std::optional<std::vector<double>> new_pool_votes;
-      if (pool_votes) {
-         new_pool_votes = pool_votes->owned_shares;
-         if (voter.is_proxy)
-            for (size_t i = 0; i < new_pool_votes->size(); ++i)
-               new_pool_votes.value()[i] += pool_votes->proxied_shares[i];
-         if (voter.producers.size())
-            for (size_t i = 0; i < new_pool_votes->size(); ++i)
-               new_pool_votes.value()[i] /= voter.producers.size();
-      }
-
       /// don't propagate small changes (1 ~= epsilon)
-      if ( fabs( new_weight - voter.last_vote_weight ) > 1 || pool_votes )  {
+      if ( fabs( new_weight - voter.last_vote_weight ) > 1 )  {
          if ( voter.proxy ) {
             auto& proxy = _voters.get( voter.proxy.value, "proxy not found" ); //data corruption
             _voters.modify( proxy, same_payer, [&]( auto& p ) {
                   p.proxied_vote_weight += new_weight - voter.last_vote_weight;
-                  if (pool_votes)
-                     sub_proxied_shares(p, pool_votes->last_votes, "bug: proxy lost its pool");
-                  if (new_pool_votes)
-                     add_proxied_shares(p, *new_pool_votes, "bug: proxy lost its pool");
                }
             );
             propagate_weight_change( proxy );
@@ -451,10 +402,6 @@ namespace eosiosystem {
                _producers.modify( prod, same_payer, [&]( auto& p ) {
                   p.total_votes += delta;
                   _gstate.total_producer_vote_weight += delta;
-                  if (pool_votes)
-                     sub_pool_votes(p, pool_votes->last_votes, "bug: producer lost its pool");
-                  if (new_pool_votes)
-                     add_pool_votes(p, *new_pool_votes, "producer has not upgraded to support pool votes");
                });
                auto prod2 = _producers2.find( acnt.value );
                if ( prod2 != _producers2.end() ) {
@@ -483,8 +430,6 @@ namespace eosiosystem {
       }
       _voters.modify( voter, same_payer, [&]( auto& v ) {
             v.last_vote_weight = new_weight;
-            if (new_pool_votes)
-               get_voter_pool_votes(v)->last_votes = std::move(*new_pool_votes);
          }
       );
    }

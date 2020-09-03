@@ -162,66 +162,43 @@ namespace eosiosystem {
          total_table.modify(*it, same_payer, [](auto& tot) { tot.active = false; });
    }
 
-   const voter_pool_votes* system_contract::get_voter_pool_votes(const voter_info& info, bool required) {
-      if (info.pool_votes.has_value() && info.pool_votes.value().has_value())
-         return &info.pool_votes.value().value();
-      eosio::check(!required, "voter is not upgraded");
-      return nullptr;
+   pool_voter_table& system_contract::get_pool_voter_table() {
+      static std::optional<pool_voter_table> table;
+      if (!table)
+         table.emplace(get_self(), get_self().value);
+      return *table;
    }
 
-   voter_pool_votes* system_contract::get_voter_pool_votes(voter_info& info, bool required) {
-      if (info.pool_votes.has_value() && info.pool_votes.value().has_value())
-         return &info.pool_votes.value().value();
-      eosio::check(!required, "voter is not upgraded");
-      return nullptr;
+   const pool_voter& system_contract::create_pool_voter(name voter_name) {
+      auto& pool_voter_table = get_pool_voter_table();
+      return *pool_voter_table.emplace(voter_name, [&](auto& voter) {
+         auto size   = get_vote_pool_state().pools.size();
+         voter.owner = voter_name;
+         voter.next_claim.resize(size);
+         voter.owned_shares.resize(size);
+         voter.proxied_shares.resize(size);
+         voter.last_votes.resize(size);
+      });
    }
 
-   void system_contract::enable_voter_pool_votes(voter_info& info) {
-      if (get_voter_pool_votes(info) || !get_vote_pool_state_singleton().exists())
-         return;
-
-      info.pool_votes.emplace();
-      info.pool_votes.value().emplace();
-      auto& v    = info.pool_votes.value().value();
-      auto  size = get_vote_pool_state().pools.size();
-      v.next_claim.resize(size);
-      v.owned_shares.resize(size);
-      v.proxied_shares.resize(size);
-      v.last_votes.resize(size);
-
-      if (info.proxy.value) {
-         auto it = _voters.find(info.proxy.value);
-         if (it == _voters.end() || !it->is_proxy)
-            eosio::check(false, info.owner.to_string() + " is using proxy " + info.proxy.to_string() +
-                                      ", which is no longer active");
-         if (!get_voter_pool_votes(*it))
-            eosio::check(false, info.owner.to_string() + " is using proxy " + info.proxy.to_string() +
-                                      ", which is not upgraded to support pool votes");
-      }
-
-      for (auto prod : info.producers) {
-         auto it = _producers.find(prod.value);
-         if (it == _producers.end() || !it->is_active)
-            eosio::check(false,
-                         info.owner.to_string() + " is voting for " + prod.to_string() + ", which is no longer active");
-         if (!get_prod_pool_votes(*it))
-            eosio::check(false, info.owner.to_string() + " is voting for " + prod.to_string() +
-                                      ", which is not upgraded to support pool votes");
-      }
+   const pool_voter& system_contract::get_or_create_pool_voter(name voter_name) {
+      auto& pool_voter_table = get_pool_voter_table();
+      auto  it               = pool_voter_table.find(voter_name.value);
+      if (it != pool_voter_table.end())
+         return *it;
+      return create_pool_voter(voter_name);
    }
 
-   void system_contract::add_proxied_shares(voter_info& proxy, const std::vector<double>& deltas, const char* error) {
-      auto* votes = get_voter_pool_votes(proxy);
-      eosio::check(votes && votes->proxied_shares.size() == deltas.size(), error);
+   void system_contract::add_proxied_shares(pool_voter& proxy, const std::vector<double>& deltas, const char* error) {
+      eosio::check(proxy.proxied_shares.size() == deltas.size(), error);
       for (size_t i = 0; i < deltas.size(); ++i)
-         votes->proxied_shares[i] += deltas[i];
+         proxy.proxied_shares[i] += deltas[i];
    }
 
-   void system_contract::sub_proxied_shares(voter_info& proxy, const std::vector<double>& deltas, const char* error) {
-      auto* votes = get_voter_pool_votes(proxy);
-      eosio::check(votes && votes->proxied_shares.size() == deltas.size(), error);
+   void system_contract::sub_proxied_shares(pool_voter& proxy, const std::vector<double>& deltas, const char* error) {
+      eosio::check(proxy.proxied_shares.size() == deltas.size(), error);
       for (size_t i = 0; i < deltas.size(); ++i)
-         votes->proxied_shares[i] -= deltas[i];
+         proxy.proxied_shares[i] -= deltas[i];
    }
 
    void system_contract::add_pool_votes(producer_info& prod, const std::vector<double>& deltas, const char* error) {
@@ -237,6 +214,117 @@ namespace eosiosystem {
       for (size_t i = 0; i < deltas.size(); ++i)
          (*votes)[i] -= deltas[i];
    }
+
+   void system_contract::update_pool_votes(const name& voter_name, const name& proxy,
+                                           const std::vector<name>& producers, bool voting) {
+      if (proxy) {
+         eosio::check(producers.size() == 0, "cannot vote for producers and proxy at same time");
+         eosio::check(voter_name != proxy, "cannot proxy to self");
+      } else {
+         eosio::check(producers.size() <= 30, "attempt to vote for too many producers");
+         for (size_t i = 1; i < producers.size(); ++i)
+            eosio::check(producers[i - 1] < producers[i], "producer votes must be unique and sorted");
+      }
+
+      auto& pool_voter_table = get_pool_voter_table();
+      auto& voter            = pool_voter_table.get(voter_name.value, "user must use stake2pool before they can vote");
+      eosio::check(!proxy || !voter.is_proxy, "account registered as a proxy is not allowed to use a proxy");
+
+      std::vector<double> new_pool_votes = voter.owned_shares;
+      if (voter.is_proxy)
+         for (size_t i = 0; i < new_pool_votes.size(); ++i)
+            new_pool_votes[i] += voter.proxied_shares[i];
+      if (producers.size() > 1)
+         for (size_t i = 0; i < new_pool_votes.size(); ++i)
+            new_pool_votes[i] /= producers.size();
+
+      struct producer_change {
+         bool old_vote = false;
+         bool new_vote = false;
+      };
+
+      std::map<name, producer_change> producer_changes;
+      if (voter.proxy) {
+         auto& old_proxy = pool_voter_table.get(voter.proxy.value, "bug: old proxy not found");
+         pool_voter_table.modify(old_proxy, same_payer,
+                                 [&](auto& vp) { //
+                                    sub_proxied_shares(vp, voter.last_votes, "bug: proxy lost its pool");
+                                 });
+         update_pool_proxy(old_proxy);
+      } else {
+         for (const auto& p : voter.producers)
+            producer_changes[p].old_vote = true;
+      }
+
+      if (proxy) {
+         auto& new_proxy = pool_voter_table.get(proxy.value, "invalid proxy specified");
+         eosio::check(!voting || new_proxy.is_proxy, "proxy not found");
+         pool_voter_table.modify(new_proxy, same_payer,
+                                 [&](auto& vp) { add_proxied_shares(vp, new_pool_votes, "bug: proxy lost its pool"); });
+         update_pool_proxy(new_proxy);
+      } else {
+         for (const auto& p : producers)
+            producer_changes[p].new_vote = true;
+      }
+
+      for (const auto& pc : producer_changes) {
+         auto prod = _producers.find(pc.first.value);
+         if (prod != _producers.end()) {
+            if (voting && !prod->active() && pc.second.new_vote)
+               eosio::check(false, ("producer " + prod->owner.to_string() + " is not currently registered").data());
+            _producers.modify(prod, same_payer, [&](auto& p) {
+               if (pc.second.old_vote)
+                  sub_pool_votes(p, voter.last_votes, "bug: producer lost its pool");
+               if (pc.second.new_vote)
+                  add_pool_votes(p, new_pool_votes, "producer has not upgraded to support pool votes");
+            });
+         } else {
+            if (pc.second.new_vote) {
+               eosio::check(false, ("producer " + pc.first.to_string() + " is not registered").data());
+            }
+         }
+      }
+
+      pool_voter_table.modify(voter, same_payer, [&](auto& pv) {
+         pv.producers  = producers;
+         pv.proxy      = proxy;
+         pv.last_votes = std::move(new_pool_votes);
+      });
+   } // system_contract::update_pool_votes
+
+   void system_contract::update_pool_proxy(const pool_voter& voter) {
+      check(!voter.proxy || !voter.is_proxy, "account registered as a proxy is not allowed to use a proxy");
+
+      auto&               pool_voter_table = get_pool_voter_table();
+      std::vector<double> new_pool_votes   = voter.owned_shares;
+      if (voter.is_proxy)
+         for (size_t i = 0; i < new_pool_votes.size(); ++i)
+            new_pool_votes[i] += voter.proxied_shares[i];
+      if (voter.producers.size() > 1)
+         for (size_t i = 0; i < new_pool_votes.size(); ++i)
+            new_pool_votes[i] /= voter.producers.size();
+
+      if (voter.proxy) {
+         auto& proxy = pool_voter_table.get(voter.proxy.value, "bug: proxy not found");
+         pool_voter_table.modify(proxy, same_payer, [&](auto& p) {
+            sub_proxied_shares(p, voter.last_votes, "bug: proxy lost its pool");
+            add_proxied_shares(p, new_pool_votes, "bug: proxy lost its pool");
+         });
+         update_pool_proxy(proxy);
+      } else {
+         for (auto acnt : voter.producers) {
+            auto&        prod             = _producers.get(acnt.value, "bug: producer not found");
+            const double init_total_votes = prod.total_votes;
+            _producers.modify(prod, same_payer, [&](auto& p) {
+               sub_pool_votes(p, voter.last_votes, "bug: producer lost its pool");
+               add_pool_votes(p, new_pool_votes, "producer has not upgraded to support pool votes");
+            });
+         }
+      }
+      pool_voter_table.modify(voter, same_payer, [&](auto& v) { //
+         v.last_votes = std::move(new_pool_votes);
+      });
+   } // system_contract::update_pool_proxy
 
    std::vector<const total_pool_votes*> system_contract::top_active_producers(size_t n) {
       std::vector<const total_pool_votes*> prods;
@@ -316,52 +404,41 @@ namespace eosiosystem {
       eosio::check(amount.symbol == core_symbol, "amount doesn't match core symbol");
       eosio::check(amount.amount > 0, "amount must be positive");
 
-      auto voter_itr = _voters.find(owner.value);
-      if (voter_itr != _voters.end()) {
-         if (!get_voter_pool_votes(*voter_itr)) {
-            _voters.modify(voter_itr, owner, [&](auto& v) { enable_voter_pool_votes(v); });
-         }
-      } else {
-         voter_itr = _voters.emplace(owner, [&](auto& v) {
-            v.owner = owner;
-            enable_voter_pool_votes(v);
-         });
-      }
-
-      auto& pool = state.pools[pool_index];
-      _voters.modify(voter_itr, same_payer, [&](auto& voter) {
-         auto* v = get_voter_pool_votes(voter, true);
-         deposit_pool(pool, v->owned_shares[pool_index], v->next_claim[pool_index], amount);
+      auto& pool_voter_table = get_pool_voter_table();
+      auto& voter            = get_or_create_pool_voter(owner);
+      auto& pool             = state.pools[pool_index];
+      pool_voter_table.modify(voter, same_payer, [&](auto& voter) {
+         deposit_pool(pool, voter.owned_shares[pool_index], voter.next_claim[pool_index], amount);
       });
 
       eosio::token::transfer_action transfer_act{ token_account, { owner, active_permission } };
       transfer_act.send(owner, vpool_account, amount,
                         std::string("transfer from ") + owner.to_string() + " to eosio.vpool");
 
-      update_votes(owner, voter_itr->proxy, voter_itr->producers, false);
+      update_pool_votes(owner, voter.proxy, voter.producers, false);
       save_vote_pool_state();
    }
 
    void system_contract::claimstake(name owner, uint32_t pool_index, asset requested) {
       require_auth(owner);
 
-      auto& state        = get_vote_pool_state_mutable();
-      auto  core_symbol  = get_core_symbol();
-      auto  current_time = eosio::current_block_time();
+      auto& state            = get_vote_pool_state_mutable();
+      auto  core_symbol      = get_core_symbol();
+      auto  current_time     = eosio::current_block_time();
+      auto& pool_voter_table = get_pool_voter_table();
+      auto& voter            = get_or_create_pool_voter(owner);
 
       eosio::check(pool_index < state.pools.size(), "invalid pool");
       eosio::check(requested.symbol == core_symbol, "requested doesn't match core symbol");
       eosio::check(requested.amount > 0, "requested must be positive");
 
-      auto& pool  = state.pools[pool_index];
-      auto& voter = _voters.get(owner.value, "voter record missing");
+      auto& pool = state.pools[pool_index];
       asset claimed_amount;
 
-      _voters.modify(voter, same_payer, [&](auto& voter) {
-         auto* v = get_voter_pool_votes(voter, true);
-         eosio::check(current_time >= v->next_claim[pool_index], "claim too soon");
-         claimed_amount            = withdraw_pool(pool, v->owned_shares[pool_index], requested, true);
-         v->next_claim[pool_index] = eosio::block_timestamp(current_time.slot + pool.claim_period * 2);
+      pool_voter_table.modify(voter, same_payer, [&](auto& voter) {
+         eosio::check(current_time >= voter.next_claim[pool_index], "claim too soon");
+         claimed_amount               = withdraw_pool(pool, voter.owned_shares[pool_index], requested, true);
+         voter.next_claim[pool_index] = eosio::block_timestamp(current_time.slot + pool.claim_period * 2);
       });
 
       eosio::check(pool.token_pool.shares() >= 0, "pool shares is negative");
@@ -374,7 +451,7 @@ namespace eosiosystem {
                            std::string("transfer from eosio.vpool to ") + owner.to_string());
       }
 
-      update_votes(owner, voter.proxy, voter.producers, false);
+      update_pool_votes(owner, voter.proxy, voter.producers, false);
       save_vote_pool_state();
    }
 
@@ -395,27 +472,26 @@ namespace eosiosystem {
       eosio::check(requested.symbol == core_symbol, "requested doesn't match core symbol");
       eosio::check(requested.amount > 0, "requested must be positive");
 
-      auto& pool       = state.pools[pool_index];
-      auto& from_voter = _voters.get(from.value, "from voter record missing");
-      auto& to_voter   = _voters.get(to.value, "to voter record missing");
+      auto& pool             = state.pools[pool_index];
+      auto& pool_voter_table = get_pool_voter_table();
+      auto& from_voter       = pool_voter_table.get(from.value, "from voter record missing");
+      auto& to_voter         = pool_voter_table.get(to.value, "to voter record missing");
       asset transferred_amount;
 
-      _voters.modify(from_voter, same_payer, [&](auto& from_voter) {
-         auto* v            = get_voter_pool_votes(from_voter, true);
-         transferred_amount = withdraw_pool(pool, v->owned_shares[pool_index], requested, false);
+      pool_voter_table.modify(from_voter, same_payer, [&](auto& from_voter) {
+         transferred_amount = withdraw_pool(pool, from_voter.owned_shares[pool_index], requested, false);
          eosio::check(transferred_amount.amount > 0, "transferred 0");
       });
 
-      _voters.modify(to_voter, same_payer, [&](auto& to_voter) {
-         auto* v = get_voter_pool_votes(to_voter, true);
-         deposit_pool(pool, v->owned_shares[pool_index], v->next_claim[pool_index], transferred_amount);
+      pool_voter_table.modify(to_voter, same_payer, [&](auto& to_voter) {
+         deposit_pool(pool, to_voter.owned_shares[pool_index], to_voter.next_claim[pool_index], transferred_amount);
       });
 
       eosio::check(pool.token_pool.shares() >= 0, "pool shares is negative");
       eosio::check(pool.token_pool.bal().amount >= 0, "pool amount is negative");
 
-      update_votes(from, from_voter.proxy, from_voter.producers, false);
-      update_votes(to, to_voter.proxy, to_voter.producers, false);
+      update_pool_votes(from, from_voter.proxy, from_voter.producers, false);
+      update_pool_votes(to, to_voter.proxy, to_voter.producers, false);
       save_vote_pool_state();
    } // system_contract::transferstake
 
@@ -431,23 +507,28 @@ namespace eosiosystem {
       eosio::check(requested.symbol == core_symbol, "requested doesn't match core symbol");
       eosio::check(requested.amount > 0, "requested must be positive");
 
-      auto& from_pool = state.pools[from_pool_index];
-      auto& to_pool   = state.pools[to_pool_index];
-      auto& voter     = _voters.get(owner.value, "voter record missing");
+      auto& from_pool        = state.pools[from_pool_index];
+      auto& to_pool          = state.pools[to_pool_index];
+      auto& pool_voter_table = get_pool_voter_table();
+      auto& voter            = pool_voter_table.get(owner.value, "voter record missing");
 
-      _voters.modify(voter, same_payer, [&](auto& voter) {
-         auto* v                  = get_voter_pool_votes(voter, true);
-         auto  transferred_amount = withdraw_pool(from_pool, v->owned_shares[from_pool_index], requested, false);
+      pool_voter_table.modify(voter, same_payer, [&](auto& voter) {
+         auto transferred_amount = withdraw_pool(from_pool, voter.owned_shares[from_pool_index], requested, false);
          eosio::check(transferred_amount.amount > 0, "transferred 0");
-         deposit_pool(to_pool, v->owned_shares[to_pool_index], v->next_claim[to_pool_index], transferred_amount);
+         deposit_pool(to_pool, voter.owned_shares[to_pool_index], voter.next_claim[to_pool_index], transferred_amount);
       });
 
       eosio::check(from_pool.token_pool.shares() >= 0, "pool shares is negative");
       eosio::check(from_pool.token_pool.bal().amount >= 0, "pool amount is negative");
 
-      update_votes(owner, voter.proxy, voter.producers, false);
+      update_pool_votes(owner, voter.proxy, voter.producers, false);
       save_vote_pool_state();
    } // system_contract::upgradestake
+
+   void system_contract::votewithpool(const name& voter, const name& proxy, const std::vector<name>& producers) {
+      require_auth(voter);
+      update_pool_votes(voter, proxy, producers, true);
+   }
 
    void system_contract::onblock_update_vpool(block_timestamp production_time) {
       if (!get_vote_pool_state_singleton().exists())
