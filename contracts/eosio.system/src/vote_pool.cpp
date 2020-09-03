@@ -6,7 +6,7 @@ namespace eosiosystem {
    vote_pool_state_singleton& system_contract::get_vote_pool_state_singleton() {
       static std::optional<vote_pool_state_singleton> sing;
       if (!sing)
-         sing.emplace(get_self(), 0);
+         sing.emplace(get_self(), get_self().value);
       return *sing;
    }
 
@@ -474,8 +474,8 @@ namespace eosiosystem {
 
       auto& pool             = state.pools[pool_index];
       auto& pool_voter_table = get_pool_voter_table();
-      auto& from_voter       = pool_voter_table.get(from.value, "from voter record missing");
-      auto& to_voter         = pool_voter_table.get(to.value, "to voter record missing");
+      auto& from_voter       = pool_voter_table.get(from.value, "from pool_voter record missing");
+      auto& to_voter         = pool_voter_table.get(to.value, "to pool_voter record missing");
       asset transferred_amount;
 
       pool_voter_table.modify(from_voter, same_payer, [&](auto& from_voter) {
@@ -510,7 +510,7 @@ namespace eosiosystem {
       auto& from_pool        = state.pools[from_pool_index];
       auto& to_pool          = state.pools[to_pool_index];
       auto& pool_voter_table = get_pool_voter_table();
-      auto& voter            = pool_voter_table.get(owner.value, "voter record missing");
+      auto& voter            = pool_voter_table.get(owner.value, "pool_voter record missing");
 
       pool_voter_table.modify(voter, same_payer, [&](auto& voter) {
          auto transferred_amount = withdraw_pool(from_pool, voter.owned_shares[from_pool_index], requested, false);
