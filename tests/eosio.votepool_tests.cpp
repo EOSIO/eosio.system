@@ -1290,7 +1290,7 @@ BOOST_AUTO_TEST_CASE(transition_voting) try {
       if (bp.pool_votes.get_amount()) {
          t.transfer(sys, bp.bp, bp.pool_votes, sys);
          BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(bp.bp, bp.bp, 0, bp.pool_votes));
-         BOOST_REQUIRE_EQUAL(t.success(), t.vote(bp.bp, { bp.bp }));
+         BOOST_REQUIRE_EQUAL(t.success(), t.votewithpool(bp.bp, vector{ bp.bp }));
          BOOST_REQUIRE_EQUAL(t.success(), t.updatevotes(bp.bp, bp.bp, bp.bp));
       }
    }
@@ -1412,6 +1412,7 @@ BOOST_AUTO_TEST_CASE(transition_inflation) try {
    BOOST_REQUIRE_EQUAL(t.success(), t.stake(bpa, bpa, a("0.0000 TST"), a("1.0000 TST")));
    BOOST_REQUIRE_EQUAL(t.success(), t.vote(bpa, { bpa }));
    BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(bpa, bpa, 0, a("1.0000 TST")));
+   BOOST_REQUIRE_EQUAL(t.success(), t.votewithpool(bpa, vector{ bpa }));
    BOOST_REQUIRE_EQUAL(t.success(), t.updatevotes(bpa, bpa, bpa));
 
    for (name claimer : { N(claimer1111a), N(claimer1111b), N(claimer1111c), N(claimer1111d), N(claimer1111e),
