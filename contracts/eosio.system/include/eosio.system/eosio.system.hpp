@@ -1344,6 +1344,8 @@ namespace eosiosystem {
          [[eosio::action]]
          void votewithpool(const name& voter, const name& proxy, const std::vector<name>& producers);
          [[eosio::action]]
+         void regpoolproxy(const name& proxy, bool isproxy);
+         [[eosio::action]]
          void updatevotes( name user, name producer );
          [[eosio::action]]
          void updatepay( name user );
@@ -1405,6 +1407,7 @@ namespace eosiosystem {
          using transferstake_action = eosio::action_wrapper<"transferstake"_n, &system_contract::transferstake>;
          using upgradestake_action = eosio::action_wrapper<"upgradestake"_n, &system_contract::upgradestake>;
          using votewithpool_action = eosio::action_wrapper<"votewithpool"_n, &system_contract::votewithpool>;
+         using regpoolproxy_action = eosio::action_wrapper<"regpoolproxy"_n, &system_contract::regpoolproxy>;
          using updatevotes_action = eosio::action_wrapper<"updatevotes"_n, &system_contract::updatevotes>;
          using updatepay_action = eosio::action_wrapper<"updatepay"_n, &system_contract::updatepay>;
          using claimvotepay_action = eosio::action_wrapper<"claimvotepay"_n, &system_contract::claimvotepay>;

@@ -295,6 +295,12 @@ struct votepool_tester : eosio_system_tester {
 
    action_result votewithpool(name voter) { return votewithpool(voter, voter, {}, {}); }
 
+   action_result regpoolproxy(name authorizer, name proxy, bool isproxy) {
+      return push_action(authorizer, N(regpoolproxy), mvo()("proxy", proxy)("isproxy", isproxy));
+   }
+
+   action_result regpoolproxy(name proxy, bool isproxy) { return regpoolproxy(proxy, proxy, isproxy); }
+
    action_result updatevotes(name authorizer, name user, name producer) {
       return push_action(authorizer, N(updatevotes), mvo()("user", user)("producer", producer));
    }
@@ -1190,7 +1196,7 @@ BOOST_AUTO_TEST_CASE(voting, *boost::unit_test::tolerance(1e-8)) try {
    update_and_check();
 
    // bob becomes proxy and alice switches to proxy
-   BOOST_REQUIRE_EQUAL("", t.push_action(bob, N(regproxy), mvo()("proxy", bob)("isproxy", true)));
+   BOOST_REQUIRE_EQUAL("", t.push_action(bob, N(regpoolproxy), mvo()("proxy", bob)("isproxy", true)));
    BOOST_REQUIRE_EQUAL(t.success(), t.votewithpool(alice, bob));
    update_and_check();
 
@@ -1221,7 +1227,7 @@ BOOST_AUTO_TEST_CASE(voting, *boost::unit_test::tolerance(1e-8)) try {
    update_and_check();
 
    // bob unregisters
-   BOOST_REQUIRE_EQUAL("", t.push_action(bob, N(regproxy), mvo()("proxy", bob)("isproxy", false)));
+   BOOST_REQUIRE_EQUAL("", t.push_action(bob, N(regpoolproxy), mvo()("proxy", bob)("isproxy", false)));
    update_and_check();
 
    // alice switches back to manual voting

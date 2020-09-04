@@ -530,6 +530,16 @@ namespace eosiosystem {
       update_pool_votes(voter, proxy, producers, true);
    }
 
+   void system_contract::regpoolproxy(const name& proxy, bool isproxy) {
+      require_auth(proxy);
+      get_vote_pool_state();
+      auto& pool_voter_table = get_pool_voter_table();
+      auto& voter            = get_or_create_pool_voter(proxy);
+      check(!isproxy || !voter.proxy, "account that uses a proxy is not allowed to become a proxy");
+      pool_voter_table.modify(voter, same_payer, [&](auto& p) { p.is_proxy = isproxy; });
+      update_pool_proxy(voter);
+   }
+
    void system_contract::onblock_update_vpool(block_timestamp production_time) {
       if (!get_vote_pool_state_singleton().exists())
          return;
