@@ -1225,7 +1225,7 @@ BOOST_AUTO_TEST_CASE(voting, *boost::unit_test::tolerance(1e-8)) try {
    // bob becomes proxy and alice switches to proxy
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("proxy not found"), t.votewithpool(alice, bob));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("proxy not found"), t.votewithpool(alice, N(unknownaccnt)));
-   BOOST_REQUIRE_EQUAL(t.success(), t.push_action(bob, N(regpoolproxy), mvo()("proxy", bob)("isproxy", true)));
+   BOOST_REQUIRE_EQUAL(t.success(), t.regpoolproxy(bob, true));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("cannot proxy to self"), t.votewithpool(bob, bob));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("account registered as a proxy is not allowed to use a proxy"),
                        t.votewithpool(bob, alice));
@@ -1261,11 +1261,21 @@ BOOST_AUTO_TEST_CASE(voting, *boost::unit_test::tolerance(1e-8)) try {
    update_and_check();
 
    // bob unregisters
-   BOOST_REQUIRE_EQUAL("", t.push_action(bob, N(regpoolproxy), mvo()("proxy", bob)("isproxy", false)));
+   BOOST_REQUIRE_EQUAL(t.success(), t.regpoolproxy(bob, false));
    update_and_check();
 
    // alice switches back to manual voting
    BOOST_REQUIRE_EQUAL(t.success(), t.votewithpool(alice, { bpa, bpb }));
+   update_and_check();
+
+   // alice becomes a proxy
+   BOOST_REQUIRE_EQUAL(t.success(), t.regpoolproxy(alice, true));
+   BOOST_REQUIRE_EQUAL(t.success(), t.votewithpool(bob, alice));
+   update_and_check();
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("account that uses a proxy is not allowed to become a proxy"),
+                       t.regpoolproxy(bob, true));
+   BOOST_REQUIRE_EQUAL(t.success(), t.votewithpool(bob, { bpb, bpc }));
+   BOOST_REQUIRE_EQUAL(t.success(), t.regpoolproxy(bob, true));
    update_and_check();
 } // voting
 FC_LOG_AND_RETHROW()
@@ -1518,8 +1528,8 @@ BOOST_AUTO_TEST_CASE(rentbw_route_fees) try {
       BOOST_REQUIRE_EQUAL(t.success(), t.stake(sys, bob, a("100000.0000 TST"), a("100000.0000 TST")));
       BOOST_REQUIRE_EQUAL(t.success(), t.stake(sys, jane, a("100000.0000 TST"), a("100000.0000 TST")));
       BOOST_REQUIRE_EQUAL(t.success(), t.stake(bob, bob, a("1.0000 TST"), a("0.0000 TST")));
-      BOOST_REQUIRE_EQUAL("", t.push_action(prox, N(regproxy), mvo()("proxy", prox)("isproxy", true)));
-      BOOST_REQUIRE_EQUAL("", t.vote(bob, {}, prox));
+      BOOST_REQUIRE_EQUAL(t.success(), t.push_action(prox, N(regproxy), mvo()("proxy", prox)("isproxy", true)));
+      BOOST_REQUIRE_EQUAL(t.success(), t.vote(bob, {}, prox));
 
       t.start_transition = time_point::from_iso_string("2020-04-10T10:00:00.000");
       t.end_transition   = time_point::from_iso_string("2020-08-10T10:00:00.000");
