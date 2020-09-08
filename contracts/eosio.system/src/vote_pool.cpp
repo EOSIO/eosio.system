@@ -201,9 +201,10 @@ namespace eosiosystem {
          proxy.proxied_shares[i] -= deltas[i];
    }
 
-   void system_contract::add_pool_votes(producer_info& prod, const std::vector<double>& deltas, const char* error) {
+   void system_contract::add_pool_votes(producer_info& prod, const std::vector<double>& deltas) {
       auto* votes = get_prod_pool_votes(prod);
-      eosio::check(votes && votes->size() == deltas.size(), error);
+      if (!votes || votes->size() != deltas.size())
+         eosio::check(false, "producer " + prod.owner.to_string() + " has not upgraded to support pool votes");
       for (size_t i = 0; i < deltas.size(); ++i)
          (*votes)[i] += deltas[i];
    }
@@ -257,7 +258,7 @@ namespace eosiosystem {
       }
 
       if (proxy) {
-         auto& new_proxy = pool_voter_table.get(proxy.value, "invalid proxy specified");
+         auto& new_proxy = pool_voter_table.get(proxy.value, "proxy not found");
          eosio::check(!voting || new_proxy.is_proxy, "proxy not found");
          pool_voter_table.modify(new_proxy, same_payer,
                                  [&](auto& vp) { add_proxied_shares(vp, new_pool_votes, "bug: proxy lost its pool"); });
@@ -276,7 +277,7 @@ namespace eosiosystem {
                if (pc.second.old_vote)
                   sub_pool_votes(p, voter.last_votes, "bug: producer lost its pool");
                if (pc.second.new_vote)
-                  add_pool_votes(p, new_pool_votes, "producer has not upgraded to support pool votes");
+                  add_pool_votes(p, new_pool_votes);
             });
          } else {
             if (pc.second.new_vote) {
@@ -313,11 +314,10 @@ namespace eosiosystem {
          update_pool_proxy(proxy);
       } else {
          for (auto acnt : voter.producers) {
-            auto&        prod             = _producers.get(acnt.value, "bug: producer not found");
-            const double init_total_votes = prod.total_votes;
+            auto& prod = _producers.get(acnt.value, "bug: producer not found");
             _producers.modify(prod, same_payer, [&](auto& p) {
                sub_pool_votes(p, voter.last_votes, "bug: producer lost its pool");
-               add_pool_votes(p, new_pool_votes, "producer has not upgraded to support pool votes");
+               add_pool_votes(p, new_pool_votes);
             });
          }
       }

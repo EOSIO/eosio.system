@@ -41,6 +41,7 @@ constexpr auto prox  = N(proxy1111111);
 constexpr auto bpa   = N(bpa111111111);
 constexpr auto bpb   = N(bpb111111111);
 constexpr auto bpc   = N(bpc111111111);
+constexpr auto bpd   = N(bpd111111111);
 
 constexpr auto blocks_per_round  = eosiosystem::blocks_per_round;
 constexpr auto seconds_per_round = blocks_per_round / 2;
@@ -228,6 +229,15 @@ struct votepool_tester : eosio_system_tester {
          return error(ex.top_message());
       }
       return success();
+   }
+
+   // doesn't move time forward
+   action_result regproducer_0_time(const account_name& prod) {
+      action_result r = push_action(
+            prod, N(regproducer),
+            mvo()("producer", prod)("producer_key", get_public_key(prod, "active"))("url", "")("location", 0));
+      BOOST_REQUIRE_EQUAL(success(), r);
+      return r;
    }
 
    action_result cfgvpool(name                         authorizer, //
@@ -482,6 +492,14 @@ BOOST_AUTO_TEST_CASE(checks) try {
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("pool_voter record missing"), t.upgradestake(bob, bob, 0, 1, a("1.0000 TST")));
 
    BOOST_REQUIRE_EQUAL("missing authority of alice1111111", t.votewithpool(bob, alice, {}, { bpa, bpb }));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("producer votes must be unique and sorted"),
+                       t.votewithpool(alice, { bpb, bpa }));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("producer votes must be unique and sorted"),
+                       t.votewithpool(alice, { bpb, bpb }));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("attempt to vote for too many producers"),
+                       t.votewithpool(alice, { N(a), N(b), N(c), N(d),  N(e),  N(f),  N(g),  N(h),  N(i), N(j), N(k),
+                                               N(l), N(m), N(n), N(o),  N(p),  N(q),  N(r),  N(s),  N(t), N(u), N(v),
+                                               N(w), N(x), N(y), N(za), N(zb), N(zc), N(zd), N(ze), N(zf) }));
 } // checks
 FC_LOG_AND_RETHROW()
 
@@ -1090,11 +1108,12 @@ FC_LOG_AND_RETHROW()
 
 BOOST_AUTO_TEST_CASE(voting, *boost::unit_test::tolerance(1e-8)) try {
    votepool_tester   t;
-   std::vector<name> users     = { alice, bob, jane, sue, bpa, bpb, bpc };
+   std::vector<name> users     = { alice, bob, jane, sue, bpa, bpb, bpc, bpd };
    int               num_pools = 2;
+   t.create_accounts_with_resources(users, sys);
+   BOOST_REQUIRE_EQUAL(t.success(), t.regproducer_0_time(bpd));
    BOOST_REQUIRE_EQUAL(t.success(),
                        t.cfgvpool(sys, { { 1024, 2048 } }, { { 64, 256 } }, { { 1.0, 1.5 } }, btime(), btime()));
-   t.create_accounts_with_resources(users, sys);
    BOOST_REQUIRE_EQUAL(t.success(), t.stake(sys, alice, a("1000.0000 TST"), a("1000.0000 TST")));
    BOOST_REQUIRE_EQUAL(t.success(), t.stake(sys, bob, a("1000.0000 TST"), a("1000.0000 TST")));
    BOOST_REQUIRE_EQUAL(t.success(), t.stake(sys, jane, a("1000.0000 TST"), a("1000.0000 TST")));
@@ -1106,12 +1125,10 @@ BOOST_AUTO_TEST_CASE(voting, *boost::unit_test::tolerance(1e-8)) try {
    t.transfer(sys, bob, a("1000.0000 TST"), sys);
    t.transfer(sys, jane, a("1000.0000 TST"), sys);
    t.transfer(sys, sue, a("1000.0000 TST"), sys);
-   BOOST_REQUIRE_EQUAL(t.success(), t.regproducer(bpa));
    BOOST_REQUIRE_EQUAL(t.success(), t.regproducer(bpb));
    BOOST_REQUIRE_EQUAL(t.success(), t.regproducer(bpc));
 
    std::map<name, prod_pool_votes> pool_votes;
-   pool_votes[bpa];
    pool_votes[bpb];
    pool_votes[bpc];
 
@@ -1138,6 +1155,16 @@ BOOST_AUTO_TEST_CASE(voting, *boost::unit_test::tolerance(1e-8)) try {
    t.check_votes(num_pools, pool_votes, users);
    BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(alice, alice, 0, a("1.0000 TST")));
    t.check_votes(num_pools, pool_votes, users);
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("producer bpd111111111 has not upgraded to support pool votes"),
+                       t.votewithpool(alice, vector{ bpd }));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("producer bpa111111111 is not registered"),
+                       t.votewithpool(alice, { bpa, bpb }));
+   BOOST_REQUIRE_EQUAL(t.success(), t.regproducer(bpa));
+   pool_votes[bpa];
+   BOOST_REQUIRE_EQUAL(t.success(), t.push_action(bpa, N(unregprod), mvo()("producer", bpa)));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("producer bpa111111111 is not currently registered"),
+                       t.votewithpool(alice, { bpa, bpb }));
+   BOOST_REQUIRE_EQUAL(t.success(), t.regproducer(bpa));
    BOOST_REQUIRE_EQUAL(t.success(), t.votewithpool(alice, { bpa, bpb }));
    t.check_votes(num_pools, pool_votes, users);
    BOOST_REQUIRE_EQUAL(t.success(), t.updatevotes(bpa, bpa, bpa));
@@ -1196,7 +1223,14 @@ BOOST_AUTO_TEST_CASE(voting, *boost::unit_test::tolerance(1e-8)) try {
    update_and_check();
 
    // bob becomes proxy and alice switches to proxy
-   BOOST_REQUIRE_EQUAL("", t.push_action(bob, N(regpoolproxy), mvo()("proxy", bob)("isproxy", true)));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("proxy not found"), t.votewithpool(alice, bob));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("proxy not found"), t.votewithpool(alice, N(unknownaccnt)));
+   BOOST_REQUIRE_EQUAL(t.success(), t.push_action(bob, N(regpoolproxy), mvo()("proxy", bob)("isproxy", true)));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("cannot proxy to self"), t.votewithpool(bob, bob));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("account registered as a proxy is not allowed to use a proxy"),
+                       t.votewithpool(bob, alice));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("cannot vote for producers and proxy at same time"),
+                       t.votewithpool(alice, alice, bob, { bpa, bpb }));
    BOOST_REQUIRE_EQUAL(t.success(), t.votewithpool(alice, bob));
    update_and_check();
 
