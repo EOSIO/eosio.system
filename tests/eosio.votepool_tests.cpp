@@ -37,6 +37,7 @@ constexpr auto alice = N(alice1111111);
 constexpr auto bob   = N(bob111111111);
 constexpr auto jane  = N(jane11111111);
 constexpr auto sue   = N(sue111111111);
+constexpr auto tom   = N(tom111111111);
 constexpr auto prox  = N(proxy1111111);
 constexpr auto bpa   = N(bpa111111111);
 constexpr auto bpb   = N(bpb111111111);
@@ -271,6 +272,10 @@ struct votepool_tester : eosio_system_tester {
       return push_action(authorizer, N(cfgvpool), v);
    }
 
+   action_result openpools(name authorizer, name owner, name payer) {
+      return push_action(authorizer, N(openpools), mvo()("owner", owner)("payer", payer));
+   }
+
    action_result stake2pool(name authorizer, name owner, uint32_t pool_index, asset amount) {
       return push_action(authorizer, N(stake2pool), mvo()("owner", owner)("pool_index", pool_index)("amount", amount));
    }
@@ -416,10 +421,13 @@ BOOST_AUTO_TEST_CASE(checks) try {
    t.create_accounts_with_resources({ alice, bob }, sys);
 
    BOOST_REQUIRE_EQUAL("missing authority of bob111111111", t.stake2pool(alice, bob, 0, a("1.0000 TST")));
-   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("vote pools not initialized"), t.stake2pool(alice, alice, 0, a("1.0000 TST")));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("vote pools not configured"), t.stake2pool(alice, alice, 0, a("1.0000 TST")));
+
+   BOOST_REQUIRE_EQUAL("missing authority of bob111111111", t.openpools(alice, alice, bob));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("vote pools not configured"), t.openpools(bob, alice, bob));
 
    BOOST_REQUIRE_EQUAL("missing authority of bob111111111", t.claimstake(alice, bob, 0, a("1.0000 TST")));
-   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("vote pools not initialized"), t.claimstake(alice, alice, 0, a("1.0000 TST")));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("vote pools not configured"), t.claimstake(alice, alice, 0, a("1.0000 TST")));
 
    BOOST_REQUIRE_EQUAL("missing authority of bob111111111",
                        t.transferstake(alice, bob, alice, 0, a("1.0000 TST"), "memo"));
@@ -429,15 +437,15 @@ BOOST_AUTO_TEST_CASE(checks) try {
                        t.transferstake(alice, alice, alice, 0, a("1.0000 TST"), std::string(256, 'x')));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("invalid account"),
                        t.transferstake(alice, alice, N(oops), 0, a("1.0000 TST"), ""));
-   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("vote pools not initialized"),
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("vote pools not configured"),
                        t.transferstake(alice, alice, bob, 0, a("1.0000 TST"), ""));
 
    BOOST_REQUIRE_EQUAL("missing authority of bob111111111", t.upgradestake(alice, bob, 0, 1, a("1.0000 TST")));
-   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("vote pools not initialized"),
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("vote pools not configured"),
                        t.upgradestake(alice, alice, 0, 1, a("1.0000 TST")));
 
    BOOST_REQUIRE_EQUAL("missing authority of bob111111111", t.updatepay(alice, bob));
-   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("vote pools not initialized"), t.updatepay(alice, alice));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("vote pools not configured"), t.updatepay(alice, alice));
 
    BOOST_REQUIRE_EQUAL(t.success(),
                        t.cfgvpool(sys, { { 2, 3, 4, 5 } }, { { 1, 1, 3, 3 } }, { { 1, 1, 1, 1 } }, btime(), btime()));
@@ -510,14 +518,17 @@ BOOST_AUTO_TEST_CASE(no_inflation) try {
    BOOST_REQUIRE_EQUAL(t.success(),
                        t.cfgvpool(sys, { { 1024, 2048 } }, { { 64, 256 } }, { { 1.0, 1.0 } }, btime(), btime()));
    t.create_accounts_with_resources(users, sys);
+   t.create_account_with_resources(tom, sys);
    BOOST_REQUIRE_EQUAL(t.success(), t.stake(sys, alice, a("1000.0000 TST"), a("1000.0000 TST")));
    BOOST_REQUIRE_EQUAL(t.success(), t.stake(sys, bob, a("1000.0000 TST"), a("1000.0000 TST")));
    BOOST_REQUIRE_EQUAL(t.success(), t.stake(sys, jane, a("1000.0000 TST"), a("1000.0000 TST")));
    BOOST_REQUIRE_EQUAL(t.success(), t.stake(sys, sue, a("1000.0000 TST"), a("1000.0000 TST")));
+   BOOST_REQUIRE_EQUAL(t.success(), t.stake(sys, tom, a("1000.0000 TST"), a("1000.0000 TST")));
    t.transfer(sys, alice, a("1000.0000 TST"), sys);
    t.transfer(sys, bob, a("1000.0000 TST"), sys);
    t.transfer(sys, jane, a("1000.0000 TST"), sys);
    t.transfer(sys, sue, a("1000.0000 TST"), sys);
+   t.transfer(sys, tom, a("1000.0000 TST"), sys);
    t.check_vpool_totals(users);
 
    BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(alice, alice, 0, a("1.0000 TST")));
@@ -729,6 +740,29 @@ BOOST_AUTO_TEST_CASE(no_inflation) try {
                            ("proxied_shares", vector({ 0.0, 0.0 }))                              //
                            ("last_votes", vector({ 0'5000.0, 2'5000.0 })),                       //
                            t.pool_voter(sue));
+
+   // transfer sue -> tom; sue pays for tom's new record
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("to pool_voter record missing"),
+                       t.transferstake(sue, sue, tom, 1, a("1.0000 TST"), ""));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("owner account does not exist"), t.openpools(sue, N(tommy), sue));
+   BOOST_REQUIRE_EQUAL(t.success(), t.openpools(sue, tom, sue));
+   BOOST_REQUIRE_EQUAL(t.success(), t.openpools(sue, bob, sue)); // opening already-existing is ok
+   users.push_back(tom);
+   t.check_vpool_totals(users);
+   BOOST_REQUIRE_EQUAL(t.success(), t.transferstake(sue, sue, tom, 1, a("1.0000 TST"), ""));
+   t.check_vpool_totals(users);
+   REQUIRE_MATCHING_OBJECT(mvo()                                                                 //
+                           ("next_claim", vector({ t.pending_time(16), t.pending_time(217.5) })) //
+                           ("owned_shares", vector({ 0'5000.0, 1'5000.0 }))                      //
+                           ("proxied_shares", vector({ 0.0, 0.0 }))                              //
+                           ("last_votes", vector({ 0'5000.0, 1'5000.0 })),                       //
+                           t.pool_voter(sue));
+   REQUIRE_MATCHING_OBJECT(mvo()                                                    //
+                           ("next_claim", vector({ btime(), t.pending_time(256) })) //
+                           ("owned_shares", vector({ 0.0, 1'0000.0 }))              //
+                           ("proxied_shares", vector({ 0.0, 0.0 }))                 //
+                           ("last_votes", vector({ 0.0, 1'0000.0 })),               //
+                           t.pool_voter(tom));
 } // no_inflation
 FC_LOG_AND_RETHROW()
 

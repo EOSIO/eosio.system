@@ -17,7 +17,7 @@ namespace eosiosystem {
             state.emplace();
             state->interval_start.slot = (eosio::current_block_time().slot / blocks_per_round) * blocks_per_round;
          } else {
-            eosio::check(get_vote_pool_state_singleton().exists(), "vote pools not initialized");
+            eosio::check(get_vote_pool_state_singleton().exists(), "vote pools not configured");
             state = get_vote_pool_state_singleton().get();
          }
       }
@@ -169,9 +169,9 @@ namespace eosiosystem {
       return *table;
    }
 
-   const pool_voter& system_contract::create_pool_voter(name voter_name) {
+   const pool_voter& system_contract::create_pool_voter(name voter_name, name payer) {
       auto& pool_voter_table = get_pool_voter_table();
-      return *pool_voter_table.emplace(voter_name, [&](auto& voter) {
+      return *pool_voter_table.emplace(payer, [&](auto& voter) {
          auto size   = get_vote_pool_state().pools.size();
          voter.owner = voter_name;
          voter.next_claim.resize(size);
@@ -186,7 +186,7 @@ namespace eosiosystem {
       auto  it               = pool_voter_table.find(voter_name.value);
       if (it != pool_voter_table.end())
          return *it;
-      return create_pool_voter(voter_name);
+      return create_pool_voter(voter_name, voter_name);
    }
 
    void system_contract::add_proxied_shares(pool_voter& proxy, const std::vector<double>& deltas, const char* error) {
@@ -286,7 +286,7 @@ namespace eosiosystem {
          }
       }
 
-      pool_voter_table.modify(voter, same_payer, [&](auto& pv) {
+      pool_voter_table.modify(voter, voting ? voter_name : same_payer, [&](auto& pv) {
          pv.producers  = producers;
          pv.proxy      = proxy;
          pv.last_votes = std::move(new_pool_votes);
@@ -394,6 +394,15 @@ namespace eosiosystem {
       }
    }
 
+   void system_contract::openpools(name owner, name payer) {
+      require_auth(payer);
+      check(is_account(owner), "owner account does not exist");
+      get_vote_pool_state();
+      auto& pool_voter_table = get_pool_voter_table();
+      if (pool_voter_table.find(owner.value) == pool_voter_table.end())
+         create_pool_voter(owner, payer);
+   }
+
    void system_contract::stake2pool(name owner, uint32_t pool_index, asset amount) {
       require_auth(owner);
 
@@ -407,7 +416,7 @@ namespace eosiosystem {
       auto& pool_voter_table = get_pool_voter_table();
       auto& voter            = get_or_create_pool_voter(owner);
       auto& pool             = state.pools[pool_index];
-      pool_voter_table.modify(voter, same_payer, [&](auto& voter) {
+      pool_voter_table.modify(voter, owner, [&](auto& voter) {
          deposit_pool(pool, voter.owned_shares[pool_index], voter.next_claim[pool_index], amount);
       });
 
@@ -435,7 +444,7 @@ namespace eosiosystem {
       auto& pool = state.pools[pool_index];
       asset claimed_amount;
 
-      pool_voter_table.modify(voter, same_payer, [&](auto& voter) {
+      pool_voter_table.modify(voter, owner, [&](auto& voter) {
          eosio::check(current_time >= voter.next_claim[pool_index], "claim too soon");
          claimed_amount               = withdraw_pool(pool, voter.owned_shares[pool_index], requested, true);
          voter.next_claim[pool_index] = eosio::block_timestamp(current_time.slot + pool.claim_period * 2);
@@ -459,7 +468,6 @@ namespace eosiosystem {
                                        const std::string& memo) {
       // TODO: notifications. require_recipient doesn't work because requested and actual amount may differ
       // TODO: assert if requested is too far below actual?
-      // TODO: need way to upgrade receiver's account
       require_auth(from);
       eosio::check(memo.size() <= 256, "memo has more than 256 bytes");
       eosio::check(from != to, "from = to");
@@ -478,7 +486,7 @@ namespace eosiosystem {
       auto& to_voter         = pool_voter_table.get(to.value, "to pool_voter record missing");
       asset transferred_amount;
 
-      pool_voter_table.modify(from_voter, same_payer, [&](auto& from_voter) {
+      pool_voter_table.modify(from_voter, from, [&](auto& from_voter) {
          transferred_amount = withdraw_pool(pool, from_voter.owned_shares[pool_index], requested, false);
          eosio::check(transferred_amount.amount > 0, "transferred 0");
       });
@@ -512,7 +520,7 @@ namespace eosiosystem {
       auto& pool_voter_table = get_pool_voter_table();
       auto& voter            = pool_voter_table.get(owner.value, "pool_voter record missing");
 
-      pool_voter_table.modify(voter, same_payer, [&](auto& voter) {
+      pool_voter_table.modify(voter, owner, [&](auto& voter) {
          auto transferred_amount = withdraw_pool(from_pool, voter.owned_shares[from_pool_index], requested, false);
          eosio::check(transferred_amount.amount > 0, "transferred 0");
          deposit_pool(to_pool, voter.owned_shares[to_pool_index], voter.next_claim[to_pool_index], transferred_amount);
@@ -536,7 +544,7 @@ namespace eosiosystem {
       auto& pool_voter_table = get_pool_voter_table();
       auto& voter            = get_or_create_pool_voter(proxy);
       check(!isproxy || !voter.proxy, "account that uses a proxy is not allowed to become a proxy");
-      pool_voter_table.modify(voter, same_payer, [&](auto& p) { p.is_proxy = isproxy; });
+      pool_voter_table.modify(voter, proxy, [&](auto& p) { p.is_proxy = isproxy; });
       update_pool_proxy(voter);
    }
 
