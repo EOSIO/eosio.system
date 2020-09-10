@@ -45,6 +45,7 @@ namespace eosiosystem {
 
    using uint32_vector = std::vector<uint32_t>;
    using double_vector = std::vector<double>;
+   using Bool = bool; // work around abigen issue with optional<bool>
 
    inline constexpr int64_t rentbw_frac = 1'000'000'000'000'000ll;  // 1.0 = 10^15
 
@@ -1339,7 +1340,7 @@ namespace eosiosystem {
          [[eosio::action]]
          void stake2pool( name owner, uint32_t pool_index, asset amount );
          [[eosio::action]]
-         void setpoolnotif( name owner, bool xfer_in_notif, bool xfer_out_notif );
+         void setpoolnotif( name owner, std::optional<Bool> xfer_in_notif, std::optional<Bool> xfer_out_notif );
          [[eosio::action]]
          void claimstake( name owner, uint32_t pool_index, asset requested );
          [[eosio::action]]

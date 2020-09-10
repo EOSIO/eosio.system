@@ -27,11 +27,12 @@ using btime = block_timestamp_type;
 
 auto a(const char* s) { return asset::from_string(s); }
 
-constexpr auto sys    = N(eosio);
-constexpr auto vpool  = N(eosio.vpool);
-constexpr auto bvpay  = N(eosio.bvpay);
-constexpr auto reserv = N(eosio.reserv);
-constexpr auto rex    = N(eosio.rex);
+constexpr auto sys                 = N(eosio);
+constexpr auto vpool               = N(eosio.vpool);
+constexpr auto bvpay               = N(eosio.bvpay);
+constexpr auto reserv              = N(eosio.reserv);
+constexpr auto rex                 = N(eosio.rex);
+constexpr auto transferstake_notif = N(eosio.tstake);
 
 constexpr auto alice = N(alice1111111);
 constexpr auto bob   = N(bob111111111);
@@ -55,6 +56,17 @@ struct prod_pool_votes {
    double              total_pool_votes = 0; // total shares in all pools, weighted by update time and pool strength
    asset               vote_pay;             // unclaimed vote pay
 };
+
+struct transferstake_notification {
+   name        from;
+   name        to;
+   uint32_t    pool_index;
+   asset       requested;
+   asset       transferred_amount;
+   std::string memo;
+};
+
+FC_REFLECT(transferstake_notification, (from)(to)(pool_index)(requested)(transferred_amount)(memo))
 
 struct votepool_tester : eosio_system_tester {
    btime start_transition;
@@ -280,6 +292,20 @@ struct votepool_tester : eosio_system_tester {
       return push_action(authorizer, N(stake2pool), mvo()("owner", owner)("pool_index", pool_index)("amount", amount));
    }
 
+   action_result setpoolnotif(name authorizer, name owner, std::optional<bool> xfer_in_notif = nullopt,
+                              std::optional<bool> xfer_out_notif = nullopt) {
+      mvo  v("owner", owner);
+      auto fill = [&](const char* name, auto& opt) {
+         if (opt)
+            v(name, *opt);
+         else
+            v(name, nullptr);
+      };
+      fill("xfer_in_notif", xfer_in_notif);
+      fill("xfer_out_notif", xfer_out_notif);
+      return push_action(authorizer, N(setpoolnotif), v);
+   }
+
    action_result claimstake(name authorizer, name owner, uint32_t pool_index, asset requested) {
       return push_action(authorizer, N(claimstake),
                          mvo()("owner", owner)("pool_index", pool_index)("requested", requested));
@@ -289,6 +315,35 @@ struct votepool_tester : eosio_system_tester {
                                const std::string& memo) {
       return push_action(authorizer, N(transferstake),
                          mvo()("from", from)("to", to)("pool_index", pool_index)("requested", requested)("memo", memo));
+   }
+
+   void transferstake_notify(name from, name to, uint32_t pool_index, asset requested, asset transferred_amount,
+                             const std::string& memo, bool notif_from, bool notif_to) {
+      mvo v;
+      v("from", from)("to", to)("pool_index", pool_index)("requested", requested)("memo", memo);
+      auto traces = base_tester::push_action(sys, N(transferstake), from, v, 1, 0);
+      int  pos    = 1;
+
+      auto check_notif = [&](name receiver) {
+         BOOST_TEST(pos < traces->action_traces.size());
+         auto& at = traces->action_traces[pos++];
+         BOOST_TEST(at.receiver == receiver);
+         BOOST_TEST(at.act.account == receiver);
+         BOOST_TEST(at.act.name == transferstake_notif);
+         auto n = fc::raw::unpack<transferstake_notification>(at.act.data);
+         BOOST_TEST(n.from == from);
+         BOOST_TEST(n.to == to);
+         BOOST_TEST(n.pool_index == pool_index);
+         BOOST_TEST(n.requested == requested);
+         BOOST_TEST(n.transferred_amount == transferred_amount);
+         BOOST_TEST(n.memo == memo);
+      };
+
+      if (notif_from)
+         check_notif(from);
+      if (notif_to)
+         check_notif(to);
+      BOOST_TEST(pos == traces->action_traces.size());
    }
 
    action_result upgradestake(name authorizer, name owner, uint32_t from_pool_index, uint32_t to_pool_index,
@@ -422,6 +477,9 @@ BOOST_AUTO_TEST_CASE(checks) try {
 
    BOOST_REQUIRE_EQUAL("missing authority of bob111111111", t.stake2pool(alice, bob, 0, a("1.0000 TST")));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("vote pools not configured"), t.stake2pool(alice, alice, 0, a("1.0000 TST")));
+
+   BOOST_REQUIRE_EQUAL("missing authority of bob111111111", t.setpoolnotif(alice, bob));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("vote pools not configured"), t.setpoolnotif(alice, alice));
 
    BOOST_REQUIRE_EQUAL("missing authority of bob111111111", t.openpools(alice, alice, bob));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("vote pools not configured"), t.openpools(bob, alice, bob));
