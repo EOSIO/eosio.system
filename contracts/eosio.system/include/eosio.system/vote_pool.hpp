@@ -101,18 +101,20 @@ namespace eosiosystem {
 
    struct [[eosio::table, eosio::contract("eosio.system")]] pool_voter {
       name                                owner;
-      std::vector<eosio::block_timestamp> next_claim;       // next time user may claim shares
-      std::vector<double>                 owned_shares;     // shares in each pool
-      std::vector<double>                 proxied_shares;   // shares in each pool delegated to this voter as a proxy
-      std::vector<double>                 last_votes;       // vote weights cast the last time the vote was updated
-      name                                proxy;            // the proxy set by the voter, if any
-      std::vector<name>                   producers;        // the producers approved by this voter if no proxy set
-      bool                                is_proxy = false; // whether the voter is a proxy for others
+      std::vector<eosio::block_timestamp> next_claim;     // next time user may claim shares
+      std::vector<double>                 owned_shares;   // shares in each pool
+      std::vector<double>                 proxied_shares; // shares in each pool delegated to this voter as a proxy
+      std::vector<double>                 last_votes;     // vote weights cast the last time the vote was updated
+      name                                proxy;          // the proxy set by the voter, if any
+      std::vector<name>                   producers;      // the producers approved by this voter if no proxy set
+      bool                                is_proxy       = false; // whether the voter is a proxy for others
+      bool                                xfer_in_notif  = false; // opt into incoming transferstake notifications
+      bool                                xfer_out_notif = false; // opt into outgoing transferstake notifications
 
       uint64_t primary_key() const { return owner.value; }
 
-      EOSLIB_SERIALIZE(pool_voter,
-                       (owner)(next_claim)(owned_shares)(proxied_shares)(last_votes)(proxy)(producers)(is_proxy))
+      EOSLIB_SERIALIZE(pool_voter, (owner)(next_claim)(owned_shares)(proxied_shares)(last_votes)(proxy)(producers)(
+                                         is_proxy)(xfer_in_notif)(xfer_out_notif))
    };
 
    typedef eosio::multi_index<"poolvoter"_n, pool_voter> pool_voter_table;
@@ -133,5 +135,20 @@ namespace eosiosystem {
          "totpoolvotes"_n, total_pool_votes,
          eosio::indexed_by<"byvotes"_n, eosio::const_mem_fun<total_pool_votes, double, &total_pool_votes::by_votes>>>
          total_pool_votes_table;
+
+   // transferstake sends this inline action (eosio.tstake) to each account which has opted into receiving the
+   // notifications. This notification has no authorizer; to check its authenticity, the receiving contract should
+   // verify using: get_sender() == "eosio"_n
+   struct transferstake_notification {
+      name     from;               // Transfer from this account
+      name     to;                 // Transfer to this account
+      uint32_t pool_index;         // Which pool
+      asset    requested;          // Eequested amount
+      asset    transferred_amount; // Actual amount transferred. May differ from requested because of rounding.
+                                   // May also be less than requested if user didn't have enough shares.
+      std::string memo;
+
+      EOSLIB_SERIALIZE(transferstake_notification, (from)(to)(pool_index)(requested)(transferred_amount)(memo))
+   };
 
 } // namespace eosiosystem

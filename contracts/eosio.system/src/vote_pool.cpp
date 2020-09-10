@@ -428,6 +428,17 @@ namespace eosiosystem {
       save_vote_pool_state();
    }
 
+   void system_contract::setpoolnotif(name owner, bool xfer_in_notif, bool xfer_out_notif) {
+      require_auth(owner);
+      get_vote_pool_state();
+      auto& pool_voter_table = get_pool_voter_table();
+      auto& voter            = get_or_create_pool_voter(owner);
+      pool_voter_table.modify(voter, owner, [&](auto& voter) {
+         voter.xfer_in_notif  = xfer_in_notif;
+         voter.xfer_out_notif = xfer_out_notif;
+      });
+   }
+
    void system_contract::claimstake(name owner, uint32_t pool_index, asset requested) {
       require_auth(owner);
 
@@ -466,8 +477,6 @@ namespace eosiosystem {
 
    void system_contract::transferstake(name from, name to, uint32_t pool_index, asset requested,
                                        const std::string& memo) {
-      // TODO: notifications. require_recipient doesn't work because requested and actual amount may differ
-      // TODO: assert if requested is too far below actual?
       require_auth(from);
       eosio::check(memo.size() <= 256, "memo has more than 256 bytes");
       eosio::check(from != to, "from = to");
@@ -501,6 +510,26 @@ namespace eosiosystem {
       update_pool_votes(from, from_voter.proxy, from_voter.producers, false);
       update_pool_votes(to, to_voter.proxy, to_voter.producers, false);
       save_vote_pool_state();
+
+      if (from_voter.xfer_out_notif || to_voter.xfer_in_notif) {
+         eosio::action act{ std::vector<eosio::permission_level>{}, from, transferstake_notif,
+                            transferstake_notification{
+                                  .from               = from,
+                                  .to                 = to,
+                                  .pool_index         = pool_index,
+                                  .requested          = requested,
+                                  .transferred_amount = transferred_amount,
+                                  .memo               = memo,
+                            } };
+         if (from_voter.xfer_out_notif) {
+            act.account = from;
+            act.send();
+         }
+         if (to_voter.xfer_in_notif) {
+            act.account = to;
+            act.send();
+         }
+      }
    } // system_contract::transferstake
 
    void system_contract::upgradestake(name owner, uint32_t from_pool_index, uint32_t to_pool_index, asset requested) {

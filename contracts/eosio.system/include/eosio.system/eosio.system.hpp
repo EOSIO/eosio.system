@@ -687,6 +687,7 @@ namespace eosiosystem {
          static constexpr eosio::name vpool_account{"eosio.vpool"_n};
          static constexpr eosio::name bvpay_account{"eosio.bvpay"_n};
          static constexpr eosio::name null_account{"eosio.null"_n};
+         static constexpr eosio::name transferstake_notif{"eosio.tstake"_n};
          static constexpr symbol ramcore_symbol = symbol(symbol_code("RAMCORE"), 4);
          static constexpr symbol ram_symbol     = symbol(symbol_code("RAM"), 0);
          static constexpr symbol rex_symbol     = symbol(symbol_code("REX"), 4);
@@ -1338,6 +1339,8 @@ namespace eosiosystem {
          [[eosio::action]]
          void stake2pool( name owner, uint32_t pool_index, asset amount );
          [[eosio::action]]
+         void setpoolnotif( name owner, bool xfer_in_notif, bool xfer_out_notif );
+         [[eosio::action]]
          void claimstake( name owner, uint32_t pool_index, asset requested );
          [[eosio::action]]
          void transferstake(name from, name to, uint32_t pool_index, asset requested, const std::string& memo);
@@ -1406,6 +1409,7 @@ namespace eosiosystem {
          using cfgvpool_action = eosio::action_wrapper<"cfgvpool"_n, &system_contract::cfgvpool>;
          using openpools_action = eosio::action_wrapper<"openpools"_n, &system_contract::openpools>;
          using stake2pool_action = eosio::action_wrapper<"stake2pool"_n, &system_contract::stake2pool>;
+         using setpoolnotif_action = eosio::action_wrapper<"setpoolnotif"_n, &system_contract::setpoolnotif>;
          using claimstake_action = eosio::action_wrapper<"claimstake"_n, &system_contract::claimstake>;
          using transferstake_action = eosio::action_wrapper<"transferstake"_n, &system_contract::transferstake>;
          using upgradestake_action = eosio::action_wrapper<"upgradestake"_n, &system_contract::upgradestake>;
