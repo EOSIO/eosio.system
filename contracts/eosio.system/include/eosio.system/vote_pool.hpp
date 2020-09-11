@@ -108,13 +108,13 @@ namespace eosiosystem {
       name                                proxy;          // the proxy set by the voter, if any
       std::vector<name>                   producers;      // the producers approved by this voter if no proxy set
       bool                                is_proxy       = false; // whether the voter is a proxy for others
-      bool                                xfer_in_notif  = false; // opt into incoming transferstake notifications
       bool                                xfer_out_notif = false; // opt into outgoing transferstake notifications
+      bool                                xfer_in_notif  = false; // opt into incoming transferstake notifications
 
       uint64_t primary_key() const { return owner.value; }
 
       EOSLIB_SERIALIZE(pool_voter, (owner)(next_claim)(owned_shares)(proxied_shares)(last_votes)(proxy)(producers)(
-                                         is_proxy)(xfer_in_notif)(xfer_out_notif))
+                                         is_proxy)(xfer_out_notif)(xfer_in_notif))
    };
 
    typedef eosio::multi_index<"poolvoter"_n, pool_voter> pool_voter_table;

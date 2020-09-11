@@ -1340,7 +1340,7 @@ namespace eosiosystem {
          [[eosio::action]]
          void stake2pool( name owner, uint32_t pool_index, asset amount );
          [[eosio::action]]
-         void setpoolnotif( name owner, std::optional<Bool> xfer_in_notif, std::optional<Bool> xfer_out_notif );
+         void setpoolnotif( name owner, std::optional<Bool> xfer_out_notif, std::optional<Bool> xfer_in_notif );
          [[eosio::action]]
          void claimstake( name owner, uint32_t pool_index, asset requested );
          [[eosio::action]]

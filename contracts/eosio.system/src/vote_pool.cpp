@@ -428,17 +428,17 @@ namespace eosiosystem {
       save_vote_pool_state();
    }
 
-   void system_contract::setpoolnotif(name owner, std::optional<Bool> xfer_in_notif,
-                                      std::optional<Bool> xfer_out_notif) {
+   void system_contract::setpoolnotif(name owner, std::optional<Bool> xfer_out_notif,
+                                      std::optional<Bool> xfer_in_notif) {
       require_auth(owner);
       get_vote_pool_state();
       auto& pool_voter_table = get_pool_voter_table();
       auto& voter            = get_or_create_pool_voter(owner);
       pool_voter_table.modify(voter, owner, [&](auto& voter) {
-         if (xfer_in_notif)
-            voter.xfer_in_notif = *xfer_in_notif;
          if (xfer_out_notif)
             voter.xfer_out_notif = *xfer_out_notif;
+         if (xfer_in_notif)
+            voter.xfer_in_notif = *xfer_in_notif;
       });
    }
 

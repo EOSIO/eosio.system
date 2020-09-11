@@ -292,8 +292,8 @@ struct votepool_tester : eosio_system_tester {
       return push_action(authorizer, N(stake2pool), mvo()("owner", owner)("pool_index", pool_index)("amount", amount));
    }
 
-   action_result setpoolnotif(name authorizer, name owner, std::optional<bool> xfer_in_notif = nullopt,
-                              std::optional<bool> xfer_out_notif = nullopt) {
+   action_result setpoolnotif(name authorizer, name owner, std::optional<bool> xfer_out_notif = nullopt,
+                              std::optional<bool> xfer_in_notif = nullopt) {
       mvo  v("owner", owner);
       auto fill = [&](const char* name, auto& opt) {
          if (opt)
@@ -301,8 +301,8 @@ struct votepool_tester : eosio_system_tester {
          else
             v(name, nullptr);
       };
-      fill("xfer_in_notif", xfer_in_notif);
       fill("xfer_out_notif", xfer_out_notif);
+      fill("xfer_in_notif", xfer_in_notif);
       return push_action(authorizer, N(setpoolnotif), v);
    }
 
@@ -325,7 +325,7 @@ struct votepool_tester : eosio_system_tester {
       int  pos    = 1;
 
       auto check_notif = [&](name receiver) {
-         BOOST_TEST(pos < traces->action_traces.size());
+         BOOST_REQUIRE_LT(pos, traces->action_traces.size());
          auto& at = traces->action_traces[pos++];
          BOOST_TEST(at.receiver == receiver);
          BOOST_TEST(at.act.account == receiver);
@@ -713,7 +713,7 @@ BOOST_AUTO_TEST_CASE(no_inflation) try {
                            t.pool_voter(jane));
 
    // transfer bob -> jane. bob's next_claim doesn't change. jane's next_claim is fresh.
-   BOOST_REQUIRE_EQUAL(t.success(), t.transferstake(bob, bob, jane, 1, a("4.0000 TST"), ""));
+   t.transferstake_notify(bob, jane, 1, a("4.0000 TST"), a("4.0000 TST"), "", false, false);
    t.check_vpool_totals(users);
    REQUIRE_MATCHING_OBJECT(mvo()                                                   //
                            ("next_claim", vector({ btime(), t.pending_time(64) })) //
@@ -730,7 +730,8 @@ BOOST_AUTO_TEST_CASE(no_inflation) try {
 
    // transfer jane -> bob. bob's next_claim moves.
    // (3.8750, 64s), (2.0000, 256s) => (5.8750, 129s)
-   BOOST_REQUIRE_EQUAL(t.success(), t.transferstake(jane, jane, bob, 1, a("2.0000 TST"), ""));
+   BOOST_REQUIRE_EQUAL(t.success(), t.setpoolnotif(bob, bob, nullopt, true));
+   t.transferstake_notify(jane, bob, 1, a("2.0000 TST"), a("2.0000 TST"), "", false, true);
    t.check_vpool_totals(users);
    REQUIRE_MATCHING_OBJECT(mvo()                                                    //
                            ("next_claim", vector({ btime(), t.pending_time(129) })) //
@@ -762,7 +763,9 @@ BOOST_AUTO_TEST_CASE(no_inflation) try {
 
    // transfer jane -> bob. Even though jane's next_claim is 224, the transfer counts as 256 at the receiver.
    // (5.8750, 97s), (1.0000, 256s) => (6.8750, 120s)
-   BOOST_REQUIRE_EQUAL(t.success(), t.transferstake(jane, jane, bob, 1, a("1.0000 TST"), ""));
+   BOOST_REQUIRE_EQUAL(t.success(), t.setpoolnotif(jane, jane, true, nullopt));
+   BOOST_REQUIRE_EQUAL(t.success(), t.setpoolnotif(bob, bob, nullopt, false));
+   t.transferstake_notify(jane, bob, 1, a("1.0000 TST"), a("1.0000 TST"), "", true, false);
    t.check_vpool_totals(users);
    REQUIRE_MATCHING_OBJECT(mvo()                                                    //
                            ("next_claim", vector({ btime(), t.pending_time(120) })) //
@@ -807,7 +810,9 @@ BOOST_AUTO_TEST_CASE(no_inflation) try {
    BOOST_REQUIRE_EQUAL(t.success(), t.openpools(sue, bob, sue)); // opening already-existing is ok
    users.push_back(tom);
    t.check_vpool_totals(users);
-   BOOST_REQUIRE_EQUAL(t.success(), t.transferstake(sue, sue, tom, 1, a("1.0000 TST"), ""));
+   BOOST_REQUIRE_EQUAL(t.success(), t.setpoolnotif(sue, sue, true, nullopt));
+   BOOST_REQUIRE_EQUAL(t.success(), t.setpoolnotif(tom, tom, nullopt, true));
+   t.transferstake_notify(sue, tom, 1, a("1.0000 TST"), a("1.0000 TST"), "", true, true);
    t.check_vpool_totals(users);
    REQUIRE_MATCHING_OBJECT(mvo()                                                                 //
                            ("next_claim", vector({ t.pending_time(16), t.pending_time(217.5) })) //
