@@ -64,7 +64,7 @@ namespace eosiosystem {
          eosio::check(!vote_weights.has_value(), "vote_weights can't change");
       }
 
-      auto& state = get_vote_pool_state_mutable(true);
+      vote_pool_state_autosave state{ *this, true };
       if (durations.has_value()) {
          eosio::check(!durations->empty(), "durations is empty");
          eosio::check(claim_periods->size() == durations->size(), "mismatched vector sizes");
@@ -88,9 +88,9 @@ namespace eosiosystem {
          }
 
          auto sym = get_core_symbol();
-         state.pools.resize(durations->size());
+         state->pools.resize(durations->size());
          for (size_t i = 0; i < durations->size(); ++i) {
-            auto& pool        = state.pools[i];
+            auto& pool        = state->pools[i];
             pool.duration     = durations.value()[i];
             pool.claim_period = claim_periods.value()[i];
             pool.vote_weight  = vote_weights.value()[i];
@@ -99,22 +99,20 @@ namespace eosiosystem {
       }
 
       if (begin_transition)
-         state.begin_transition = *begin_transition;
+         state->begin_transition = *begin_transition;
       if (end_transition)
-         state.end_transition = *end_transition;
-      eosio::check(state.begin_transition <= state.end_transition, "begin_transition > end_transition");
+         state->end_transition = *end_transition;
+      eosio::check(state->begin_transition <= state->end_transition, "begin_transition > end_transition");
 
       if (prod_rate) {
          eosio::check(*prod_rate >= 0 && *prod_rate < 1, "prod_rate out of range");
-         state.prod_rate = *prod_rate;
+         state->prod_rate = *prod_rate;
       }
 
       if (voter_rate) {
          eosio::check(*voter_rate >= 0 && *voter_rate < 1, "voter_rate out of range");
-         state.voter_rate = *voter_rate;
+         state->voter_rate = *voter_rate;
       }
-
-      save_vote_pool_state();
    } // system_contract::cfgvpool
 
    const std::vector<double>* system_contract::get_prod_pool_votes(const producer_info& info) {
@@ -406,16 +404,16 @@ namespace eosiosystem {
    void system_contract::stake2pool(name owner, uint32_t pool_index, asset amount) {
       require_auth(owner);
 
-      auto& state       = get_vote_pool_state_mutable();
-      auto  core_symbol = get_core_symbol();
+      vote_pool_state_autosave state{ *this };
+      auto                     core_symbol = get_core_symbol();
 
-      eosio::check(pool_index < state.pools.size(), "invalid pool");
+      eosio::check(pool_index < state->pools.size(), "invalid pool");
       eosio::check(amount.symbol == core_symbol, "amount doesn't match core symbol");
       eosio::check(amount.amount > 0, "amount must be positive");
 
       auto& pool_voter_table = get_pool_voter_table();
       auto& voter            = get_or_create_pool_voter(owner);
-      auto& pool             = state.pools[pool_index];
+      auto& pool             = state->pools[pool_index];
       pool_voter_table.modify(voter, owner, [&](auto& voter) {
          deposit_pool(pool, voter.owned_shares[pool_index], voter.next_claim[pool_index], amount);
       });
@@ -425,7 +423,6 @@ namespace eosiosystem {
                         std::string("transfer from ") + owner.to_string() + " to eosio.vpool");
 
       update_pool_votes(owner, voter.proxy, voter.producers, false);
-      save_vote_pool_state();
    }
 
    void system_contract::setpoolnotif(name owner, std::optional<Bool> xfer_out_notif,
@@ -445,17 +442,17 @@ namespace eosiosystem {
    void system_contract::claimstake(name owner, uint32_t pool_index, asset requested) {
       require_auth(owner);
 
-      auto& state            = get_vote_pool_state_mutable();
-      auto  core_symbol      = get_core_symbol();
-      auto  current_time     = eosio::current_block_time();
-      auto& pool_voter_table = get_pool_voter_table();
-      auto& voter            = get_or_create_pool_voter(owner);
+      vote_pool_state_autosave state{ *this };
+      auto                     core_symbol      = get_core_symbol();
+      auto                     current_time     = eosio::current_block_time();
+      auto&                    pool_voter_table = get_pool_voter_table();
+      auto&                    voter            = get_or_create_pool_voter(owner);
 
-      eosio::check(pool_index < state.pools.size(), "invalid pool");
+      eosio::check(pool_index < state->pools.size(), "invalid pool");
       eosio::check(requested.symbol == core_symbol, "requested doesn't match core symbol");
       eosio::check(requested.amount > 0, "requested must be positive");
 
-      auto& pool = state.pools[pool_index];
+      auto& pool = state->pools[pool_index];
       asset claimed_amount;
 
       pool_voter_table.modify(voter, owner, [&](auto& voter) {
@@ -466,7 +463,6 @@ namespace eosiosystem {
 
       eosio::check(pool.token_pool.shares() >= 0, "pool shares is negative");
       eosio::check(pool.token_pool.bal().amount >= 0, "pool amount is negative");
-      save_vote_pool_state();
 
       if (claimed_amount.amount) {
          eosio::token::transfer_action transfer_act{ token_account, { vpool_account, active_permission } };
@@ -475,7 +471,6 @@ namespace eosiosystem {
       }
 
       update_pool_votes(owner, voter.proxy, voter.producers, false);
-      save_vote_pool_state();
    }
 
    void system_contract::transferstake(name from, name to, uint32_t pool_index, asset requested,
@@ -485,14 +480,14 @@ namespace eosiosystem {
       eosio::check(from != to, "from = to");
       eosio::check(eosio::is_account(to), "invalid account");
 
-      auto& state       = get_vote_pool_state_mutable();
-      auto  core_symbol = get_core_symbol();
+      vote_pool_state_autosave state{ *this };
+      auto                     core_symbol = get_core_symbol();
 
-      eosio::check(pool_index < state.pools.size(), "invalid pool");
+      eosio::check(pool_index < state->pools.size(), "invalid pool");
       eosio::check(requested.symbol == core_symbol, "requested doesn't match core symbol");
       eosio::check(requested.amount > 0, "requested must be positive");
 
-      auto& pool             = state.pools[pool_index];
+      auto& pool             = state->pools[pool_index];
       auto& pool_voter_table = get_pool_voter_table();
       auto& from_voter       = pool_voter_table.get(from.value, "from pool_voter record missing");
       auto& to_voter         = pool_voter_table.get(to.value, "to pool_voter record missing");
@@ -512,7 +507,6 @@ namespace eosiosystem {
 
       update_pool_votes(from, from_voter.proxy, from_voter.producers, false);
       update_pool_votes(to, to_voter.proxy, to_voter.producers, false);
-      save_vote_pool_state();
 
       if (from_voter.xfer_out_notif || to_voter.xfer_in_notif) {
          eosio::action act{ std::vector<eosio::permission_level>{}, from, transferstake_notif,
@@ -538,17 +532,17 @@ namespace eosiosystem {
    void system_contract::upgradestake(name owner, uint32_t from_pool_index, uint32_t to_pool_index, asset requested) {
       require_auth(owner);
 
-      auto& state       = get_vote_pool_state_mutable();
-      auto  core_symbol = get_core_symbol();
+      vote_pool_state_autosave state{ *this };
+      auto                     core_symbol = get_core_symbol();
 
-      eosio::check(from_pool_index < state.pools.size(), "invalid pool");
-      eosio::check(to_pool_index < state.pools.size(), "invalid pool");
+      eosio::check(from_pool_index < state->pools.size(), "invalid pool");
+      eosio::check(to_pool_index < state->pools.size(), "invalid pool");
       eosio::check(from_pool_index < to_pool_index, "may only move from a shorter-term pool to a longer-term one");
       eosio::check(requested.symbol == core_symbol, "requested doesn't match core symbol");
       eosio::check(requested.amount > 0, "requested must be positive");
 
-      auto& from_pool        = state.pools[from_pool_index];
-      auto& to_pool          = state.pools[to_pool_index];
+      auto& from_pool        = state->pools[from_pool_index];
+      auto& to_pool          = state->pools[to_pool_index];
       auto& pool_voter_table = get_pool_voter_table();
       auto& voter            = pool_voter_table.get(owner.value, "pool_voter record missing");
 
@@ -562,7 +556,6 @@ namespace eosiosystem {
       eosio::check(from_pool.token_pool.bal().amount >= 0, "pool amount is negative");
 
       update_pool_votes(owner, voter.proxy, voter.producers, false);
-      save_vote_pool_state();
    } // system_contract::upgradestake
 
    void system_contract::votewithpool(const name& voter, const name& proxy, const std::vector<name>& producers) {
@@ -583,14 +576,13 @@ namespace eosiosystem {
    void system_contract::onblock_update_vpool(block_timestamp production_time) {
       if (!get_vote_pool_state_singleton().exists())
          return;
-      auto& state = get_vote_pool_state_mutable();
-      if (production_time.slot >= state.interval_start.slot + blocks_per_round) {
-         state.unpaid_blocks       = state.blocks;
-         state.blocks              = 0;
-         state.interval_start.slot = (production_time.slot / blocks_per_round) * blocks_per_round;
+      vote_pool_state_autosave state{ *this };
+      if (production_time.slot >= state->interval_start.slot + blocks_per_round) {
+         state->unpaid_blocks       = state->blocks;
+         state->blocks              = 0;
+         state->interval_start.slot = (production_time.slot / blocks_per_round) * blocks_per_round;
       }
-      ++state.blocks;
-      save_vote_pool_state();
+      ++state->blocks;
    }
 
    void system_contract::channel_to_rex_or_pools(const name& from, const asset& amount) {
@@ -599,10 +591,10 @@ namespace eosiosystem {
          eosio::check(rex_available(), "can't channel fees to pools or to rex");
          return channel_to_rex(from, amount);
       }
-      auto&                   state = get_vote_pool_state_mutable();
-      std::vector<vote_pool*> active_pools;
-      active_pools.reserve(state.pools.size());
-      for (auto& pool : state.pools)
+      vote_pool_state_autosave state{ *this };
+      std::vector<vote_pool*>  active_pools;
+      active_pools.reserve(state->pools.size());
+      for (auto& pool : state->pools)
          if (pool.token_pool.shares())
             active_pools.push_back(&pool);
       if (active_pools.empty()) {
@@ -612,7 +604,7 @@ namespace eosiosystem {
 
       asset to_pools;
       if (rex_available())
-         to_pools = asset(state.transition(eosio::current_block_time(), int128_t(amount.amount)), amount.symbol);
+         to_pools = asset(state->transition(eosio::current_block_time(), int128_t(amount.amount)), amount.symbol);
       else
          to_pools = amount;
       asset to_rex = amount - to_pools;
@@ -632,7 +624,6 @@ namespace eosiosystem {
             distributed += amt;
          }
       }
-      save_vote_pool_state();
    }
 
    void system_contract::updatevotes(name user, name producer) {
@@ -648,9 +639,9 @@ namespace eosiosystem {
 
    void system_contract::updatepay(name user) {
       require_auth(user);
-      auto& state       = get_vote_pool_state_mutable();
-      auto& total_table = get_total_pool_votes_table();
-      eosio::check(state.unpaid_blocks > 0, "already processed pay for this time interval");
+      vote_pool_state_autosave state{ *this };
+      auto&                    total_table = get_total_pool_votes_table();
+      eosio::check(state->unpaid_blocks > 0, "already processed pay for this time interval");
 
       update_total_pool_votes(50);
       auto prods = top_active_producers(50);
@@ -661,8 +652,8 @@ namespace eosiosystem {
 
       const asset token_supply = eosio::token::get_supply(token_account, core_symbol().code());
       auto        pay_scale =
-            pow((double)state.unpaid_blocks / blocks_per_round, 10) * state.transition(state.interval_start, 1.0);
-      int64_t target_prod_pay = pay_scale * state.prod_rate / rounds_per_year * token_supply.amount;
+            pow((double)state->unpaid_blocks / blocks_per_round, 10) * state->transition(state->interval_start, 1.0);
+      int64_t target_prod_pay = pay_scale * state->prod_rate / rounds_per_year * token_supply.amount;
       int64_t total_prod_pay  = 0;
 
       if (target_prod_pay > 0 && total_votes > 0) {
@@ -675,9 +666,10 @@ namespace eosiosystem {
          }
       }
 
-      int64_t per_pool_pay = pay_scale * state.voter_rate / rounds_per_year * token_supply.amount / state.pools.size();
+      int64_t per_pool_pay =
+            pay_scale * state->voter_rate / rounds_per_year * token_supply.amount / state->pools.size();
       int64_t total_voter_pay = 0;
-      for (auto& pool : state.pools) {
+      for (auto& pool : state->pools) {
          if (pool.token_pool.shares()) {
             pool.token_pool.adjust({ per_pool_pay, core_symbol() });
             total_voter_pay += per_pool_pay;
@@ -702,8 +694,7 @@ namespace eosiosystem {
          }
       }
 
-      state.unpaid_blocks = 0;
-      save_vote_pool_state();
+      state->unpaid_blocks = 0;
    }
 
    void system_contract::claimvotepay(name producer) {

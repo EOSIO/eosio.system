@@ -1527,6 +1527,22 @@ namespace eosiosystem {
             rentbw_order_table& orders, uint32_t max_items, int64_t& net_delta_available,
             int64_t& cpu_delta_available);
 
+         struct vote_pool_state_autosave {
+            system_contract& contract;
+            vote_pool_state& state;
+
+            vote_pool_state_autosave(system_contract& contract, bool init_if_not_exist = false)
+                : contract{ contract }, state{ contract.get_vote_pool_state_mutable(init_if_not_exist) } {}
+            vote_pool_state_autosave(const vote_pool_state_autosave&) = delete;
+
+            ~vote_pool_state_autosave() { contract.save_vote_pool_state(); }
+
+            vote_pool_state_autosave& operator=(const vote_pool_state_autosave&) = delete;
+
+            vote_pool_state* operator->() { return &state; }
+            vote_pool_state* operator*() { return &state; }
+         };
+
          // defined in vote_pool.cpp
          vote_pool_state_singleton& get_vote_pool_state_singleton();
          vote_pool_state& get_vote_pool_state_mutable(bool init_if_not_exist = false);
