@@ -143,7 +143,7 @@ namespace eosiosystem {
       name     from;               // Transfer from this account
       name     to;                 // Transfer to this account
       uint32_t pool_index;         // Which pool
-      asset    requested;          // Eequested amount
+      asset    requested;          // Requested amount
       asset    transferred_amount; // Actual amount transferred. May differ from requested because of rounding.
                                    // May also be less than requested if user didn't have enough shares.
       std::string memo;

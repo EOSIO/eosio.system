@@ -1559,10 +1559,10 @@ namespace eosiosystem {
          const pool_voter& get_or_create_pool_voter(name voter_name);
          void add_proxied_shares(pool_voter& proxy, const std::vector<double>& deltas, const char* error);
          void sub_proxied_shares(pool_voter& proxy, const std::vector<double>& deltas, const char* error);
-         void add_pool_votes(producer_info& prod, const std::vector<double>& deltas);
-         void sub_pool_votes(producer_info& prod, const std::vector<double>& deltas, const char* error);
-         void update_pool_votes(const name& voter, const name& proxy, const std::vector<name>& producers, bool voting);
-         void update_pool_proxy(const pool_voter& voter);
+         void add_pool_votes(vote_pool_state_autosave& state, producer_info& prod, const std::vector<double>& deltas);
+         void sub_pool_votes(vote_pool_state_autosave& state, producer_info& prod, const std::vector<double>& deltas, const char* error);
+         void update_pool_votes(vote_pool_state_autosave& state, const name& voter, const name& proxy, const std::vector<name>& producers, bool voting);
+         void update_pool_proxy(vote_pool_state_autosave& state, const pool_voter& voter);
          std::vector<const total_pool_votes*> top_active_producers(size_t n);
          double calc_votes(const std::vector<double>& pool_votes);
          void update_total_pool_votes(size_t n);
