@@ -1334,7 +1334,9 @@ namespace eosiosystem {
             const std::optional<eosio::block_timestamp>& begin_transition,
             const std::optional<eosio::block_timestamp>& end_transition,
             const std::optional<double>& prod_rate,
-            const std::optional<double>& voter_rate);
+            const std::optional<double>& voter_rate,
+            const std::optional<uint8_t>& max_num_pay,
+            const std::optional<double>& max_vote_ratio);
          [[eosio::action]]
          void openpools( name owner, name payer );
          [[eosio::action]]

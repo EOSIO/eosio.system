@@ -43,13 +43,15 @@ namespace eosiosystem {
       return *table;
    }
 
-   void system_contract::cfgvpool(const std::optional<std::vector<uint32_t>>&  durations,
-                                  const std::optional<std::vector<uint32_t>>&  claim_periods,
-                                  const std::optional<std::vector<double>>&    vote_weights,
-                                  const std::optional<eosio::block_timestamp>& begin_transition,
-                                  const std::optional<eosio::block_timestamp>& end_transition,
-                                  const std::optional<double>& prod_rate, const std::optional<double>& voter_rate) {
-      // TODO: convert rates from yearly compound to per-minute compound? Keep args per-minute compound?
+   void system_contract::cfgvpool(const std::optional<std::vector<uint32_t>>&  durations,        //
+                                  const std::optional<std::vector<uint32_t>>&  claim_periods,    //
+                                  const std::optional<std::vector<double>>&    vote_weights,     //
+                                  const std::optional<eosio::block_timestamp>& begin_transition, //
+                                  const std::optional<eosio::block_timestamp>& end_transition,   //
+                                  const std::optional<double>&                 prod_rate,        //
+                                  const std::optional<double>&                 voter_rate,       //
+                                  const std::optional<uint8_t>&                max_num_pay,      //
+                                  const std::optional<double>&                 max_vote_ratio) {
       require_auth(get_self());
 
       if (!get_vote_pool_state_singleton().exists()) {
@@ -96,6 +98,7 @@ namespace eosiosystem {
             pool.vote_weight  = vote_weights.value()[i];
             pool.token_pool.init(sym);
          }
+         state->total_votes.resize(durations->size());
       }
 
       if (begin_transition)
@@ -112,6 +115,14 @@ namespace eosiosystem {
       if (voter_rate) {
          eosio::check(*voter_rate >= 0 && *voter_rate < 1, "voter_rate out of range");
          state->voter_rate = *voter_rate;
+      }
+
+      if (max_num_pay)
+         state->max_num_pay = *max_num_pay;
+
+      if (max_vote_ratio) {
+         eosio::check(*max_vote_ratio >= 0 && *max_vote_ratio <= 1, "max_vote_ratio out of range");
+         state->max_vote_ratio = *max_vote_ratio;
       }
    } // system_contract::cfgvpool
 
@@ -204,16 +215,20 @@ namespace eosiosystem {
       auto* votes = get_prod_pool_votes(prod);
       if (!votes || votes->size() != deltas.size())
          eosio::check(false, "producer " + prod.owner.to_string() + " has not upgraded to support pool votes");
-      for (size_t i = 0; i < deltas.size(); ++i)
+      for (size_t i = 0; i < deltas.size(); ++i) {
          (*votes)[i] += deltas[i];
+         state->total_votes[i] += deltas[i];
+      }
    }
 
    void system_contract::sub_pool_votes(vote_pool_state_autosave& state, producer_info& prod,
                                         const std::vector<double>& deltas, const char* error) {
       auto* votes = get_prod_pool_votes(prod);
       eosio::check(votes && votes->size() == deltas.size(), error);
-      for (size_t i = 0; i < deltas.size(); ++i)
+      for (size_t i = 0; i < deltas.size(); ++i) {
          (*votes)[i] -= deltas[i];
+         state->total_votes[i] -= deltas[i];
+      }
    }
 
    void system_contract::update_pool_votes(vote_pool_state_autosave& state, const name& voter_name, const name& proxy,
@@ -646,12 +661,10 @@ namespace eosiosystem {
       auto&                    total_table = get_total_pool_votes_table();
       eosio::check(state->unpaid_blocks > 0, "already processed pay for this time interval");
 
-      update_total_pool_votes(50);
-      auto prods = top_active_producers(50);
-
-      double total_votes = 0;
-      for (auto* prod : prods)
-         total_votes += prod->votes;
+      update_total_pool_votes(state->max_num_pay);
+      auto   prods            = top_active_producers(state->max_num_pay);
+      double total_votes      = calc_votes(state->total_votes);
+      double total_votes_paid = 0;
 
       const asset token_supply = eosio::token::get_supply(token_account, core_symbol().code());
       auto        pay_scale =
@@ -661,7 +674,10 @@ namespace eosiosystem {
 
       if (target_prod_pay > 0 && total_votes > 0) {
          for (auto* prod : prods) {
+            if (total_votes_paid >= total_votes * state->max_vote_ratio)
+               break;
             total_table.modify(*prod, same_payer, [&](auto& prod) {
+               total_votes_paid += prod.votes;
                int64_t pay = (target_prod_pay * prod.votes) / total_votes;
                prod.vote_pay.amount += pay;
                total_prod_pay += pay;

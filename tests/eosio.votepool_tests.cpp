@@ -259,14 +259,16 @@ struct votepool_tester : eosio_system_tester {
       return cfgvpool(authorizer, nullopt, nullopt, nullopt, nullopt, nullopt, prod_rate, voter_rate);
    }
 
-   action_result cfgvpool(name                                        authorizer,           //
-                          const std::optional<std::vector<uint32_t>>& durations,            //
-                          const std::optional<std::vector<uint32_t>>& claim_periods,        //
-                          const std::optional<std::vector<double>>&   vote_weights,         //
-                          const std::optional<block_timestamp_type>&  begin_transition,     //
-                          const std::optional<block_timestamp_type>&  end_transition,       //
-                          const std::optional<double>&                prod_rate  = nullopt, //
-                          const std::optional<double>&                voter_rate = nullopt) {
+   action_result cfgvpool(name                                        authorizer,               //
+                          const std::optional<std::vector<uint32_t>>& durations,                //
+                          const std::optional<std::vector<uint32_t>>& claim_periods,            //
+                          const std::optional<std::vector<double>>&   vote_weights,             //
+                          const std::optional<block_timestamp_type>&  begin_transition,         //
+                          const std::optional<block_timestamp_type>&  end_transition,           //
+                          const std::optional<double>&                prod_rate      = nullopt, //
+                          const std::optional<double>&                voter_rate     = nullopt, //
+                          const std::optional<uint8_t>&               max_num_pay    = nullopt, //
+                          const std::optional<double>&                max_vote_ratio = nullopt) {
       mvo  v;
       auto fill = [&](const char* name, auto& opt) {
          if (opt)
@@ -281,6 +283,8 @@ struct votepool_tester : eosio_system_tester {
       fill("end_transition", end_transition);
       fill("prod_rate", prod_rate);
       fill("voter_rate", voter_rate);
+      fill("max_num_pay", max_num_pay);
+      fill("max_vote_ratio", max_vote_ratio);
       return push_action(authorizer, N(cfgvpool), v);
    }
 
@@ -1167,16 +1171,14 @@ BOOST_AUTO_TEST_CASE(prod_inflation) try {
    BOOST_REQUIRE_EQUAL("missing authority of bpa111111111", t.updatevotes(alice, bpa, bpa));
    BOOST_REQUIRE_EQUAL(t.success(), t.updatevotes(alice, alice, bpa));
    BOOST_REQUIRE_EQUAL(t.success(), t.updatevotes(bpb, bpb, bpb));
-   bpa_factor = 0.5;
-   bpb_factor = 0.5;
+   bpa_factor = 0.3333;
+   bpb_factor = 0.3333;
    next_interval();
    check_vote_pay();
 
    // bpc joins
    BOOST_REQUIRE_EQUAL(t.success(), t.updatevotes(bpc, bpc, bpc));
-   bpa_factor = 1.0 / 3;
-   bpb_factor = 1.0 / 3;
-   bpc_factor = 1.0 / 3;
+   bpc_factor = 0.3333;
    next_interval();
    check_vote_pay();
 
