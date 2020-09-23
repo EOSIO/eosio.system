@@ -99,6 +99,7 @@ namespace eosiosystem {
             pool.token_pool.init(sym);
          }
          state->total_votes.resize(durations->size());
+         state->namebid_proceeds = asset{ 0, core_symbol() };
       }
 
       if (begin_transition)
@@ -468,6 +469,7 @@ namespace eosiosystem {
       eosio::check(pool_index < state->pools.size(), "invalid pool");
       eosio::check(requested.symbol == core_symbol, "requested doesn't match core symbol");
       eosio::check(requested.amount > 0, "requested must be positive");
+      distribute_namebid_to_pools(state);
 
       auto& pool = state->pools[pool_index];
       asset claimed_amount;
@@ -603,33 +605,24 @@ namespace eosiosystem {
       ++state->blocks;
    }
 
-   void system_contract::channel_to_rex_or_pools(const name& from, const asset& amount) {
+   asset system_contract::transition_channel_to_pools(const name& from, const asset& amount, bool partial) {
       eosio::check(amount.symbol == core_symbol(), "incorrect symbol");
-      if (!get_vote_pool_state_singleton().exists()) {
-         eosio::check(rex_available(), "can't channel fees to pools or to rex");
-         return channel_to_rex(from, amount);
-      }
+      if (!get_vote_pool_state_singleton().exists())
+         return amount;
       vote_pool_state_autosave state{ *this };
       std::vector<vote_pool*>  active_pools;
       active_pools.reserve(state->pools.size());
       for (auto& pool : state->pools)
          if (pool.token_pool.shares())
             active_pools.push_back(&pool);
-      if (active_pools.empty()) {
-         eosio::check(rex_available(), "can't channel fees to pools or to rex");
-         return channel_to_rex(from, amount);
-      }
+      if (active_pools.empty())
+         return amount;
 
       asset to_pools;
-      if (rex_available())
+      if (partial)
          to_pools = asset(state->transition(eosio::current_block_time(), int128_t(amount.amount)), amount.symbol);
       else
          to_pools = amount;
-      asset to_rex = amount - to_pools;
-
-      if (to_rex.amount)
-         channel_to_rex(from, to_rex);
-
       if (to_pools.amount) {
          eosio::token::transfer_action transfer_act{ token_account, { from, active_permission } };
          transfer_act.send(from, vpool_account, to_pools,
@@ -642,6 +635,33 @@ namespace eosiosystem {
             distributed += amt;
          }
       }
+
+      return amount - to_pools;
+   }
+
+   void system_contract::channel_to_rex_or_pools(const name& from, const asset& amount,
+                                                 bool require_all_funds_transferred) {
+      auto remaining = transition_channel_to_pools(from, amount, !require_all_funds_transferred || rex_available());
+      if (remaining.amount) {
+         eosio::check(!require_all_funds_transferred || rex_available(), "can't channel fees to pools or to rex");
+         channel_to_rex(from, remaining);
+      }
+   }
+
+   void system_contract::channel_namebid_to_rex_or_pools(int64_t highest_bid) {
+      if (!get_vote_pool_state_singleton().exists())
+         return channel_namebid_to_rex(highest_bid);
+      vote_pool_state_autosave state{ *this };
+      int64_t                  to_pools = state->transition(eosio::current_block_time(), int128_t(highest_bid));
+      int64_t                  to_rex   = highest_bid - to_pools;
+      state->namebid_proceeds.amount += to_pools;
+      if (to_rex)
+         channel_namebid_to_rex(to_rex);
+   }
+
+   void system_contract::distribute_namebid_to_pools(vote_pool_state_autosave& state) {
+      if (state->namebid_proceeds.amount > 0)
+         state->namebid_proceeds = transition_channel_to_pools(names_account, state->namebid_proceeds, false);
    }
 
    void system_contract::updatevotes(name user, name producer) {

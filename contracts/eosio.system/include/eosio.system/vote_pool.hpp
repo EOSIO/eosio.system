@@ -87,6 +87,7 @@ namespace eosiosystem {
       uint32_t               blocks        = 0; // Blocks produced in current interval
       uint32_t               unpaid_blocks = 0; // Blocks produced in previous interval
       std::vector<double>    total_votes;       // Total votes cast
+      asset                  namebid_proceeds;  // Proceeds from namebid that still need to be distributed to the pools
 
       template <typename T>
       T transition(eosio::block_timestamp time, T val) const {
@@ -99,7 +100,7 @@ namespace eosiosystem {
 
       EOSLIB_SERIALIZE(vote_pool_state,
                        (begin_transition)(end_transition)(prod_rate)(voter_rate)(max_num_pay)(max_vote_ratio)(pools)(
-                             interval_start)(blocks)(unpaid_blocks)(total_votes))
+                             interval_start)(blocks)(unpaid_blocks)(total_votes)(namebid_proceeds))
    };
 
    typedef eosio::singleton<"vpoolstate"_n, vote_pool_state> vote_pool_state_singleton;

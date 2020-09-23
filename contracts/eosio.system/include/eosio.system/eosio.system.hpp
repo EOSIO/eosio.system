@@ -1571,7 +1571,10 @@ namespace eosiosystem {
          void deposit_pool(vote_pool& pool, double& owned_shares, block_timestamp& next_claim, asset new_unvested);
          asset withdraw_pool(vote_pool& pool, double& owned_shares, asset max_requested, bool claiming);
          void onblock_update_vpool(block_timestamp production_time);
-         void channel_to_rex_or_pools(const name& from, const asset& amount);
+         asset transition_channel_to_pools(const name& from, const asset& amount, bool partial);
+         void channel_to_rex_or_pools(const name& from, const asset& amount, bool require_all_funds_transferred);
+         void channel_namebid_to_rex_or_pools(int64_t highest_bid);
+         void distribute_namebid_to_pools(vote_pool_state_autosave& state);
    };
 
 }
