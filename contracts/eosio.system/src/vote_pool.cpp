@@ -53,21 +53,15 @@ namespace eosiosystem {
                                   const std::optional<uint8_t>&                max_num_pay,      //
                                   const std::optional<double>&                 max_vote_ratio) {
       require_auth(get_self());
+      bool                     is_first_time = !get_vote_pool_state_singleton().exists();
+      vote_pool_state_autosave state{ *this, true };
 
-      if (!get_vote_pool_state_singleton().exists()) {
+      if (is_first_time) {
          eosio::check(durations.has_value(), "durations is required on first use of cfgvpool");
          eosio::check(claim_periods.has_value(), "claim_periods is required on first use of cfgvpool");
          eosio::check(vote_weights.has_value(), "vote_weights is required on first use of cfgvpool");
          eosio::check(begin_transition.has_value(), "begin_transition is required on first use of cfgvpool");
          eosio::check(end_transition.has_value(), "end_transition is required on first use of cfgvpool");
-      } else {
-         eosio::check(!durations.has_value(), "durations can't change");
-         eosio::check(!claim_periods.has_value(), "claim_periods can't change");
-         eosio::check(!vote_weights.has_value(), "vote_weights can't change");
-      }
-
-      vote_pool_state_autosave state{ *this, true };
-      if (durations.has_value()) {
          eosio::check(!durations->empty(), "durations is empty");
          eosio::check(claim_periods->size() == durations->size(), "mismatched vector sizes");
          eosio::check(vote_weights->size() == durations->size(), "mismatched vector sizes");
@@ -100,6 +94,10 @@ namespace eosiosystem {
          }
          state->total_votes.resize(durations->size());
          state->namebid_proceeds = asset{ 0, core_symbol() };
+      } else {
+         eosio::check(!durations.has_value(), "durations can't change");
+         eosio::check(!claim_periods.has_value(), "claim_periods can't change");
+         eosio::check(!vote_weights.has_value(), "vote_weights can't change");
       }
 
       if (begin_transition)
