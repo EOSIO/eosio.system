@@ -81,6 +81,8 @@ namespace eosiosystem {
       double  voter_rate     = 0;   // Inflation rate (compounded each minute) allocated to voters (0.01 = 1%)
       uint8_t max_num_pay    = 50;  // Maximum number of producers to pay
       double  max_vote_ratio = 0.8; // Stop payments once this factor (0.0-1.0) of votes have been payed out
+      asset   min_transfer_create;  // transferstake will automatically create to's pool_voter record if
+                                    // requested amount is at least min_transfer_create. Defaults to 1.0000
 
       std::vector<vote_pool> pools;
       eosio::block_timestamp interval_start;    // Beginning of current 1-minute block production interval
@@ -98,9 +100,9 @@ namespace eosiosystem {
          return val * (time.slot - begin_transition.slot) / (end_transition.slot - begin_transition.slot);
       }
 
-      EOSLIB_SERIALIZE(vote_pool_state,
-                       (begin_transition)(end_transition)(prod_rate)(voter_rate)(max_num_pay)(max_vote_ratio)(pools)(
-                             interval_start)(blocks)(unpaid_blocks)(total_votes)(namebid_proceeds))
+      EOSLIB_SERIALIZE(vote_pool_state, (begin_transition)(end_transition)(prod_rate)(voter_rate)(max_num_pay)(
+                                              max_vote_ratio)(min_transfer_create)(pools)(interval_start)(blocks)(
+                                              unpaid_blocks)(total_votes)(namebid_proceeds))
    };
 
    typedef eosio::singleton<"vpoolstate"_n, vote_pool_state> vote_pool_state_singleton;

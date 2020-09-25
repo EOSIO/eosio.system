@@ -51,7 +51,8 @@ namespace eosiosystem {
                                   const std::optional<double>&                 prod_rate,        //
                                   const std::optional<double>&                 voter_rate,       //
                                   const std::optional<uint8_t>&                max_num_pay,      //
-                                  const std::optional<double>&                 max_vote_ratio) {
+                                  const std::optional<double>&                 max_vote_ratio,   //
+                                  const std::optional<asset>&                  min_transfer_create) {
       require_auth(get_self());
       bool                     is_first_time = !get_vote_pool_state_singleton().exists();
       vote_pool_state_autosave state{ *this, true };
@@ -92,6 +93,7 @@ namespace eosiosystem {
             pool.vote_weight  = vote_weights.value()[i];
             pool.token_pool.init(sym);
          }
+         state->min_transfer_create = asset{ 1'0000, sym };
          state->total_votes.resize(durations->size());
          state->namebid_proceeds = asset{ 0, core_symbol() };
       } else {
@@ -122,6 +124,12 @@ namespace eosiosystem {
       if (max_vote_ratio) {
          eosio::check(*max_vote_ratio >= 0 && *max_vote_ratio <= 1, "max_vote_ratio out of range");
          state->max_vote_ratio = *max_vote_ratio;
+      }
+
+      if (min_transfer_create) {
+         eosio::check(min_transfer_create->symbol == get_core_symbol() && min_transfer_create->amount >= 0,
+                      "min_transfer_create out of range");
+         state->min_transfer_create = *min_transfer_create;
       }
    } // system_contract::cfgvpool
 
@@ -177,9 +185,9 @@ namespace eosiosystem {
       return *table;
    }
 
-   const pool_voter& system_contract::create_pool_voter(name voter_name, name payer) {
+   const pool_voter& system_contract::create_pool_voter(name voter_name) {
       auto& pool_voter_table = get_pool_voter_table();
-      return *pool_voter_table.emplace(payer, [&](auto& voter) {
+      return *pool_voter_table.emplace(get_self(), [&](auto& voter) {
          auto size   = get_vote_pool_state().pools.size();
          voter.owner = voter_name;
          voter.next_claim.resize(size);
@@ -189,12 +197,14 @@ namespace eosiosystem {
       });
    }
 
-   const pool_voter& system_contract::get_or_create_pool_voter(name voter_name) {
+   const pool_voter& system_contract::get_or_create_pool_voter(name voter_name, bool* created) {
       auto& pool_voter_table = get_pool_voter_table();
       auto  it               = pool_voter_table.find(voter_name.value);
       if (it != pool_voter_table.end())
          return *it;
-      return create_pool_voter(voter_name, voter_name);
+      if (created)
+         *created = true;
+      return create_pool_voter(voter_name);
    }
 
    void system_contract::add_proxied_shares(pool_voter& proxy, const std::vector<double>& deltas, const char* error) {
@@ -242,7 +252,7 @@ namespace eosiosystem {
       }
 
       auto& pool_voter_table = get_pool_voter_table();
-      auto& voter            = pool_voter_table.get(voter_name.value, "user must use stake2pool before they can vote");
+      auto& voter            = get_or_create_pool_voter(voter_name);
       eosio::check(!proxy || !voter.is_proxy, "account registered as a proxy is not allowed to use a proxy");
 
       std::vector<double> new_pool_votes = voter.owned_shares;
@@ -300,7 +310,7 @@ namespace eosiosystem {
          }
       }
 
-      pool_voter_table.modify(voter, voting ? voter_name : same_payer, [&](auto& pv) {
+      pool_voter_table.modify(voter, same_payer, [&](auto& pv) {
          pv.producers  = producers;
          pv.proxy      = proxy;
          pv.last_votes = std::move(new_pool_votes);
@@ -408,15 +418,6 @@ namespace eosiosystem {
       }
    }
 
-   void system_contract::openpools(name owner, name payer) {
-      require_auth(payer);
-      check(is_account(owner), "owner account does not exist");
-      get_vote_pool_state();
-      auto& pool_voter_table = get_pool_voter_table();
-      if (pool_voter_table.find(owner.value) == pool_voter_table.end())
-         create_pool_voter(owner, payer);
-   }
-
    void system_contract::stake2pool(name owner, uint32_t pool_index, asset amount) {
       require_auth(owner);
 
@@ -430,7 +431,7 @@ namespace eosiosystem {
       auto& pool_voter_table = get_pool_voter_table();
       auto& voter            = get_or_create_pool_voter(owner);
       auto& pool             = state->pools[pool_index];
-      pool_voter_table.modify(voter, owner, [&](auto& voter) {
+      pool_voter_table.modify(voter, same_payer, [&](auto& voter) {
          deposit_pool(pool, voter.owned_shares[pool_index], voter.next_claim[pool_index], amount);
       });
 
@@ -447,7 +448,7 @@ namespace eosiosystem {
       get_vote_pool_state();
       auto& pool_voter_table = get_pool_voter_table();
       auto& voter            = get_or_create_pool_voter(owner);
-      pool_voter_table.modify(voter, owner, [&](auto& voter) {
+      pool_voter_table.modify(voter, same_payer, [&](auto& voter) {
          if (xfer_out_notif)
             voter.xfer_out_notif = *xfer_out_notif;
          if (xfer_in_notif)
@@ -472,7 +473,7 @@ namespace eosiosystem {
       auto& pool = state->pools[pool_index];
       asset claimed_amount;
 
-      pool_voter_table.modify(voter, owner, [&](auto& voter) {
+      pool_voter_table.modify(voter, same_payer, [&](auto& voter) {
          eosio::check(current_time >= voter.next_claim[pool_index], "claim too soon");
          claimed_amount               = withdraw_pool(pool, voter.owned_shares[pool_index], requested, true);
          voter.next_claim[pool_index] = eosio::block_timestamp(current_time.slot + pool.claim_period * 2);
@@ -507,10 +508,14 @@ namespace eosiosystem {
       auto& pool             = state->pools[pool_index];
       auto& pool_voter_table = get_pool_voter_table();
       auto& from_voter       = pool_voter_table.get(from.value, "from pool_voter record missing");
-      auto& to_voter         = pool_voter_table.get(to.value, "to pool_voter record missing");
+      bool  created_to_voter = false;
+      auto& to_voter         = get_or_create_pool_voter(to, &created_to_voter);
       asset transferred_amount;
 
-      pool_voter_table.modify(from_voter, from, [&](auto& from_voter) {
+      eosio::check(!created_to_voter || requested >= state->min_transfer_create,
+                   "requested amount is too small to automatically create pool_voter record");
+
+      pool_voter_table.modify(from_voter, same_payer, [&](auto& from_voter) {
          transferred_amount = withdraw_pool(pool, from_voter.owned_shares[pool_index], requested, false);
          eosio::check(transferred_amount.amount > 0, "transferred 0");
       });
@@ -563,7 +568,7 @@ namespace eosiosystem {
       auto& pool_voter_table = get_pool_voter_table();
       auto& voter            = pool_voter_table.get(owner.value, "pool_voter record missing");
 
-      pool_voter_table.modify(voter, owner, [&](auto& voter) {
+      pool_voter_table.modify(voter, same_payer, [&](auto& voter) {
          auto transferred_amount = withdraw_pool(from_pool, voter.owned_shares[from_pool_index], requested, false);
          eosio::check(transferred_amount.amount > 0, "transferred 0");
          deposit_pool(to_pool, voter.owned_shares[to_pool_index], voter.next_claim[to_pool_index], transferred_amount);
@@ -587,7 +592,7 @@ namespace eosiosystem {
       auto&                    pool_voter_table = get_pool_voter_table();
       auto&                    voter            = get_or_create_pool_voter(proxy);
       check(!isproxy || !voter.proxy, "account that uses a proxy is not allowed to become a proxy");
-      pool_voter_table.modify(voter, proxy, [&](auto& p) { p.is_proxy = isproxy; });
+      pool_voter_table.modify(voter, same_payer, [&](auto& p) { p.is_proxy = isproxy; });
       update_pool_proxy(state, voter);
    }
 

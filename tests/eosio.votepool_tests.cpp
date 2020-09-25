@@ -259,16 +259,17 @@ struct votepool_tester : eosio_system_tester {
       return cfgvpool(authorizer, nullopt, nullopt, nullopt, nullopt, nullopt, prod_rate, voter_rate);
    }
 
-   action_result cfgvpool(name                                        authorizer,               //
-                          const std::optional<std::vector<uint32_t>>& durations,                //
-                          const std::optional<std::vector<uint32_t>>& claim_periods,            //
-                          const std::optional<std::vector<double>>&   vote_weights,             //
-                          const std::optional<block_timestamp_type>&  begin_transition,         //
-                          const std::optional<block_timestamp_type>&  end_transition,           //
-                          const std::optional<double>&                prod_rate      = nullopt, //
-                          const std::optional<double>&                voter_rate     = nullopt, //
-                          const std::optional<uint8_t>&               max_num_pay    = nullopt, //
-                          const std::optional<double>&                max_vote_ratio = nullopt) {
+   action_result cfgvpool(name                                        authorizer,                    //
+                          const std::optional<std::vector<uint32_t>>& durations,                     //
+                          const std::optional<std::vector<uint32_t>>& claim_periods,                 //
+                          const std::optional<std::vector<double>>&   vote_weights,                  //
+                          const std::optional<block_timestamp_type>&  begin_transition,              //
+                          const std::optional<block_timestamp_type>&  end_transition,                //
+                          const std::optional<double>&                prod_rate           = nullopt, //
+                          const std::optional<double>&                voter_rate          = nullopt, //
+                          const std::optional<uint8_t>&               max_num_pay         = nullopt, //
+                          const std::optional<double>&                max_vote_ratio      = nullopt, //
+                          const std::optional<asset>&                 min_transfer_create = nullopt) {
       mvo  v;
       auto fill = [&](const char* name, auto& opt) {
          if (opt)
@@ -285,11 +286,8 @@ struct votepool_tester : eosio_system_tester {
       fill("voter_rate", voter_rate);
       fill("max_num_pay", max_num_pay);
       fill("max_vote_ratio", max_vote_ratio);
+      fill("min_transfer_create", min_transfer_create);
       return push_action(authorizer, N(cfgvpool), v);
-   }
-
-   action_result openpools(name authorizer, name owner, name payer) {
-      return push_action(authorizer, N(openpools), mvo()("owner", owner)("payer", payer));
    }
 
    action_result stake2pool(name authorizer, name owner, uint32_t pool_index, asset amount) {
@@ -485,9 +483,6 @@ BOOST_AUTO_TEST_CASE(checks) try {
    BOOST_REQUIRE_EQUAL("missing authority of bob111111111", t.setpoolnotif(alice, bob));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("vote pools not configured"), t.setpoolnotif(alice, alice));
 
-   BOOST_REQUIRE_EQUAL("missing authority of bob111111111", t.openpools(alice, alice, bob));
-   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("vote pools not configured"), t.openpools(bob, alice, bob));
-
    BOOST_REQUIRE_EQUAL("missing authority of bob111111111", t.claimstake(alice, bob, 0, a("1.0000 TST")));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("vote pools not configured"), t.claimstake(alice, alice, 0, a("1.0000 TST")));
 
@@ -544,8 +539,8 @@ BOOST_AUTO_TEST_CASE(checks) try {
                        t.transferstake(alice, alice, bob, 0, a("-1.0000 TST"), ""));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("from pool_voter record missing"),
                        t.transferstake(bob, bob, alice, 0, a("1.0000 TST"), ""));
-   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("to pool_voter record missing"),
-                       t.transferstake(alice, alice, bob, 0, a("1.0000 TST"), ""));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("requested amount is too small to automatically create pool_voter record"),
+                       t.transferstake(alice, alice, bob, 0, a("0.9999 TST"), ""));
 
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("invalid pool"), t.upgradestake(alice, alice, 0, 4, a("1.0000 TST")));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("invalid pool"), t.upgradestake(alice, alice, 4, 0, a("1.0000 TST")));
@@ -699,8 +694,8 @@ BOOST_AUTO_TEST_CASE(no_inflation) try {
                            ("last_votes", vector({ 0.0, 7'8750.0 })),              //
                            t.pool_voter(bob));
 
-   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("to pool_voter record missing"),
-                       t.transferstake(bob, bob, jane, 1, a("1.0000 TST"), ""));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("requested amount is too small to automatically create pool_voter record"),
+                       t.transferstake(bob, bob, jane, 1, a("0.9999 TST"), ""));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("from pool_voter record missing"),
                        t.transferstake(jane, jane, bob, 1, a("1.0000 TST"), ""));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("pool_voter record missing"),
@@ -807,11 +802,8 @@ BOOST_AUTO_TEST_CASE(no_inflation) try {
                            t.pool_voter(sue));
 
    // transfer sue -> tom; sue pays for tom's new record
-   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("to pool_voter record missing"),
-                       t.transferstake(sue, sue, tom, 1, a("1.0000 TST"), ""));
-   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("owner account does not exist"), t.openpools(sue, N(tommy), sue));
-   BOOST_REQUIRE_EQUAL(t.success(), t.openpools(sue, tom, sue));
-   BOOST_REQUIRE_EQUAL(t.success(), t.openpools(sue, bob, sue)); // opening already-existing is ok
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("requested amount is too small to automatically create pool_voter record"),
+                       t.transferstake(sue, sue, tom, 1, a("0.9999 TST"), ""));
    users.push_back(tom);
    t.check_vpool_totals(users);
    BOOST_REQUIRE_EQUAL(t.success(), t.setpoolnotif(sue, sue, true, nullopt));

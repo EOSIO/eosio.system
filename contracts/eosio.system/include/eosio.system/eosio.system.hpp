@@ -1336,9 +1336,8 @@ namespace eosiosystem {
             const std::optional<double>& prod_rate,
             const std::optional<double>& voter_rate,
             const std::optional<uint8_t>& max_num_pay,
-            const std::optional<double>& max_vote_ratio);
-         [[eosio::action]]
-         void openpools( name owner, name payer );
+            const std::optional<double>& max_vote_ratio,
+            const std::optional<asset>& min_transfer_create);
          [[eosio::action]]
          void stake2pool( name owner, uint32_t pool_index, asset amount );
          [[eosio::action]]
@@ -1410,7 +1409,6 @@ namespace eosiosystem {
          using rentbwexec_action = eosio::action_wrapper<"rentbwexec"_n, &system_contract::rentbwexec>;
          using rentbw_action = eosio::action_wrapper<"rentbw"_n, &system_contract::rentbw>;
          using cfgvpool_action = eosio::action_wrapper<"cfgvpool"_n, &system_contract::cfgvpool>;
-         using openpools_action = eosio::action_wrapper<"openpools"_n, &system_contract::openpools>;
          using stake2pool_action = eosio::action_wrapper<"stake2pool"_n, &system_contract::stake2pool>;
          using setpoolnotif_action = eosio::action_wrapper<"setpoolnotif"_n, &system_contract::setpoolnotif>;
          using claimstake_action = eosio::action_wrapper<"claimstake"_n, &system_contract::claimstake>;
@@ -1557,8 +1555,8 @@ namespace eosiosystem {
          void enable_prod_pool_votes(producer_info& info);
          void deactivate_producer(name producer);
          pool_voter_table& get_pool_voter_table();
-         const pool_voter& create_pool_voter(name voter_name, name payer);
-         const pool_voter& get_or_create_pool_voter(name voter_name);
+         const pool_voter& create_pool_voter(name voter_name);
+         const pool_voter& get_or_create_pool_voter(name voter_name, bool* created = nullptr);
          void add_proxied_shares(pool_voter& proxy, const std::vector<double>& deltas, const char* error);
          void sub_proxied_shares(pool_voter& proxy, const std::vector<double>& deltas, const char* error);
          void add_pool_votes(vote_pool_state_autosave& state, producer_info& prod, const std::vector<double>& deltas);
