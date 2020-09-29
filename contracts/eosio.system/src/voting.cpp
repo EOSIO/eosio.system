@@ -247,6 +247,10 @@ namespace eosiosystem {
       check( voter != _voters.end(), "user must stake before they can vote" ); /// staking creates voter object
       check( !proxy || !voter->is_proxy, "account registered as a proxy is not allowed to use a proxy" );
 
+      // Bypass threshold activation rule
+      if( _gstate.thresh_activated_stake_time == time_point()  )
+         _gstate.thresh_activated_stake_time = current_time_point();
+
       /**
        * The first time someone votes we calculate and set last_vote_weight. Since they cannot unstake until
        * after the chain has been activated, we can use last_vote_weight to determine that this is

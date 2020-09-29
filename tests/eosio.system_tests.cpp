@@ -1831,6 +1831,7 @@ BOOST_FIXTURE_TEST_CASE(multiple_producer_pay, eosio_system_tester, * boost::uni
 
    // give a chance for everyone to produce blocks
    {
+      produce_blocks(351);
       produce_blocks(23 * 12 + 20);
       bool all_21_produced = true;
       for (uint32_t i = 0; i < 21; ++i) {
@@ -2859,8 +2860,8 @@ BOOST_FIXTURE_TEST_CASE(producer_onblock_check, eosio_system_tester) try {
    transfer(config::system_account_name, "producvotera", core_sym::from_string("200000000.0000"), config::system_account_name);
    BOOST_REQUIRE_EQUAL(success(), stake("producvotera", core_sym::from_string("70000000.0000"), core_sym::from_string("70000000.0000") ));
    BOOST_REQUIRE_EQUAL(success(), vote( N(producvotera), vector<account_name>(producer_names.begin(), producer_names.begin()+10)));
-   BOOST_CHECK_EQUAL( wasm_assert_msg( "cannot undelegate bandwidth until the chain is activated (at least 15% of all tokens participate in voting)" ),
-                      unstake( "producvotera", core_sym::from_string("50.0000"), core_sym::from_string("50.0000") ) );
+   // BOOST_CHECK_EQUAL( wasm_assert_msg( "cannot undelegate bandwidth until the chain is activated (at least 15% of all tokens participate in voting)" ),
+   //                    unstake( "producvotera", core_sym::from_string("50.0000"), core_sym::from_string("50.0000") ) );
 
    // give a chance for everyone to produce blocks
    {
@@ -2881,6 +2882,7 @@ BOOST_FIXTURE_TEST_CASE(producer_onblock_check, eosio_system_tester) try {
       BOOST_REQUIRE_EQUAL(true, rest_didnt_produce);
    }
 
+   /* activation rule is now disabled
    {
       const char* claimrewards_activation_error_message = "cannot claim rewards until the chain is activated (at least 15% of all tokens participate in voting)";
       BOOST_CHECK_EQUAL(0, get_global_state()["total_unpaid_blocks"].as<uint32_t>());
@@ -2891,6 +2893,7 @@ BOOST_FIXTURE_TEST_CASE(producer_onblock_check, eosio_system_tester) try {
                           push_action(producer_names.back(), N(claimrewards), mvo()("owner", producer_names.back())));
       BOOST_REQUIRE_EQUAL(0, get_balance(producer_names.back()).get_amount());
    }
+   */
 
    // stake across 15% boundary
    transfer(config::system_account_name, "producvoterb", core_sym::from_string("100000000.0000"), config::system_account_name);
@@ -2903,6 +2906,7 @@ BOOST_FIXTURE_TEST_CASE(producer_onblock_check, eosio_system_tester) try {
 
    // give a chance for everyone to produce blocks
    {
+      produce_blocks(387);
       produce_blocks(21 * 12);
       bool all_21_produced = true;
       for (uint32_t i = 0; i < 21; ++i) {
@@ -3336,7 +3340,7 @@ BOOST_FIXTURE_TEST_CASE( multiple_namebids, eosio_system_tester ) try {
                            bidname( "eve", "prefe", core_sym::from_string("1.7200") ) );
    }
 
-   produce_block( fc::days(14) );
+   // produce_block( fc::days(14) );
    produce_block();
 
    // highest bid is from david for prefd but no bids can be closed yet
@@ -3345,7 +3349,7 @@ BOOST_FIXTURE_TEST_CASE( multiple_namebids, eosio_system_tester ) try {
 
    // stake enough to go above the 15% threshold
    stake_with_transfer( config::system_account_name, N(alice), core_sym::from_string( "10000000.0000" ), core_sym::from_string( "10000000.0000" ) );
-   BOOST_REQUIRE_EQUAL(0, get_producer_info("producer")["unpaid_blocks"].as<uint32_t>());
+   // BOOST_REQUIRE_EQUAL(0, get_producer_info("producer")["unpaid_blocks"].as<uint32_t>());
    BOOST_REQUIRE_EQUAL( success(), vote( N(alice), { N(producer) } ) );
 
    // need to wait for 14 days after going live
@@ -3465,6 +3469,7 @@ BOOST_FIXTURE_TEST_CASE( vote_producers_in_and_out, eosio_system_tester ) try {
 
    // give a chance for everyone to produce blocks
    {
+      produce_blocks(1000);
       produce_blocks(23 * 12 + 20);
       bool all_21_produced = true;
       for (uint32_t i = 0; i < 21; ++i) {
