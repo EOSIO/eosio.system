@@ -149,8 +149,8 @@ namespace eosiosystem {
       }
 
       std::sort( top_producers.begin(), top_producers.end(), []( const value_type& lhs, const value_type& rhs ) {
-         return lhs.first.producer_name < rhs.first.producer_name; // sort by producer name
-         // return lhs.second < rhs.second; // sort by location
+         // return lhs.first.producer_name < rhs.first.producer_name; // sort by producer name
+         return lhs.second < rhs.second; // sort by location
       } );
 
       std::vector<eosio::producer_authority> producers;

@@ -244,6 +244,14 @@ struct votepool_tester : eosio_system_tester {
       return success();
    }
 
+   action_result regproducer(const account_name& acnt, unsigned location = 0) {
+      action_result r = eosio_system_tester::push_action(
+            acnt, N(regproducer),
+            mvo()("producer", acnt)("producer_key", get_public_key(acnt, "active"))("url", "")("location", location));
+      BOOST_REQUIRE_EQUAL(success(), r);
+      return r;
+   }
+
    // doesn't move time forward
    action_result regproducer_0_time(const account_name& prod) {
       action_result r = push_action(
@@ -1414,9 +1422,10 @@ BOOST_AUTO_TEST_CASE(transition_voting) try {
 
    BOOST_REQUIRE_EQUAL(t.success(),
                        t.cfgvpool(sys, { { 1024 } }, { { 64 } }, { { 1.0 } }, t.start_transition, t.end_transition));
+   unsigned loc = 0;
    for (auto& bp : bps) {
       t.create_account_with_resources(bp.bp, sys);
-      BOOST_REQUIRE_EQUAL(t.success(), t.regproducer(bp.bp));
+      BOOST_REQUIRE_EQUAL(t.success(), t.regproducer(bp.bp, loc++));
       if (bp.cpu_votes.get_amount()) {
          t.transfer(sys, bp.bp, bp.cpu_votes, sys);
          BOOST_REQUIRE_EQUAL(t.success(), t.stake(bp.bp, bp.bp, a("0.0000 TST"), bp.cpu_votes));
