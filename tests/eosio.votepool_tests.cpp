@@ -298,6 +298,11 @@ struct votepool_tester : eosio_system_tester {
       return push_action(authorizer, N(cfgvpool), v);
    }
 
+   action_result cfgvpool_bp_thresholds(uint8_t max_num_pay, double max_vote_ratio) {
+      return cfgvpool(sys, nullopt, nullopt, nullopt, nullopt, nullopt, nullopt, nullopt, max_num_pay, max_vote_ratio,
+                      nullopt);
+   }
+
    action_result stake2pool(name authorizer, name owner, uint32_t pool_index, asset amount) {
       return push_action(authorizer, N(stake2pool), mvo()("owner", owner)("pool_index", pool_index)("amount", amount));
    }
@@ -1205,6 +1210,118 @@ BOOST_AUTO_TEST_CASE(prod_inflation) try {
 } // prod_inflation
 FC_LOG_AND_RETHROW()
 
+BOOST_AUTO_TEST_CASE(prod_pay_cutoff) try {
+   votepool_tester t;
+
+   struct bp_votes {
+      name  bp;
+      asset pool_votes;
+      asset vote_pay{};
+   };
+
+   vector<bp_votes> bps{
+      { N(bp111111111a), a("59.0000 TST") }, //
+      { N(bp111111111b), a("58.0000 TST") }, //
+      { N(bp111111111c), a("57.0000 TST") }, //
+      { N(bp111111111d), a("56.0000 TST") }, //
+      { N(bp111111111e), a("55.0000 TST") }, //
+      { N(bp111111111f), a("54.0000 TST") }, //
+      { N(bp111111111g), a("53.0000 TST") }, //
+      { N(bp111111111h), a("52.0000 TST") }, //
+      { N(bp111111111i), a("51.0000 TST") }, //
+      { N(bp111111111j), a("50.0000 TST") }, //
+      { N(bp111111111k), a("49.0000 TST") }, //
+      { N(bp111111111l), a("48.0000 TST") }, //
+      { N(bp111111111m), a("47.0000 TST") }, //
+      { N(bp111111111n), a("46.0000 TST") }, //
+      { N(bp111111111o), a("45.0000 TST") }, //
+      { N(bp111111111p), a("44.0000 TST") }, //
+      { N(bp111111111q), a("43.0000 TST") }, //
+      { N(bp111111111r), a("42.0000 TST") }, //
+      { N(bp111111111s), a("41.0000 TST") }, //
+      { N(bp111111111t), a("40.0000 TST") }, //
+      { N(bp111111111u), a("39.0000 TST") }, //
+      { N(bp111111111v), a("38.0000 TST") }, //
+      { N(bp111111111w), a("37.0000 TST") }, //
+      { N(bp111111111x), a("36.0000 TST") }, //
+      { N(bp111111111y), a("35.0000 TST") }, //
+      { N(bp111111111z), a("34.0000 TST") }, //
+      { N(bp111111112a), a("33.0000 TST") }, //
+      { N(bp111111112b), a("32.0000 TST") }, //
+      { N(bp111111112c), a("31.0000 TST") }, //
+      { N(bp111111112d), a("30.0000 TST") }, //
+      { N(bp111111112e), a("29.0000 TST") }, //
+      { N(bp111111112f), a("28.0000 TST") }, //
+      { N(bp111111112g), a("27.0000 TST") }, //
+      { N(bp111111112h), a("26.0000 TST") }, //
+      { N(bp111111112i), a("25.0000 TST") }, //
+      { N(bp111111112j), a("24.0000 TST") }, //
+      { N(bp111111112k), a("23.0000 TST") }, //
+      { N(bp111111112l), a("22.0000 TST") }, //
+      { N(bp111111112m), a("21.0000 TST") }, //
+      { N(bp111111112n), a("20.0000 TST") }, //
+      { N(bp111111112o), a("19.0000 TST") }, //
+      { N(bp111111112p), a("18.0000 TST") }, //
+      { N(bp111111112q), a("17.0000 TST") }, //
+      { N(bp111111112r), a("16.0000 TST") }, //
+      { N(bp111111112s), a("15.0000 TST") }, //
+      { N(bp111111112t), a("14.0000 TST") }, //
+      { N(bp111111112u), a("13.0000 TST") }, //
+      { N(bp111111112v), a("12.0000 TST") }, //
+      { N(bp111111112w), a("11.0000 TST") }, //
+      { N(bp111111112x), a("10.0000 TST") }, //
+      { N(bp111111112y), a("09.0000 TST") }, //
+      { N(bp111111112z), a("08.0000 TST") }, //
+   };
+
+   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, { { 1024 } }, { { 64 } }, { { 1.0 } }, btime(), btime()));
+   BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, 0.5, nullopt));
+
+   for (auto& bp : bps) {
+      t.create_account_with_resources(bp.bp, sys);
+      BOOST_REQUIRE_EQUAL(t.success(), t.stake(sys, bp.bp, a("1000.0000 TST"), a("1000.0000 TST")));
+      BOOST_REQUIRE_EQUAL(t.success(), t.regproducer(bp.bp));
+      t.transfer(sys, bp.bp, bp.pool_votes, sys);
+      BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(bp.bp, bp.bp, 0, bp.pool_votes));
+      BOOST_REQUIRE_EQUAL(t.success(), t.votewithpool(bp.bp, vector{ bp.bp }));
+      BOOST_REQUIRE_EQUAL(t.success(), t.updatevotes(bp.bp, bp.bp, bp.bp));
+   }
+
+   int64_t total_votes = 0;
+   for (auto& bp : bps)
+      total_votes += bp.pool_votes.get_amount();
+
+   t.produce_blocks(blocks_per_round);
+   BOOST_REQUIRE_EQUAL(t.success(), t.updatepay(sys, sys));
+
+   auto check_thresholds = [&](uint8_t max_num_pay, double max_vote_ratio) {
+      t.cfgvpool_bp_thresholds(max_num_pay, max_vote_ratio);
+      for (auto& bp : bps)
+         bp.vote_pay = t.get_total_pool_votes(bp.bp)["vote_pay"].template as<asset>();
+
+      t.produce_blocks(blocks_per_round);
+      BOOST_REQUIRE_EQUAL(t.success(), t.updatepay(sys, sys));
+
+      int64_t  votes              = 0;
+      unsigned expected_num_payed = 0;
+      for (expected_num_payed = 0; expected_num_payed < max_num_pay && votes < total_votes * max_vote_ratio;
+           ++expected_num_payed)
+         votes += bps[expected_num_payed].pool_votes.get_amount();
+
+      for (unsigned i = 0; i < bps.size(); ++i) {
+         bool is_payed = t.get_total_pool_votes(bps[i].bp)["vote_pay"].template as<asset>() != bps[i].vote_pay;
+         BOOST_REQUIRE_EQUAL(is_payed, i < expected_num_payed);
+      }
+   };
+
+   check_thresholds(10, 1.0);
+   check_thresholds(10, 0.1);
+   check_thresholds(50, 0.1);
+   check_thresholds(50, 0.8);
+   check_thresholds(50, 1.0);
+} // prod_pay_cutoff
+FC_LOG_AND_RETHROW()
+
 BOOST_AUTO_TEST_CASE(voting, *boost::unit_test::tolerance(1e-8)) try {
    votepool_tester   t;
    std::vector<name> users     = { alice, bob, jane, sue, bpa, bpb, bpc, bpd };
@@ -1739,7 +1856,5 @@ BOOST_AUTO_TEST_CASE(rentbw_route_fees) try {
    }
 } // rentbw_route_fees
 FC_LOG_AND_RETHROW()
-
-// TODO: producer pay: 50, 80/20 rule
 
 BOOST_AUTO_TEST_SUITE_END()
