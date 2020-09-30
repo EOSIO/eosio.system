@@ -67,6 +67,9 @@ namespace eosiosystem {
          eosio::check(claim_periods->size() == durations->size(), "mismatched vector sizes");
          eosio::check(vote_weights->size() == durations->size(), "mismatched vector sizes");
 
+         if (_gstate.thresh_activated_stake_time == time_point())
+            _gstate.thresh_activated_stake_time = eosio::current_time_point();
+
          for (size_t i = 0; i < durations->size(); ++i) {
             auto d = durations.value()[i];
             auto c = claim_periods.value()[i];
