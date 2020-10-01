@@ -1735,7 +1735,7 @@ BOOST_AUTO_TEST_CASE(transition_inflation) try {
 } // transition_inflation
 FC_LOG_AND_RETHROW()
 
-BOOST_AUTO_TEST_CASE(rentbw_route_fees) try {
+BOOST_AUTO_TEST_CASE(route_fees) try {
    auto init = [](auto& t) {
       t.create_accounts_with_resources({ reserv, prox, alice, bob, jane }, sys);
       t.transfer(sys, alice, a("1000.0000 TST"), sys);
@@ -1747,6 +1747,9 @@ BOOST_AUTO_TEST_CASE(rentbw_route_fees) try {
       BOOST_REQUIRE_EQUAL(t.success(), t.stake(bob, bob, a("1.0000 TST"), a("0.0000 TST")));
       BOOST_REQUIRE_EQUAL(t.success(), t.push_action(prox, N(regproxy), mvo()("proxy", prox)("isproxy", true)));
       BOOST_REQUIRE_EQUAL(t.success(), t.vote(bob, {}, prox));
+      t.produce_block();
+      t.produce_block(fc::days(14));
+      t.produce_block();
 
       t.start_transition = time_point::from_iso_string("2020-04-10T10:00:00.000");
       t.end_transition   = time_point::from_iso_string("2020-08-10T10:00:00.000");
@@ -1768,16 +1771,42 @@ BOOST_AUTO_TEST_CASE(rentbw_route_fees) try {
       t.produce_block();
    };
 
-   auto check_fee = [](auto& t, asset rex_fee, asset pool_fee) {
+   auto check_fee = [](auto& t, bool rent, name newname, asset rex_rentbw_fee, asset pool_rentbw_fee, asset rex_ram_fee,
+                       asset pool_ram_fee, asset rex_namebid_fee, asset pool_namebid_fee) {
+      auto ram_payment   = a("1.0000 TST");
       auto jane_balance  = t.get_balance(jane);
       auto rex_balance   = t.get_balance(rex);
       auto vpool_balance = t.get_balance(vpool);
       // ilog("before ${a} ${b} ${c}", ("a",t.get_balance(jane))("b",t.get_balance(rex))("c",t.get_balance(vpool)));
-      BOOST_REQUIRE_EQUAL(t.success(), t.rentbw(jane, jane, 30, rentbw_percent, 0, a("1.0000 TST")));
+      if (rent)
+         BOOST_REQUIRE_EQUAL(t.success(), t.rentbw(jane, jane, 30, rentbw_percent, 0, a("1.0000 TST")));
+      BOOST_REQUIRE_EQUAL(t.success(), t.buyram(jane, jane, ram_payment));
       // ilog("after  ${a} ${b} ${c}", ("a",t.get_balance(jane))("b",t.get_balance(rex))("c",t.get_balance(vpool)));
-      BOOST_REQUIRE_EQUAL(t.get_balance(jane), jane_balance - rex_fee - pool_fee);
-      BOOST_REQUIRE_EQUAL(t.get_balance(rex), rex_balance + rex_fee);
-      BOOST_REQUIRE_EQUAL(t.get_balance(vpool), vpool_balance + pool_fee);
+      BOOST_REQUIRE_EQUAL(t.get_balance(jane), jane_balance - rex_rentbw_fee - pool_rentbw_fee - ram_payment);
+      BOOST_REQUIRE_EQUAL(t.get_balance(rex), rex_balance + rex_rentbw_fee + rex_ram_fee);
+      BOOST_REQUIRE_EQUAL(t.get_balance(vpool), vpool_balance + pool_rentbw_fee + pool_ram_fee);
+
+      auto rex_proceeds_before = a("0.0000 TST");
+      if (!t.get_rex_pool().is_null())
+         rex_proceeds_before = t.get_rex_pool()["namebid_proceeds"].template as<asset>();
+      auto pool_proceeds_before = a("0.0000 TST");
+      if (!t.get_vpoolstate().is_null())
+         pool_proceeds_before = t.get_vpoolstate()["namebid_proceeds"].template as<asset>();
+
+      BOOST_REQUIRE_EQUAL(t.success(), t.bidname(jane, newname, a("1.0000 TST")));
+      t.produce_block();
+      t.produce_block(fc::days(1));
+      t.produce_blocks(120);
+
+      auto rex_proceeds_after = a("0.0000 TST");
+      if (!t.get_rex_pool().is_null())
+         rex_proceeds_after = t.get_rex_pool()["namebid_proceeds"].template as<asset>();
+      auto pool_proceeds_after = a("0.0000 TST");
+      if (!t.get_vpoolstate().is_null())
+         pool_proceeds_after = t.get_vpoolstate()["namebid_proceeds"].template as<asset>();
+
+      BOOST_REQUIRE_EQUAL(rex_proceeds_after - rex_proceeds_before, rex_namebid_fee);
+      BOOST_REQUIRE_EQUAL(pool_proceeds_after - pool_proceeds_before, pool_namebid_fee);
    };
 
    // rex not enabled, no pools exist or no pools active
@@ -1788,6 +1817,8 @@ BOOST_AUTO_TEST_CASE(rentbw_route_fees) try {
       // no pools exist
       BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("can't channel fees to pools or to rex"),
                           t.rentbw(alice, alice, 30, rentbw_percent, 0, a("1.0000 TST")));
+      check_fee(t, false, N(1a), a("0.0000 TST"), a("0.0000 TST"), a("0.0000 TST"), a("0.0000 TST"), a("0.0000 TST"),
+                a("0.0000 TST"));
 
       BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, { { 1024 } }, { { 64 } }, { { 1.0 } }, t.start_transition,
                                                   t.end_transition, 0.0, 0.0));
@@ -1796,12 +1827,26 @@ BOOST_AUTO_TEST_CASE(rentbw_route_fees) try {
       // no pools active
       BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("can't channel fees to pools or to rex"),
                           t.rentbw(alice, alice, 30, rentbw_percent, 0, a("1.0000 TST")));
+      check_fee(t, false, N(1b), a("0.0000 TST"), a("0.0000 TST"), a("0.0000 TST"), a("0.0000 TST"), a("0.0000 TST"),
+                a("0.0000 TST"));
+
       t.skip_to(t.start_transition);
       BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("can't channel fees to pools or to rex"),
                           t.rentbw(alice, alice, 30, rentbw_percent, 0, a("1.0000 TST")));
+      check_fee(t, false, N(1c), a("0.0000 TST"), a("0.0000 TST"), a("0.0000 TST"), a("0.0000 TST"), a("0.0000 TST"),
+                a("0.0000 TST"));
+
+      t.skip_to(time_point::from_iso_string("2020-06-10T10:00:00.000"));
+      BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("can't channel fees to pools or to rex"),
+                          t.rentbw(alice, alice, 30, rentbw_percent, 0, a("1.0000 TST")));
+      check_fee(t, false, N(1d), a("0.0000 TST"), a("0.0000 TST"), a("0.0000 TST"), a("0.0000 TST"), a("0.0000 TST"),
+                a("0.0000 TST"));
+
       t.skip_to(t.end_transition);
       BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("can't channel fees to pools or to rex"),
                           t.rentbw(alice, alice, 30, rentbw_percent, 0, a("1.0000 TST")));
+      check_fee(t, false, N(1e), a("0.0000 TST"), a("0.0000 TST"), a("0.0000 TST"), a("0.0000 TST"), a("0.0000 TST"),
+                a("0.0000 TST"));
    }
 
    // rex not enabled, pools active
@@ -1811,13 +1856,16 @@ BOOST_AUTO_TEST_CASE(rentbw_route_fees) try {
       BOOST_REQUIRE_EQUAL(t.success(), t.cfgvpool(sys, { { 1024 } }, { { 64 } }, { { 1.0 } }, t.start_transition,
                                                   t.end_transition, 0.0, 0.0));
       BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(jane, jane, 0, a("1.0000 TST")));
-      check_fee(t, a("0.0000 TST"), a("1.0000 TST"));
+      check_fee(t, true, N(2a), a("0.0000 TST"), a("1.0000 TST"), a("0.0000 TST"), a("0.0000 TST"), a("0.0000 TST"),
+                a("0.0000 TST"));
       t.produce_block();
       t.skip_to(t.start_transition);
-      check_fee(t, a("0.0000 TST"), a("1.0000 TST"));
+      check_fee(t, true, N(2b), a("0.0000 TST"), a("1.0000 TST"), a("0.0000 TST"), a("0.0000 TST"), a("0.0000 TST"),
+                a("0.0081 TST"));
       t.produce_block();
       t.skip_to(t.end_transition);
-      check_fee(t, a("0.0000 TST"), a("1.0000 TST"));
+      check_fee(t, true, N(2c), a("0.0000 TST"), a("1.0000 TST"), a("0.0000 TST"), a("0.0050 TST"), a("0.0000 TST"),
+                a("1.0000 TST"));
    }
 
    // transition between rex and pools
@@ -1828,33 +1876,40 @@ BOOST_AUTO_TEST_CASE(rentbw_route_fees) try {
                                                   t.end_transition, 0.0, 0.0));
       BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(jane, jane, 0, a("1.0000 TST")));
       BOOST_REQUIRE_EQUAL(t.success(), t.unstaketorex(bob, bob, a("1.0000 TST"), a("0.0000 TST")));
-      check_fee(t, a("1.0000 TST"), a("0.0000 TST"));
+      check_fee(t, true, N(3a), a("1.0000 TST"), a("0.0000 TST"), a("0.0050 TST"), a("0.0000 TST"), a("1.0000 TST"),
+                a("0.0000 TST"));
       t.produce_block();
 
       t.skip_to(t.start_transition);
-      check_fee(t, a("1.0000 TST"), a("0.0000 TST"));
+      check_fee(t, true, N(3b), a("1.0000 TST"), a("0.0000 TST"), a("0.0050 TST"), a("0.0000 TST"), a("0.9919 TST"),
+                a("0.0081 TST"));
       t.produce_block();
 
       t.skip_to(time_point::from_iso_string("2020-05-10T10:00:00.000"));
-      check_fee(t, a("0.7541 TST"), a("0.2459 TST"));
+      check_fee(t, true, N(3c), a("0.7541 TST"), a("0.2459 TST"), a("0.0038 TST"), a("0.0012 TST"), a("0.7460 TST"),
+                a("0.2540 TST"));
       t.produce_block();
 
       t.skip_to(time_point::from_iso_string("2020-06-10T10:00:00.000"));
-      check_fee(t, a("0.5000 TST"), a("0.5000 TST"));
+      check_fee(t, true, N(3d), a("0.5000 TST"), a("0.5000 TST"), a("0.0025 TST"), a("0.0025 TST"), a("0.4919 TST"),
+                a("0.5081 TST"));
       t.produce_block();
 
       t.skip_to(time_point::from_iso_string("2020-07-10T10:00:00.000"));
-      check_fee(t, a("0.2541 TST"), a("0.7459 TST"));
+      check_fee(t, true, N(3e), a("0.2541 TST"), a("0.7459 TST"), a("0.0013 TST"), a("0.0037 TST"), a("0.2460 TST"),
+                a("0.7540 TST"));
       t.produce_block();
 
       t.skip_to(t.end_transition);
-      check_fee(t, a("0.0000 TST"), a("1.0000 TST"));
+      check_fee(t, true, N(3f), a("0.0000 TST"), a("1.0000 TST"), a("0.0000 TST"), a("0.0050 TST"), a("0.0000 TST"),
+                a("1.0000 TST"));
       t.produce_block();
 
       t.skip_to(time_point::from_iso_string("2021-07-10T10:00:00.000"));
-      check_fee(t, a("0.0000 TST"), a("1.0000 TST"));
+      check_fee(t, true, N(3g), a("0.0000 TST"), a("1.0000 TST"), a("0.0000 TST"), a("0.0050 TST"), a("0.0000 TST"),
+                a("1.0000 TST"));
    }
-} // rentbw_route_fees
+} // route_fees
 FC_LOG_AND_RETHROW()
 
 BOOST_AUTO_TEST_SUITE_END()

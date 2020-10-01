@@ -657,9 +657,17 @@ namespace eosiosystem {
    void system_contract::channel_namebid_to_rex_or_pools(int64_t highest_bid) {
       if (!get_vote_pool_state_singleton().exists())
          return channel_namebid_to_rex(highest_bid);
+
       vote_pool_state_autosave state{ *this };
-      int64_t                  to_pools = state->transition(eosio::current_block_time(), int128_t(highest_bid));
-      int64_t                  to_rex   = highest_bid - to_pools;
+      bool                     found = false;
+      for (auto& pool : state->pools)
+         if (pool.token_pool.shares())
+            found = true;
+      if (!found)
+         return channel_namebid_to_rex(highest_bid);
+
+      int64_t to_pools = state->transition(eosio::current_block_time(), int128_t(highest_bid));
+      int64_t to_rex   = highest_bid - to_pools;
       state->namebid_proceeds.amount += to_pools;
       if (to_rex)
          channel_namebid_to_rex(to_rex);
