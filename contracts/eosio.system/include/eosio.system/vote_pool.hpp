@@ -77,15 +77,15 @@ namespace eosiosystem {
    struct [[eosio::table("vpoolstate"), eosio::contract("eosio.system")]] vote_pool_state {
       eosio::block_timestamp begin_transition; // Beginning of transition
       eosio::block_timestamp end_transition;   // End of transition
-      double  prod_rate      = 0;   // Inflation rate (compounded each minute) allocated to producer pay (0.01 = 1%)
-      double  voter_rate     = 0;   // Inflation rate (compounded each minute) allocated to voters (0.01 = 1%)
+      double  prod_rate      = 0;   // Inflation rate (compounded each round) allocated to producer pay (0.01 = 1%)
+      double  voter_rate     = 0;   // Inflation rate (compounded each round) allocated to voters (0.01 = 1%)
       uint8_t max_num_pay    = 50;  // Maximum number of producers to pay
-      double  max_vote_ratio = 0.8; // Stop payments once this factor (0.0-1.0) of votes have been payed out
+      double  max_vote_ratio = 0.8; // Stop producer payments once this factor (0.0-1.0) of votes have been payed out
       asset   min_transfer_create;  // transferstake will automatically create to's pool_voter record if
                                     // requested amount is at least min_transfer_create. Defaults to 1.0000
 
       std::vector<vote_pool> pools;
-      eosio::block_timestamp interval_start;    // Beginning of current 1-minute block production interval
+      eosio::block_timestamp interval_start;    // Beginning of current block production interval (1 round)
       uint32_t               blocks        = 0; // Blocks produced in current interval
       uint32_t               unpaid_blocks = 0; // Blocks produced in previous interval
       std::vector<double>    total_votes;       // Total votes cast

@@ -1326,6 +1326,27 @@ namespace eosiosystem {
          [[eosio::action]]
          void rentbw( const name& payer, const name& receiver, uint32_t days, int64_t net_frac, int64_t cpu_frac, const asset& max_payment );
 
+         /**
+          * Configure voter pools. Pools become available the first time this action is invoked.
+          *
+          * @param durations - The duration of each pool. Must be set first time cfgvpool is used. Must be omitted if cfgvpool is used again.
+          * @param claim_periods - The claim period of each pool. Must be set first time cfgvpool is used. Must be omitted if cfgvpool is used again.
+          * @param vote_weights - The vote weight of each pool. Must be set first time cfgvpool is used. Must be omitted if cfgvpool is used again.
+          * @param begin_transition - When to begin transitioning producer selection, inflation, ram fees, rentbw fees,
+          *                           and namebid fees. Must be set first time cfgvpool is used. Do not specify to preserve the existing setting.
+          * @param end_transition - When to end the transition. When the transition ends: pool-based voting selects all producers;
+          *                         the new inflation system is enabled and the previous one disabled; ram fees, rentbw fees, and namebid fees are
+          *                         directed to the voter pools. Must be set first time cfgvpool is used. Do not specify to preserve the existing setting.
+          * @param prod_rate - The inflation rate (compounded each round) allocated to producer pay (0.01 = 1%). Do not specify to preserve the
+          *                    existing setting or use the default (0.0).
+          * @param voter_rate - The inflation rate (compounded each round) allocated to voters (0.01 = 1%). Do not specify to preserve the existing
+          *                     setting or use the default (0.0).
+          * @param max_num_pay - Maximum number of producers to pay. Do not specify to preserve the existing setting or use the default (50).
+          * @param max_vote_ratio - Stop producer payments once this factor (0.0-1.0) of votes have been payed out. Do not specify to preserve
+          *                         the existing setting or use the default (0.8).
+          * @param min_transfer_create - transferstake will automatically create to's pool_voter record if requested amount is at least
+          *                              min_transfer_create. Do not specify to preserve the existing setting or use the default (1.0000).
+          */
          [[eosio::action]]
          void cfgvpool(
             const std::optional<uint32_vector>& durations,
