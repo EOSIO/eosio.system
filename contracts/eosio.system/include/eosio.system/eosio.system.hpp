@@ -1359,14 +1359,65 @@ namespace eosiosystem {
             const std::optional<uint8_t>& max_num_pay,
             const std::optional<double>& max_vote_ratio,
             const std::optional<asset>& min_transfer_create);
+
+         /**
+          * Stake tokens to pool.
+          *
+          * @param owner - Account staking
+          * @param pool_index - Which pool (starting at 0) to stake
+          * @param amount - Amount to stake
+          */
          [[eosio::action]]
          void stake2pool( name owner, uint32_t pool_index, asset amount );
+
+         /**
+          * Opt into or out of transferstake notifications. These notifications are inline actions (eosio.tstake) sent
+          * directly to owner. See transferstake_notification for the action body and for instructions how to authenticate these notifications.
+          *
+          * Caution: if there's a contract installed on the owner account, and that contract doesn't handle the eosio.tstake action,
+          *          then that contract will probably abort transactions containing transferstake actions.
+          *
+          * @param owner - Account to receive notifications
+          * @param xfer_out_notif - Opt into notifications when stake is transferred out. Do not specify to preserve the existing setting or use the default (false).
+          * @param xfer_in_notif - Opt into notifications when stake is transferred in. Do not specify to preserve the existing setting or use the default (false).
+          */
          [[eosio::action]]
          void setpoolnotif( name owner, std::optional<Bool> xfer_out_notif, std::optional<Bool> xfer_in_notif );
+
+         /**
+          * Unstake tokens from pool. Will fail if the owner has claimed from this pool recently (below claim_period).
+          *
+          * @param owner - Account unstaking
+          * @param pool_index - Which pool (starting at 0) to unstake
+          * @param amount - Requested amount to unstake. The amount actually unstaked will be capped at
+          *                 balance * pool.claim_period / pool.duration and may also be limited by rounding.
+          *                 Examine the inline transfer action this generates to see the final amount.
+          */
          [[eosio::action]]
          void claimstake( name owner, uint32_t pool_index, asset requested );
+
+         /**
+          * Transfer stake to another account. Unlike claimstake, this action doesn't have time-based restrictions.
+          *
+          * @param from - Account sending stake
+          * @param to - Account receiving stake
+          * @param pool_index - Which pool (starting at 0) to transfer stake in
+          * @param requested - Requested amount to transfer. The amount actually transferred will be capped at balance
+          *                    and may also be limited by rounding. Examine the transferstake notifications to see the
+          *                    final amount (must be enabled using setpoolnotif).
+          */
          [[eosio::action]]
          void transferstake(name from, name to, uint32_t pool_index, asset requested, const std::string& memo);
+
+         /**
+          * Upgrade stake from a shorter-term pool to a longer-term one. Unlike claimstake, this action doesn't have time-based restrictions.
+          *
+          * @param owner - Account upgrading stake
+          * @param from_pool_index - Which pool (starting at 0) to transfer stake out of
+          * @param to_pool_index - Which pool (starting at 0) to transfer stake into
+          * @param requested - Requested amount to upgrade. The amount actually upgraded will be capped at balance
+          *                    and may also be limited by rounding.
+          */
          [[eosio::action]]
          void upgradestake(name owner, uint32_t from_pool_index, uint32_t to_pool_index, asset requested);
          [[eosio::action]]
