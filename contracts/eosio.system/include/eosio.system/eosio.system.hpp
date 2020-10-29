@@ -1342,7 +1342,7 @@ namespace eosiosystem {
           * @param voter_rate - The inflation rate (compounded each round) allocated to voters (0.01 = 1%). Do not specify to preserve the existing
           *                     setting or use the default (0.0).
           * @param max_num_pay - Maximum number of producers to pay. Do not specify to preserve the existing setting or use the default (50).
-          * @param max_vote_ratio - Stop producer payments once this factor (0.0-1.0) of votes have been payed out. Do not specify to preserve
+          * @param max_vote_ratio - Stop producer payments once this factor (0.0-1.0) of votes have been paid out. Do not specify to preserve
           *                         the existing setting or use the default (0.8).
           * @param min_transfer_create - transferstake will automatically create to's pool_voter record if requested amount is at least
           *                              min_transfer_create. Do not specify to preserve the existing setting or use the default (1.0000).
@@ -1429,7 +1429,7 @@ namespace eosiosystem {
           * votewithpool votes are separate from voteproducer votes. Before begin_transition,
           * producers are selected using voteproducer. After end_transition, producers are selected using
           * votewithpool. During the transition period, the number of producers selected by votewithpool
-          * gradually increases, while the number selected by votewithpool decreases by the same amount.
+          * gradually increases, while the number selected by voteproducer decreases by the same amount.
           *
           * @param voter - the account voting
           * @param proxy - an optional proxy to delegate voting to
@@ -1470,13 +1470,21 @@ namespace eosiosystem {
           * max_vote_ratio of the vote has been accounted for, or max_num_pay producers has been reached.
           *
           * Any account may authorize this action. It's usable once per 252-block time period. If no one
-          * authorizes this action within a period, then no inflation will be generated or payed out for that
+          * authorizes this action within a period, then no inflation will be generated or paid out for that
           * period.
           *
           * @param user - the account authorizing this action
           */
          [[eosio::action]]
          void updatepay( name user );
+
+         /**
+          * Transfer pay to producer. A producer may use claimvotepay any time their `vote_pay` balance is
+          * not empty. `claimvotepay` has no time-based restrictions since `vote_pay` is an asset instead
+          * of a leaky bucket.
+          *
+          * @param producer - the producer to receive pay
+          */
          [[eosio::action]]
          void claimvotepay( name producer );
 
