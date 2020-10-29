@@ -1420,12 +1420,61 @@ namespace eosiosystem {
           */
          [[eosio::action]]
          void upgradestake(name owner, uint32_t from_pool_index, uint32_t to_pool_index, asset requested);
+
+         /**
+          * Vote for a proxy or for up to 30 producers. Votes are weighted by the voter's pool holdings.
+          * If a voter votes for multiple producers, then that voter's weight will be evenly divided
+          * between them.
+          * 
+          * votewithpool votes are separate from voteproducer votes. Before begin_transition,
+          * producers are selected using voteproducer. After end_transition, producers are selected using
+          * votewithpool. During the transition period, the number of producers selected by votewithpool
+          * gradually increases, while the number selected by votewithpool decreases by the same amount.
+          *
+          * @param voter - the account voting
+          * @param proxy - an optional proxy to delegate voting to
+          * @param producers - up to 30 producers to vote for
+          *
+          * @pre Producers must be sorted and active. Producers must have used either regproducer or regproducer2
+          *      *after* the first time regpoolproxy was used.
+          * @pre If proxy is set then no producers can be voted for
+          * @pre If proxy is set then proxy account must exist and be registered as a proxy using regpoolproxy
+          */
          [[eosio::action]]
          void votewithpool(const name& voter, const name& proxy, const std::vector<name>& producers);
+
+         /**
+          * Register an account to be a proxy for pool voting. Once a proxy is registered, users may delegate
+          * their pool votes to the proxy using votewithpool.
+          *
+          * @param proxy - the account registering as voter proxy (or unregistering),
+          * @param isproxy - if true, proxy is registered; if false, proxy is unregistered.
+          */
          [[eosio::action]]
          void regpoolproxy(const name& proxy, bool isproxy);
+
+         /**
+          * Update the pool votes total for a producer. This can move a producer into the top max_num_pay
+          * producers, so that future calls to updatepay can update that producer's vote totals and generate
+          * their pay, if any. Any user may perform this action.
+          *
+          * @param user - the account authorizing this action
+          * @param producer - the producer to update the votes for
+          */
          [[eosio::action]]
          void updatevotes( name user, name producer );
+
+         /**
+          * Update the votes for the current top max_num_pay producers, pay inflation into the pools, and
+          * pay inflation into producers' vote_pay balance. updatepay pays the top-voted producers up until
+          * max_vote_ratio of the vote has been accounted for, or max_num_pay producers has been reached.
+          *
+          * Any account may authorize this action. It's usable once per 252-block time period. If no one
+          * authorizes this action within a period, then no inflation will be generated or payed out for that
+          * period.
+          *
+          * @param user - the account authorizing this action
+          */
          [[eosio::action]]
          void updatepay( name user );
          [[eosio::action]]
