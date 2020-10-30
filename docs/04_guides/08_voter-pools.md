@@ -15,7 +15,7 @@ The voter pool system, when combined with rentbw, displaces (over time) the exis
 
 # Activating on existing chains
 
-This procedure activates vote pools on an existing chain. `rentbw` isn't a prerequisite for voter pools; either one may be activated first and it's possible to give them both the same transition period or different transition periods. If you activate voter pools without rentbw, ram fees and namebid fees will go towards the voter pools instead of the REX pool.
+This procedure activates vote pools on an existing chain. `rentbw` isn't a prerequisite for voter pools; either one may be activated first and it's possible to give them both the same transition period or different transition periods. Note that ram fees and namebid fees will go to the voter pools instead of the REX pool even if you don't activate rentbw.
 
 * Upgrade the `eosio.system` contract.
 * If the `eosio` account doesn't have unlimited RAM, then you may need to increase it. Rows in the new tables use `eosio` RAM instead of account holders' RAM.
