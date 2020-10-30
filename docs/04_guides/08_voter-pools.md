@@ -3,9 +3,19 @@ content_title: Voter pools
 link_text: Voter pools
 ---
 
+# Overview
+
+The voter pool system, when combined with rentbw, displaces (over time) the existing staking, voting, producer pay, and REX systems. Here are some of the major differences:
+
+* Users use `rentbw` to obtain NET and CPU resources instead of staking (`delegatebw`) or renting from REX.
+* Users stake into pools to be able to vote instead of staking using `delegatebw` or buying REX.
+* Users stake into pools to receive ram fees, rentbw dees, and namebid fees, instead of buying REX.
+* If a user votes for `n` producers, then each producer gets `1/n` of that voter's voting power.
+* Inflation pays both producers and voter pools. Inflation occurs each round (126 seconds) and is scaled by `pow(produced_blocks / 252, 10)` to encourage the selection of reliable producers.
+
 # Activating on existing chains
 
-This procedure activates vote pools on an existing chain.
+This procedure activates vote pools on an existing chain. `rentbw` isn't a prerequisite for voter pools; either one may be activated first and it's possible to give them both the same transition period or different transition periods. If you activate voter pools without rentbw, ram fees and namebid fees will go towards the voter pools instead of the REX pool.
 
 * Upgrade the `eosio.system` contract.
 * If the `eosio` account doesn't have unlimited RAM, then you may need to increase it. Rows in the new tables use `eosio` RAM instead of account holders' RAM.
@@ -21,7 +31,7 @@ This procedure activates vote pools on an existing chain.
 
 This procedure activates vote pools on new chains. Follow the existing procedure, but make the following changes:
 
-* Don't activate REX.
+* Don't activate REX, unless you plan to use it instead of rentbw.
 * Don't stake users' tokens using `delegatebw`. Instead, leave their tokens liquid so they may use `stake2pool` and `votewithpool` if they choose.
 * The voter threshold activation procedure does not apply.
 * Create the following accounts:
