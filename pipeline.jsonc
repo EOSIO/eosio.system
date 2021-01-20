@@ -1,0 +1,11 @@
+{
+    "eosio-dot-contracts":
+    {
+        "pipeline-branch": "master",
+        "dependencies": // dependencies to pull for a build of contracts, by branch, tag, or commit hash
+        {
+            "eosio": "develop", 
+            "eosio.cdt": "f7529f9d6c093e9ad0067cfd8d393d472009f50a"
+        }
+    }
+}

@@ -31,6 +31,7 @@
 *.out
 *.app
 
+<<<<<<< HEAD
 *.a
 *.sw*
 *.ll
@@ -72,3 +73,8 @@ docs-build/
 #cypress artifacts
 cypress/screenshots/
 cypress/videos/
+=======
+build/*
+.DS_Store
+.vscode/*
+>>>>>>> 6a25bee658d8be875a6416aee2f5cdcd40acc17a
