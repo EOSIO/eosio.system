@@ -1,0 +1,74 @@
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+*.a
+*.sw*
+*.ll
+*.bc
+*.wast
+*.wast.hpp
+*.s
+*.dot
+*.abi.hpp
+*.cmake
+!.cicd
+!CMakeModules/*.cmake
+!CMakeModules/*.txt
+*.ninja
+\#*
+\.#*
+CMakeCache.txt
+CMakeFiles
+doxygen
+eos.doxygen
+
+wallet.json
+*.wallet
+build/*
+
+.vscode
+.idea/
+*.iws
+.DS_Store
+!*.swagger.*
+
+# from eosjs
+dist/
+dist-web/
+node_modules/
+docs-build/
+*.tgz
+
+#cypress artifacts
+cypress/screenshots/
+cypress/videos/
