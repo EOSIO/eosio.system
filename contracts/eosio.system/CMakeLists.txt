@@ -2,8 +2,6 @@ include(ExternalProject)
 
 find_package(Git REQUIRED)
 
-message(${CMAKE_CURRENT_BINARY_DIR}/eosio.token)
-
 set(EOSIO_TOKEN_PREFIX "${CMAKE_CURRENT_BINARY_DIR}/eosio.token")
 
 # pull down seperate eosio.token contract
@@ -14,10 +12,9 @@ ExternalProject_Add(
    TIMEOUT 10
    UPDATE_COMMAND ${GIT_EXECUTABLE} pull
    GIT_TAG develop
-   CONFIGURE_COMMAND ""
-   BUILD_COMMAND ""
-   INSTALL_COMMAND ""
+   CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${EOSIO_TOKEN_PREFIX}
    LOG_DOWNLOAD ON
+   INSTALL_COMMAND ""
 )
 
 add_contract(eosio.system eosio.system
@@ -54,3 +51,5 @@ set_target_properties(rex.results
 configure_file( ${CMAKE_CURRENT_SOURCE_DIR}/ricardian/eosio.system.contracts.md.in ${CMAKE_CURRENT_BINARY_DIR}/ricardian/eosio.system.contracts.md @ONLY )
 
 target_compile_options( eosio.system PUBLIC -R${CMAKE_CURRENT_SOURCE_DIR}/ricardian -R${CMAKE_CURRENT_BINARY_DIR}/ricardian )
+
+add_dependencies(eosio.system eosio.token)
