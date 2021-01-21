@@ -952,30 +952,30 @@ public:
       return data.empty() ? fc::variant() : abi_ser.binary_to_variant( "refund_request", data, abi_serializer::create_yield_function(abi_serializer_max_time) );
    }
 
-   abi_serializer initialize_multisig() {
-      abi_serializer msig_abi_ser;
-      {
-         create_account_with_resources( "eosio.msig"_n, config::system_account_name );
-         BOOST_REQUIRE_EQUAL( success(), buyram( "eosio"_n, "eosio.msig"_n, core_sym::from_string("5000.0000") ) );
-         produce_block();
+   // abi_serializer initialize_multisig() {
+   //    abi_serializer msig_abi_ser;
+   //    {
+   //       create_account_with_resources( "eosio.msig"_n, config::system_account_name );
+   //       BOOST_REQUIRE_EQUAL( success(), buyram( "eosio"_n, "eosio.msig"_n, core_sym::from_string("5000.0000") ) );
+   //       produce_block();
 
-         auto trace = base_tester::push_action(config::system_account_name, "setpriv"_n,
-                                               config::system_account_name,  mutable_variant_object()
-                                               ("account", "eosio.msig")
-                                               ("is_priv", 1)
-         );
+   //       auto trace = base_tester::push_action(config::system_account_name, "setpriv"_n,
+   //                                             config::system_account_name,  mutable_variant_object()
+   //                                             ("account", "eosio.msig")
+   //                                             ("is_priv", 1)
+   //       );
 
-         set_code( "eosio.msig"_n, contracts::msig_wasm() );
-         set_abi( "eosio.msig"_n, contracts::msig_abi().data() );
+   //       set_code( "eosio.msig"_n, contracts::msig_wasm() );
+   //       set_abi( "eosio.msig"_n, contracts::msig_abi().data() );
 
-         produce_blocks();
-         const auto& accnt = control->db().get<account_object,by_name>( "eosio.msig"_n );
-         abi_def msig_abi;
-         BOOST_REQUIRE_EQUAL(abi_serializer::to_abi(accnt.abi, msig_abi), true);
-         msig_abi_ser.set_abi(msig_abi, abi_serializer::create_yield_function(abi_serializer_max_time));
-      }
-      return msig_abi_ser;
-   }
+   //       produce_blocks();
+   //       const auto& accnt = control->db().get<account_object,by_name>( "eosio.msig"_n );
+   //       abi_def msig_abi;
+   //       BOOST_REQUIRE_EQUAL(abi_serializer::to_abi(accnt.abi, msig_abi), true);
+   //       msig_abi_ser.set_abi(msig_abi, abi_serializer::create_yield_function(abi_serializer_max_time));
+   //    }
+   //    return msig_abi_ser;
+   // }
 
    vector<name> active_and_vote_producers() {
       //stake more than 15% of total EOS supply to activate chain

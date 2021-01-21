@@ -2720,116 +2720,116 @@ BOOST_AUTO_TEST_CASE(votepay_transition2, * boost::unit_test::tolerance(1e-10)) 
 } FC_LOG_AND_RETHROW()
 
 
-BOOST_FIXTURE_TEST_CASE(producers_upgrade_system_contract, eosio_system_tester) try {
-   //install multisig contract
-   abi_serializer msig_abi_ser = initialize_multisig();
-   auto producer_names = active_and_vote_producers();
+// BOOST_FIXTURE_TEST_CASE(producers_upgrade_system_contract, eosio_system_tester) try {
+//    //install multisig contract
+//    // abi_serializer msig_abi_ser = initialize_multisig();
+//    auto producer_names = active_and_vote_producers();
 
-   //helper function
-   auto push_action_msig = [&]( const account_name& signer, const action_name &name, const variant_object &data, bool auth = true ) -> action_result {
-         string action_type_name = msig_abi_ser.get_action_type(name);
+//    //helper function
+//    auto push_action_msig = [&]( const account_name& signer, const action_name &name, const variant_object &data, bool auth = true ) -> action_result {
+//          string action_type_name = msig_abi_ser.get_action_type(name);
 
-         action act;
-         act.account = "eosio.msig"_n;
-         act.name = name;
-         act.data = msig_abi_ser.variant_to_binary( action_type_name, data, abi_serializer::create_yield_function(abi_serializer_max_time) );
+//          action act;
+//          act.account = "eosio.msig"_n;
+//          act.name = name;
+//          act.data = msig_abi_ser.variant_to_binary( action_type_name, data, abi_serializer::create_yield_function(abi_serializer_max_time) );
 
-         return base_tester::push_action( std::move(act), (auth ? signer : signer == "bob111111111"_n ? "alice1111111"_n : "bob111111111"_n).to_uint64_t() );
-   };
-   // test begins
-   vector<permission_level> prod_perms;
-   for ( auto& x : producer_names ) {
-      prod_perms.push_back( { name(x), config::active_name } );
-   }
+//          return base_tester::push_action( std::move(act), (auth ? signer : signer == "bob111111111"_n ? "alice1111111"_n : "bob111111111"_n).to_uint64_t() );
+//    };
+//    // test begins
+//    vector<permission_level> prod_perms;
+//    for ( auto& x : producer_names ) {
+//       prod_perms.push_back( { name(x), config::active_name } );
+//    }
 
-   transaction trx;
-   {
-      //prepare system contract with different hash (contract differs in one byte)
-      auto code = contracts::system_wasm();
-      string msg = "producer votes must be unique and sorted";
-      auto it = std::search( code.begin(), code.end(), msg.begin(), msg.end() );
-      BOOST_REQUIRE( it != code.end() );
-      msg[0] = 'P';
-      std::copy( msg.begin(), msg.end(), it );
+//    transaction trx;
+//    {
+//       //prepare system contract with different hash (contract differs in one byte)
+//       auto code = contracts::system_wasm();
+//       string msg = "producer votes must be unique and sorted";
+//       auto it = std::search( code.begin(), code.end(), msg.begin(), msg.end() );
+//       BOOST_REQUIRE( it != code.end() );
+//       msg[0] = 'P';
+//       std::copy( msg.begin(), msg.end(), it );
 
-      auto pretty_trx = fc::mutable_variant_object()
-         ("expiration", "2020-01-01T00:30")
-         ("ref_block_num", 2)
-         ("ref_block_prefix", 3)
-         ("net_usage_words", 0)
-         ("max_cpu_usage_ms", 0)
-         ("delay_sec", 0)
-         ("actions", fc::variants({
-               fc::mutable_variant_object()
-                  ("account", name(config::system_account_name))
-                  ("name", "setcode")
-                  ("authorization", vector<permission_level>{ { config::system_account_name, config::active_name } })
-                  ("data", fc::mutable_variant_object() ("account", name(config::system_account_name))
-                   ("vmtype", 0)
-                   ("vmversion", "0")
-                   ("code", bytes( code.begin(), code.end() ))
-                  )
-                  })
-         );
-      abi_serializer::from_variant(pretty_trx, trx, get_resolver(), abi_serializer::create_yield_function(abi_serializer_max_time));
-   }
+//       auto pretty_trx = fc::mutable_variant_object()
+//          ("expiration", "2020-01-01T00:30")
+//          ("ref_block_num", 2)
+//          ("ref_block_prefix", 3)
+//          ("net_usage_words", 0)
+//          ("max_cpu_usage_ms", 0)
+//          ("delay_sec", 0)
+//          ("actions", fc::variants({
+//                fc::mutable_variant_object()
+//                   ("account", name(config::system_account_name))
+//                   ("name", "setcode")
+//                   ("authorization", vector<permission_level>{ { config::system_account_name, config::active_name } })
+//                   ("data", fc::mutable_variant_object() ("account", name(config::system_account_name))
+//                    ("vmtype", 0)
+//                    ("vmversion", "0")
+//                    ("code", bytes( code.begin(), code.end() ))
+//                   )
+//                   })
+//          );
+//       abi_serializer::from_variant(pretty_trx, trx, get_resolver(), abi_serializer::create_yield_function(abi_serializer_max_time));
+//    }
 
-   BOOST_REQUIRE_EQUAL(success(), push_action_msig( "alice1111111"_n, "propose"_n, mvo()
-                                                    ("proposer",      "alice1111111")
-                                                    ("proposal_name", "upgrade1")
-                                                    ("trx",           trx)
-                                                    ("requested", prod_perms)
-                       )
-   );
+//    BOOST_REQUIRE_EQUAL(success(), push_action_msig( "alice1111111"_n, "propose"_n, mvo()
+//                                                     ("proposer",      "alice1111111")
+//                                                     ("proposal_name", "upgrade1")
+//                                                     ("trx",           trx)
+//                                                     ("requested", prod_perms)
+//                        )
+//    );
 
-   // get 15 approvals
-   for ( size_t i = 0; i < 14; ++i ) {
-      BOOST_REQUIRE_EQUAL(success(), push_action_msig( name(producer_names[i]), "approve"_n, mvo()
-                                                       ("proposer",      "alice1111111")
-                                                       ("proposal_name", "upgrade1")
-                                                       ("level",         permission_level{ name(producer_names[i]), config::active_name })
-                          )
-      );
-   }
+//    // get 15 approvals
+//    for ( size_t i = 0; i < 14; ++i ) {
+//       BOOST_REQUIRE_EQUAL(success(), push_action_msig( name(producer_names[i]), "approve"_n, mvo()
+//                                                        ("proposer",      "alice1111111")
+//                                                        ("proposal_name", "upgrade1")
+//                                                        ("level",         permission_level{ name(producer_names[i]), config::active_name })
+//                           )
+//       );
+//    }
 
-   //should fail
-   BOOST_REQUIRE_EQUAL(wasm_assert_msg("transaction authorization failed"),
-                       push_action_msig( "alice1111111"_n, "exec"_n, mvo()
-                                         ("proposer",      "alice1111111")
-                                         ("proposal_name", "upgrade1")
-                                         ("executer",      "alice1111111")
-                       )
-   );
+//    //should fail
+//    BOOST_REQUIRE_EQUAL(wasm_assert_msg("transaction authorization failed"),
+//                        push_action_msig( "alice1111111"_n, "exec"_n, mvo()
+//                                          ("proposer",      "alice1111111")
+//                                          ("proposal_name", "upgrade1")
+//                                          ("executer",      "alice1111111")
+//                        )
+//    );
 
-   // one more approval
-   BOOST_REQUIRE_EQUAL(success(), push_action_msig( name(producer_names[14]), "approve"_n, mvo()
-                                                    ("proposer",      "alice1111111")
-                                                    ("proposal_name", "upgrade1")
-                                                    ("level",         permission_level{ name(producer_names[14]), config::active_name })
-                          )
-   );
+//    // one more approval
+//    BOOST_REQUIRE_EQUAL(success(), push_action_msig( name(producer_names[14]), "approve"_n, mvo()
+//                                                     ("proposer",      "alice1111111")
+//                                                     ("proposal_name", "upgrade1")
+//                                                     ("level",         permission_level{ name(producer_names[14]), config::active_name })
+//                           )
+//    );
 
-   transaction_trace_ptr trace;
-   control->applied_transaction.connect(
-   [&]( std::tuple<const transaction_trace_ptr&, const packed_transaction_ptr&> p ) {
-      const auto& t = std::get<0>(p);
-      if( t->scheduled ) { trace = t; }
-   } );
+//    transaction_trace_ptr trace;
+//    control->applied_transaction.connect(
+//    [&]( std::tuple<const transaction_trace_ptr&, const packed_transaction_ptr&> p ) {
+//       const auto& t = std::get<0>(p);
+//       if( t->scheduled ) { trace = t; }
+//    } );
 
-   BOOST_REQUIRE_EQUAL(success(), push_action_msig( "alice1111111"_n, "exec"_n, mvo()
-                                                    ("proposer",      "alice1111111")
-                                                    ("proposal_name", "upgrade1")
-                                                    ("executer",      "alice1111111")
-                       )
-   );
+//    BOOST_REQUIRE_EQUAL(success(), push_action_msig( "alice1111111"_n, "exec"_n, mvo()
+//                                                     ("proposer",      "alice1111111")
+//                                                     ("proposal_name", "upgrade1")
+//                                                     ("executer",      "alice1111111")
+//                        )
+//    );
 
-   BOOST_REQUIRE( bool(trace) );
-   BOOST_REQUIRE_EQUAL( 1, trace->action_traces.size() );
-   BOOST_REQUIRE_EQUAL( transaction_receipt::executed, trace->receipt->status );
+//    BOOST_REQUIRE( bool(trace) );
+//    BOOST_REQUIRE_EQUAL( 1, trace->action_traces.size() );
+//    BOOST_REQUIRE_EQUAL( transaction_receipt::executed, trace->receipt->status );
 
-   produce_blocks( 250 );
+//    produce_blocks( 250 );
 
-} FC_LOG_AND_RETHROW()
+// } FC_LOG_AND_RETHROW()
 
 BOOST_FIXTURE_TEST_CASE(producer_onblock_check, eosio_system_tester) try {
 
@@ -3503,91 +3503,18 @@ BOOST_FIXTURE_TEST_CASE( vote_producers_in_and_out, eosio_system_tester ) try {
 } FC_LOG_AND_RETHROW()
 
 BOOST_FIXTURE_TEST_CASE( setparams, eosio_system_tester ) try {
-   //install multisig contract
-   abi_serializer msig_abi_ser = initialize_multisig();
-   auto producer_names = active_and_vote_producers();
-
-   //helper function
-   auto push_action_msig = [&]( const account_name& signer, const action_name &name, const variant_object &data, bool auth = true ) -> action_result {
-         string action_type_name = msig_abi_ser.get_action_type(name);
-
-         action act;
-         act.account = "eosio.msig"_n;
-         act.name = name;
-         act.data = msig_abi_ser.variant_to_binary( action_type_name, data, abi_serializer::create_yield_function(abi_serializer_max_time) );
-
-         return base_tester::push_action( std::move(act), (auth ? signer : signer == "bob111111111"_n ? "alice1111111"_n : "bob111111111"_n).to_uint64_t() );
-   };
-
    // test begins
-   vector<permission_level> prod_perms;
-   for ( auto& x : producer_names ) {
-      prod_perms.push_back( { name(x), config::active_name } );
-   }
-
    eosio::chain::chain_config params;
    params = control->get_global_properties().configuration;
    //change some values
    params.max_block_net_usage += 10;
    params.max_transaction_lifetime += 1;
 
-   transaction trx;
-   {
-      auto pretty_trx = fc::mutable_variant_object()
-         ("expiration", "2020-01-01T00:30")
-         ("ref_block_num", 2)
-         ("ref_block_prefix", 3)
-         ("net_usage_words", 0)
-         ("max_cpu_usage_ms", 0)
-         ("delay_sec", 0)
-         ("actions", fc::variants({
-               fc::mutable_variant_object()
-                  ("account", name(config::system_account_name))
-                  ("name", "setparams")
-                  ("authorization", vector<permission_level>{ { config::system_account_name, config::active_name } })
-                  ("data", fc::mutable_variant_object()
-                   ("params", params)
-                  )
-                  })
-         );
-      abi_serializer::from_variant(pretty_trx, trx, get_resolver(), abi_serializer::create_yield_function(abi_serializer_max_time));
-   }
-
-   BOOST_REQUIRE_EQUAL(success(), push_action_msig( "alice1111111"_n, "propose"_n, mvo()
-                                                    ("proposer",      "alice1111111")
-                                                    ("proposal_name", "setparams1")
-                                                    ("trx",           trx)
-                                                    ("requested", prod_perms)
-                       )
+   BOOST_REQUIRE_EQUAL(success(), push_action( name(config::system_account_name), 
+                                               "setparams"_n,
+                                               fc::mutable_variant_object()("params", params)
+                                  )
    );
-
-   // get 16 approvals
-   for ( size_t i = 0; i < 15; ++i ) {
-      BOOST_REQUIRE_EQUAL(success(), push_action_msig( name(producer_names[i]), "approve"_n, mvo()
-                                                       ("proposer",      "alice1111111")
-                                                       ("proposal_name", "setparams1")
-                                                       ("level",         permission_level{ name(producer_names[i]), config::active_name })
-                          )
-      );
-   }
-
-   transaction_trace_ptr trace;
-   control->applied_transaction.connect(
-   [&]( std::tuple<const transaction_trace_ptr&, const packed_transaction_ptr&> p ) {
-      const auto& t = std::get<0>(p);
-      if( t->scheduled ) { trace = t; }
-   } );
-
-   BOOST_REQUIRE_EQUAL(success(), push_action_msig( "alice1111111"_n, "exec"_n, mvo()
-                                                    ("proposer",      "alice1111111")
-                                                    ("proposal_name", "setparams1")
-                                                    ("executer",      "alice1111111")
-                       )
-   );
-
-   BOOST_REQUIRE( bool(trace) );
-   BOOST_REQUIRE_EQUAL( 1, trace->action_traces.size() );
-   BOOST_REQUIRE_EQUAL( transaction_receipt::executed, trace->receipt->status );
 
    produce_blocks( 250 );
 
@@ -3600,92 +3527,19 @@ BOOST_FIXTURE_TEST_CASE( setparams, eosio_system_tester ) try {
 
 // The common routine for testing setkvparams
 void static setkvparams_common( const eosio::chain::kv_database_config& params, eosio_system_tester& system_tester ) {
-   //install multisig contract
-   abi_serializer msig_abi_ser = system_tester.initialize_multisig();
-   auto producer_names = system_tester.active_and_vote_producers();
 
-   //helper function
-   auto push_action_msig = [&]( const account_name& signer, const action_name &name, const variant_object &data, bool auth = true ) -> adding_stake_partial_unstake::action_result {
-         string action_type_name = msig_abi_ser.get_action_type(name);
-
-         action act;
-         act.account = "eosio.msig"_n;
-         act.name = name;
-         act.data = msig_abi_ser.variant_to_binary( action_type_name, data, abi_serializer::create_yield_function(adding_stake_partial_unstake::abi_serializer_max_time) );
-
-         return system_tester.base_tester::push_action( std::move(act), (auth ? signer : signer == "bob111111111"_n ? "alice1111111"_n : "bob111111111"_n).to_uint64_t() );
-   };
-
-   // test begins
-   vector<permission_level> prod_perms;
-   for ( auto& x : producer_names ) {
-      prod_perms.push_back( { name(x), config::active_name } );
-   }
-
-   // build the transaction
-   transaction trx;
-   {
-      auto pretty_trx = fc::mutable_variant_object()
-         ("expiration", "2020-01-01T00:30")
-         ("ref_block_num", 2)
-         ("ref_block_prefix", 3)
-         ("net_usage_words", 0)
-         ("max_cpu_usage_ms", 0)
-         ("delay_sec", 0)
-         ("actions", fc::variants({
-               fc::mutable_variant_object()
-                  ("account", name(config::system_account_name))
-                  ("name", "setkvparams")
-                  ("authorization", vector<permission_level>{ { config::system_account_name, config::active_name } })
-                  ("data", fc::mutable_variant_object()
-                   ("params", params)
-                  )
-                  })
-         );
-      abi_serializer::from_variant(pretty_trx, trx, system_tester.get_resolver(), abi_serializer::create_yield_function(adding_stake_partial_unstake::abi_serializer_max_time));
-   }
-
-   BOOST_REQUIRE_EQUAL(adding_stake_partial_unstake::success(), push_action_msig( "alice1111111"_n, "propose"_n, mvo()
-                                                    ("proposer",      "alice1111111")
-                                                    ("proposal_name", "setkvparams1")
-                                                    ("trx",           trx)
-                                                    ("requested", prod_perms)
-                       )
+   BOOST_REQUIRE_EQUAL(adding_stake_partial_unstake::success(), system_tester.push_action( name(config::system_account_name), 
+                                               "setkvparams"_n,
+                                               fc::mutable_variant_object()("params", params)
+                                  )
    );
-
-   // get 16 approvals
-   for ( size_t i = 0; i < 15; ++i ) {
-      BOOST_REQUIRE_EQUAL(adding_stake_partial_unstake::success(), push_action_msig( name(producer_names[i]), "approve"_n, mvo()
-                                                       ("proposer",      "alice1111111")
-                                                       ("proposal_name", "setkvparams1")
-                                                       ("level",         permission_level{ name(producer_names[i]), config::active_name })
-                          )
-      );
-   }
-
-   transaction_trace_ptr trace;
-   system_tester.control->applied_transaction.connect(
-   [&]( std::tuple<const transaction_trace_ptr&, const packed_transaction_ptr&> p ) {
-      const auto& t = std::get<0>(p);
-      if( t->scheduled ) { trace = t; }
-   } );
-
-   // execute the transaction
-   BOOST_REQUIRE_EQUAL(adding_stake_partial_unstake::success(), push_action_msig( "alice1111111"_n, "exec"_n, mvo()
-                                                    ("proposer",      "alice1111111")
-                                                    ("proposal_name", "setkvparams1")
-                                                    ("executer",      "alice1111111")
-                       )
-   );
-
-   BOOST_REQUIRE( bool(trace) );
-   BOOST_REQUIRE_EQUAL( 1, trace->action_traces.size() );
-   BOOST_REQUIRE_EQUAL( transaction_receipt::executed, trace->receipt->status );
 
    system_tester.produce_blocks( 250 );
 
    // make sure that all changes were applied
    auto active_params = system_tester.control->get_global_properties().kv_configuration;
+   elog("active_params ${active_params}", ("active_params", active_params));
+   elog("params ${active_params}", ("active_params", params));
    BOOST_REQUIRE_EQUAL( params.max_key_size, active_params.max_key_size );
    BOOST_REQUIRE_EQUAL( params.max_value_size, active_params.max_value_size );
    BOOST_REQUIRE_EQUAL( params.max_iterators, active_params.max_iterators );
@@ -3733,87 +3587,87 @@ BOOST_FIXTURE_TEST_CASE( setkvparams_update_one, eosio_system_tester ) try {
    setkvparams_common(params, *this);
 } FC_LOG_AND_RETHROW()
 
-// This test verifies non-authorized account is not allowed
-BOOST_FIXTURE_TEST_CASE( setkvparams_no_authority, eosio_system_tester ) try {
-   //install multisig contract
-   abi_serializer msig_abi_ser = initialize_multisig();
-   auto producer_names = active_and_vote_producers();
+// // This test verifies non-authorized account is not allowed
+// BOOST_FIXTURE_TEST_CASE( setkvparams_no_authority, eosio_system_tester ) try {
+//    //install multisig contract
+//    abi_serializer msig_abi_ser = initialize_multisig();
+//    auto producer_names = active_and_vote_producers();
 
-   //helper function
-   auto push_action_msig = [&]( const account_name& signer, const action_name &name, const variant_object &data, bool auth = true ) -> action_result {
-         string action_type_name = msig_abi_ser.get_action_type(name);
+//    //helper function
+//    auto push_action_msig = [&]( const account_name& signer, const action_name &name, const variant_object &data, bool auth = true ) -> action_result {
+//          string action_type_name = msig_abi_ser.get_action_type(name);
 
-         action act;
-         act.account = "eosio.msig"_n;
-         act.name = name;
-         act.data = msig_abi_ser.variant_to_binary( action_type_name, data, abi_serializer::create_yield_function(abi_serializer_max_time) );
+//          action act;
+//          act.account = "eosio.msig"_n;
+//          act.name = name;
+//          act.data = msig_abi_ser.variant_to_binary( action_type_name, data, abi_serializer::create_yield_function(abi_serializer_max_time) );
 
-         return base_tester::push_action( std::move(act), (auth ? signer : signer == "bob111111111"_n ? "alice1111111"_n : "bob111111111"_n).to_uint64_t() );
-   };
+//          return base_tester::push_action( std::move(act), (auth ? signer : signer == "bob111111111"_n ? "alice1111111"_n : "bob111111111"_n).to_uint64_t() );
+//    };
 
-   // test begins
-   vector<permission_level> prod_perms;
-   for ( auto& x : producer_names ) {
-      prod_perms.push_back( { name(x), config::active_name } );
-   }
+//    // test begins
+//    vector<permission_level> prod_perms;
+//    for ( auto& x : producer_names ) {
+//       prod_perms.push_back( { name(x), config::active_name } );
+//    }
 
-   auto params = control->get_global_properties().kv_configuration;
-   transaction trx;
-   {
-      auto pretty_trx = fc::mutable_variant_object()
-         ("expiration", "2020-01-01T00:30")
-         ("ref_block_num", 2)
-         ("ref_block_prefix", 3)
-         ("net_usage_words", 0)
-         ("max_cpu_usage_ms", 0)
-         ("delay_sec", 0)
-         ("actions", fc::variants({
-               fc::mutable_variant_object()
-                  ("account", name(config::system_account_name))
-                  ("name", "setkvparams")
-                  ("authorization", vector<permission_level>{ { config::system_account_name, config::active_name } })
-                  ("data", fc::mutable_variant_object()
-                   ("params", params)
-                  )
-                  })
-         );
-      abi_serializer::from_variant(pretty_trx, trx, get_resolver(), abi_serializer::create_yield_function(abi_serializer_max_time));
-   }
+//    auto params = control->get_global_properties().kv_configuration;
+//    transaction trx;
+//    {
+//       auto pretty_trx = fc::mutable_variant_object()
+//          ("expiration", "2020-01-01T00:30")
+//          ("ref_block_num", 2)
+//          ("ref_block_prefix", 3)
+//          ("net_usage_words", 0)
+//          ("max_cpu_usage_ms", 0)
+//          ("delay_sec", 0)
+//          ("actions", fc::variants({
+//                fc::mutable_variant_object()
+//                   ("account", name(config::system_account_name))
+//                   ("name", "setkvparams")
+//                   ("authorization", vector<permission_level>{ { config::system_account_name, config::active_name } })
+//                   ("data", fc::mutable_variant_object()
+//                    ("params", params)
+//                   )
+//                   })
+//          );
+//       abi_serializer::from_variant(pretty_trx, trx, get_resolver(), abi_serializer::create_yield_function(abi_serializer_max_time));
+//    }
 
-   BOOST_REQUIRE_EQUAL(success(), push_action_msig( "alice1111111"_n, "propose"_n, mvo()
-                                                    ("proposer",      "alice1111111")
-                                                    ("proposal_name", "setkvparams1")
-                                                    ("trx",           trx)
-                                                    ("requested", prod_perms)
-                       )
-   );
+//    BOOST_REQUIRE_EQUAL(success(), push_action_msig( "alice1111111"_n, "propose"_n, mvo()
+//                                                     ("proposer",      "alice1111111")
+//                                                     ("proposal_name", "setkvparams1")
+//                                                     ("trx",           trx)
+//                                                     ("requested", prod_perms)
+//                        )
+//    );
 
-   // get 16 approvals
-   for ( size_t i = 0; i < 15; ++i ) {
-      BOOST_REQUIRE_EQUAL(success(), push_action_msig( name(producer_names[i]), "approve"_n, mvo()
-                                                       ("proposer",      "alice1111111")
-                                                       ("proposal_name", "setkvparams1")
-                                                       ("level",         permission_level{ name(producer_names[i]), config::active_name })
-                          )
-      );
-   }
+//    // get 16 approvals
+//    for ( size_t i = 0; i < 15; ++i ) {
+//       BOOST_REQUIRE_EQUAL(success(), push_action_msig( name(producer_names[i]), "approve"_n, mvo()
+//                                                        ("proposer",      "alice1111111")
+//                                                        ("proposal_name", "setkvparams1")
+//                                                        ("level",         permission_level{ name(producer_names[i]), config::active_name })
+//                           )
+//       );
+//    }
 
-   transaction_trace_ptr trace;
-   control->applied_transaction.connect(
-   [&]( std::tuple<const transaction_trace_ptr&, const packed_transaction_ptr&> p ) {
-      const auto& t = std::get<0>(p);
-      if( t->scheduled ) { trace = t; }
-   } );
+//    transaction_trace_ptr trace;
+//    control->applied_transaction.connect(
+//    [&]( std::tuple<const transaction_trace_ptr&, const packed_transaction_ptr&> p ) {
+//       const auto& t = std::get<0>(p);
+//       if( t->scheduled ) { trace = t; }
+//    } );
 
-   // intensionally set executer to be bob111111111 to trigger
-   // authrization failure
-   BOOST_REQUIRE_EQUAL(error("missing authority of bob111111111"), push_action_msig( "alice1111111"_n, "exec"_n, mvo()
-                                                    ("proposer",      "alice1111111")
-                                                    ("proposal_name", "setkvparams1")
-                                                    ("executer",      "bob111111111")
-                       )
-   );
-} FC_LOG_AND_RETHROW()
+//    // intensionally set executer to be bob111111111 to trigger
+//    // authrization failure
+//    BOOST_REQUIRE_EQUAL(error("missing authority of bob111111111"), push_action_msig( "alice1111111"_n, "exec"_n, mvo()
+//                                                     ("proposer",      "alice1111111")
+//                                                     ("proposal_name", "setkvparams1")
+//                                                     ("executer",      "bob111111111")
+//                        )
+//    );
+// } FC_LOG_AND_RETHROW()
 
 BOOST_FIXTURE_TEST_CASE( setram_effect, eosio_system_tester ) try {
 
@@ -5727,39 +5581,39 @@ BOOST_FIXTURE_TEST_CASE( rex_return, eosio_system_tester ) try {
 } FC_LOG_AND_RETHROW()
 
 
-BOOST_AUTO_TEST_CASE( setabi_bios ) try {
-   fc::temp_directory tempdir;
-   validating_tester t( tempdir, true );
-   t.execute_setup_policy( setup_policy::full );
+// BOOST_AUTO_TEST_CASE( setabi_bios ) try {
+//    fc::temp_directory tempdir;
+//    validating_tester t( tempdir, true );
+//    t.execute_setup_policy( setup_policy::full );
 
-   abi_serializer abi_ser(fc::json::from_string( (const char*)contracts::bios_abi().data()).template as<abi_def>(), abi_serializer::create_yield_function(base_tester::abi_serializer_max_time));
-   t.set_code( config::system_account_name, contracts::bios_wasm() );
-   t.set_abi( config::system_account_name, contracts::bios_abi().data() );
-   t.create_account("eosio.token"_n);
-   t.set_abi( "eosio.token"_n, contracts::token_abi().data() );
-   {
-      auto res = t.get_row_by_account( config::system_account_name, config::system_account_name, "abihash"_n, "eosio.token"_n );
-      _abi_hash abi_hash;
-      auto abi_hash_var = abi_ser.binary_to_variant( "abi_hash", res, abi_serializer::create_yield_function(base_tester::abi_serializer_max_time) );
-      abi_serializer::from_variant( abi_hash_var, abi_hash, t.get_resolver(), abi_serializer::create_yield_function(base_tester::abi_serializer_max_time));
-      auto abi = fc::raw::pack(fc::json::from_string( (const char*)contracts::token_abi().data()).template as<abi_def>());
-      auto result = fc::sha256::hash( (const char*)abi.data(), abi.size() );
+//    abi_serializer abi_ser(fc::json::from_string( (const char*)contracts::bios_abi().data()).template as<abi_def>(), abi_serializer::create_yield_function(base_tester::abi_serializer_max_time));
+//    t.set_code( config::system_account_name, contracts::bios_wasm() );
+//    t.set_abi( config::system_account_name, contracts::bios_abi().data() );
+//    t.create_account("eosio.token"_n);
+//    t.set_abi( "eosio.token"_n, contracts::token_abi().data() );
+//    {
+//       auto res = t.get_row_by_account( config::system_account_name, config::system_account_name, "abihash"_n, "eosio.token"_n );
+//       _abi_hash abi_hash;
+//       auto abi_hash_var = abi_ser.binary_to_variant( "abi_hash", res, abi_serializer::create_yield_function(base_tester::abi_serializer_max_time) );
+//       abi_serializer::from_variant( abi_hash_var, abi_hash, t.get_resolver(), abi_serializer::create_yield_function(base_tester::abi_serializer_max_time));
+//       auto abi = fc::raw::pack(fc::json::from_string( (const char*)contracts::token_abi().data()).template as<abi_def>());
+//       auto result = fc::sha256::hash( (const char*)abi.data(), abi.size() );
 
-      BOOST_REQUIRE( abi_hash.hash == result );
-   }
+//       BOOST_REQUIRE( abi_hash.hash == result );
+//    }
 
-   t.set_abi( "eosio.token"_n, contracts::system_abi().data() );
-   {
-      auto res = t.get_row_by_account( config::system_account_name, config::system_account_name, "abihash"_n, "eosio.token"_n );
-      _abi_hash abi_hash;
-      auto abi_hash_var = abi_ser.binary_to_variant( "abi_hash", res, abi_serializer::create_yield_function(base_tester::abi_serializer_max_time) );
-      abi_serializer::from_variant( abi_hash_var, abi_hash, t.get_resolver(), abi_serializer::create_yield_function(base_tester::abi_serializer_max_time));
-      auto abi = fc::raw::pack(fc::json::from_string( (const char*)contracts::system_abi().data()).template as<abi_def>());
-      auto result = fc::sha256::hash( (const char*)abi.data(), abi.size() );
+//    t.set_abi( "eosio.token"_n, contracts::system_abi().data() );
+//    {
+//       auto res = t.get_row_by_account( config::system_account_name, config::system_account_name, "abihash"_n, "eosio.token"_n );
+//       _abi_hash abi_hash;
+//       auto abi_hash_var = abi_ser.binary_to_variant( "abi_hash", res, abi_serializer::create_yield_function(base_tester::abi_serializer_max_time) );
+//       abi_serializer::from_variant( abi_hash_var, abi_hash, t.get_resolver(), abi_serializer::create_yield_function(base_tester::abi_serializer_max_time));
+//       auto abi = fc::raw::pack(fc::json::from_string( (const char*)contracts::system_abi().data()).template as<abi_def>());
+//       auto result = fc::sha256::hash( (const char*)abi.data(), abi.size() );
 
-      BOOST_REQUIRE( abi_hash.hash == result );
-   }
-} FC_LOG_AND_RETHROW()
+//       BOOST_REQUIRE( abi_hash.hash == result );
+//    }
+// } FC_LOG_AND_RETHROW()
 
 BOOST_FIXTURE_TEST_CASE( setabi, eosio_system_tester ) try {
    set_abi( "eosio.token"_n, contracts::token_abi().data() );

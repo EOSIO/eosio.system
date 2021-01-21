@@ -5,8 +5,8 @@ if(${BUILD_TESTS_PINNED})
 	include(${EOSIO_DIR_PROMPT}/pinned_toolchain.cmake)
 endif()
 
-set(EOSIO_VERSION_MIN "2.0")
-set(EOSIO_VERSION_SOFT_MAX "2.0")
+set(EOSIO_VERSION_MIN "2.1")
+set(EOSIO_VERSION_SOFT_MAX "2.1")
 #set(EOSIO_VERSION_HARD_MAX "")
 
 
