@@ -31,50 +31,6 @@
 *.out
 *.app
 
-<<<<<<< HEAD
-*.a
-*.sw*
-*.ll
-*.bc
-*.wast
-*.wast.hpp
-*.s
-*.dot
-*.abi.hpp
-*.cmake
-!.cicd
-!CMakeModules/*.cmake
-!CMakeModules/*.txt
-*.ninja
-\#*
-\.#*
-CMakeCache.txt
-CMakeFiles
-doxygen
-eos.doxygen
-
-wallet.json
-*.wallet
-build/*
-
-.vscode
-.idea/
-*.iws
-.DS_Store
-!*.swagger.*
-
-# from eosjs
-dist/
-dist-web/
-node_modules/
-docs-build/
-*.tgz
-
-#cypress artifacts
-cypress/screenshots/
-cypress/videos/
-=======
 build/*
 .DS_Store
 .vscode/*
->>>>>>> 6a25bee658d8be875a6416aee2f5cdcd40acc17a

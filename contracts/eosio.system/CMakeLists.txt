@@ -1,3 +1,25 @@
+include(ExternalProject)
+
+find_package(Git REQUIRED)
+
+message(${CMAKE_CURRENT_BINARY_DIR}/eosio.token)
+
+set(EOSIO_TOKEN_PREFIX "${CMAKE_CURRENT_BINARY_DIR}/eosio.token")
+
+# pull down seperate eosio.token contract
+ExternalProject_Add(
+   eosio.token
+   PREFIX ${EOSIO_TOKEN_PREFIX}
+   GIT_REPOSITORY git@github.com:EOSIO/eosio.token.git
+   TIMEOUT 10
+   UPDATE_COMMAND ${GIT_EXECUTABLE} pull
+   GIT_TAG develop
+   CONFIGURE_COMMAND ""
+   BUILD_COMMAND ""
+   INSTALL_COMMAND ""
+   LOG_DOWNLOAD ON
+)
+
 add_contract(eosio.system eosio.system
    ${CMAKE_CURRENT_SOURCE_DIR}/src/eosio.system.cpp
    ${CMAKE_CURRENT_SOURCE_DIR}/src/delegate_bandwidth.cpp
@@ -12,6 +34,7 @@ add_contract(eosio.system eosio.system
 target_include_directories(eosio.system
    PUBLIC
    ${CMAKE_CURRENT_SOURCE_DIR}/include
+   ${EOSIO_TOKEN_PREFIX}/src/eosio.token/contracts/eosio.token/include
    ${CMAKE_CURRENT_SOURCE_DIR}/../eosio.token/include)
 
 set_target_properties(eosio.system
