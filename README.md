@@ -9,12 +9,14 @@ This repository contains examples of these privileged contracts that are useful 
    * [eosio.system](./contracts/eosio.system)
 
 Dependencies:
-* [eosio.cdt v1.7.x](https://github.com/EOSIO/eosio.cdt/releases/tag/v1.7.0)
+* [eosio.cdt v1.8.x](https://github.com/EOSIO/eosio.cdt/releases/tag/v1.8.0-rc1)
 * [eosio v2.1.x](https://github.com/EOSIO/eos/releases/tag/v2.1.0-rc2) (optional dependency only needed to build unit tests)
 
 ## Build
 
 To build the contracts follow the instructions in [Build and deploy](https://developers.eos.io/manuals/eosio.contracts/latest/build-and-deploy) section.
+
+**NOTE** This contract pulls down and builds the [eosio.token](https://github.com/eosio/eosio.token) contract as certain token actions are a requirement for some of the systems.
 
 ## Contributing
 
