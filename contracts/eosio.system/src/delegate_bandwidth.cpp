@@ -64,7 +64,7 @@ namespace eosiosystem {
       if ( fee.amount > 0 ) {
          token::transfer_action transfer_act{ token_account, { {payer, active_permission} } };
          transfer_act.send( payer, ramfee_account, fee, "ram fee" );
-         channel_to_rex( ramfee_account, fee );
+         channel_to_rex_or_pools( ramfee_account, fee, false );
       }
 
       int64_t bytes_out;
@@ -154,7 +154,7 @@ namespace eosiosystem {
       if ( fee > 0 ) {
          token::transfer_action transfer_act{ token_account, { {account, active_permission} } };
          transfer_act.send( account, ramfee_account, asset(fee, core_symbol()), "sell ram fee" );
-         channel_to_rex( ramfee_account, asset(fee, core_symbol() ));
+         channel_to_rex_or_pools( ramfee_account, asset(fee, core_symbol()), false );
       }
    }
 
@@ -389,8 +389,9 @@ namespace eosiosystem {
       check( unstake_cpu_quantity >= zero_asset, "must unstake a positive amount" );
       check( unstake_net_quantity >= zero_asset, "must unstake a positive amount" );
       check( unstake_cpu_quantity.amount + unstake_net_quantity.amount > 0, "must unstake a positive amount" );
-      check( _gstate.thresh_activated_stake_time != time_point(),
-             "cannot undelegate bandwidth until the chain is activated (at least 15% of all tokens participate in voting)" );
+      // activation has been disabled
+      // check( _gstate.thresh_activated_stake_time != time_point(),
+      //        "cannot undelegate bandwidth until the chain is activated (at least 15% of all tokens participate in voting)" );
 
       changebw( from, receiver, -unstake_net_quantity, -unstake_cpu_quantity, false);
    } // undelegatebw
