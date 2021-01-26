@@ -439,8 +439,8 @@ namespace eosiosystem {
       });
 
       eosio::token::transfer_action transfer_act{ token_account, { owner, active_permission } };
-      transfer_act.send(owner, vpool_account, amount,
-                        std::string("transfer from ") + owner.to_string() + " to eosio.vpool");
+      transfer_act.send(owner, srpool_account, amount,
+                        std::string("transfer from ") + owner.to_string() + " to " + srpool_account.to_string());
 
       update_pool_votes(state, owner, voter.proxy, voter.producers, false);
    }
@@ -486,8 +486,8 @@ namespace eosiosystem {
       eosio::check(pool.token_pool.bal().amount >= 0, "pool amount is negative");
 
       if (claimed_amount.amount) {
-         eosio::token::transfer_action transfer_act{ token_account, { vpool_account, active_permission } };
-         transfer_act.send(vpool_account, owner, claimed_amount,
+         eosio::token::transfer_action transfer_act{ token_account, { srpool_account, active_permission } };
+         transfer_act.send(srpool_account, owner, claimed_amount,
                            std::string("transfer from eosio.vpool to ") + owner.to_string());
       }
 
@@ -599,7 +599,7 @@ namespace eosiosystem {
       update_pool_proxy(state, voter);
    }
 
-   void system_contract::onblock_update_vpool(block_timestamp production_time) {
+   void system_contract::onblock_update_pool(block_timestamp production_time) {
       if (!get_staking_pool_state_singleton().exists())
          return;
       staking_pool_state_autosave state{ *this };
@@ -631,7 +631,7 @@ namespace eosiosystem {
          to_pools = amount;
       if (to_pools.amount) {
          eosio::token::transfer_action transfer_act{ token_account, { from, active_permission } };
-         transfer_act.send(from, vpool_account, to_pools,
+         transfer_act.send(from, srpool_account, to_pools,
                            std::string("transfer from ") + from.to_string() + " to eosio.vpool");
          uint64_t distributed = 0;
          for (size_t i = 0; i < active_pools.size(); ++i) {
@@ -742,7 +742,7 @@ namespace eosiosystem {
          }
          if (total_voter_pay > 0) {
             eosio::token::transfer_action transfer_act{ token_account, { get_self(), active_permission } };
-            transfer_act.send(get_self(), vpool_account, eosio::asset{ total_voter_pay, core_symbol() },
+            transfer_act.send(get_self(), srpool_account, eosio::asset{ total_voter_pay, core_symbol() },
                               "fund voter pay");
          }
       }
