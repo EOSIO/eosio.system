@@ -17,7 +17,7 @@ namespace eosiosystem {
             state.emplace();
             state->interval_start.slot = (eosio::current_block_time().slot / blocks_per_round) * blocks_per_round;
          } else {
-            eosio::check(get_staking_pool_state_singleton().exists(), "vote pools not configured");
+            eosio::check(get_staking_pool_state_singleton().exists(), "staking pools not configured");
             state = get_staking_pool_state_singleton().get();
          }
       }
@@ -365,7 +365,7 @@ namespace eosiosystem {
    double system_contract::calc_votes(const std::vector<double>& pool_votes) {
       auto&  pools  = get_staking_pool_state().pools;
       double result = 0;
-      eosio::check(pool_votes.size() == pools.size(), "vote pool corruption");
+      eosio::check(pool_votes.size() == pools.size(), "staking pool corruption");
       for (size_t i = 0; i < pools.size(); ++i)
          result += pools[i].token_pool.simulate_sell(pool_votes[i]).amount * pools[i].vote_weight;
       return result;
