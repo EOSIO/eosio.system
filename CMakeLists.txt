@@ -17,6 +17,24 @@ include(ExternalProject)
 
 find_package(eosio.cdt)
 
+find_package(Git REQUIRED)
+
+set(EOSIO_TOKEN_PREFIX "${CMAKE_CURRENT_BINARY_DIR}/eosio.token")
+
+# pull down seperate eosio.token contract
+ExternalProject_Add(
+   eosio.token
+   PREFIX ${EOSIO_TOKEN_PREFIX}
+   GIT_REPOSITORY git@github.com:EOSIO/eosio.token.git
+   TIMEOUT 10
+   UPDATE_COMMAND ${GIT_EXECUTABLE} pull
+   GIT_TAG develop
+   # CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${EOSIO_TOKEN_PREFIX}
+   INSTALL_COMMAND ""
+   LOG_DOWNLOAD ON
+   BUILD_BYPRODUCTS ${EOSIO_TOKEN_PREFIX}/src/eosio.token-build/contracts/eosio.token/eosio.token.wasm
+)
+
 message(STATUS "Building eosio.system v${VERSION_FULL}")
 
 set(EOSIO_CDT_VERSION_MIN "1.8")
@@ -55,6 +73,7 @@ ExternalProject_Add(
    TEST_COMMAND ""
    INSTALL_COMMAND ""
    BUILD_ALWAYS 1
+   DEPENDS eosio.token
 )
 
 if (APPLE)
