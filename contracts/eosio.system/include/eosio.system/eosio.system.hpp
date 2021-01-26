@@ -672,7 +672,7 @@ namespace eosiosystem {
          static constexpr eosio::name saving_account{"eosio.saving"_n};
          static constexpr eosio::name rex_account{"eosio.rex"_n};
          static constexpr eosio::name reserv_account{"eosio.reserv"_n};
-         static constexpr eosio::name vpool_account{"eosio.srpool"_n};
+         static constexpr eosio::name srpool_account{"eosio.srpool"_n};
          static constexpr eosio::name bpspay_account{"eosio.bpspay"_n};
          static constexpr eosio::name null_account{"eosio.null"_n};
          static constexpr eosio::name transferstake_notif{"eosio.tstake"_n};
