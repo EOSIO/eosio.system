@@ -111,8 +111,8 @@ namespace eosiosystem {
       top_producers.reserve(21);
 
       std::vector<name> pool_producers;
-      if( get_vote_pool_state_singleton().exists() ) {
-         auto& state = get_vote_pool_state();
+      if( get_staking_pool_state_singleton().exists() ) {
+         auto& state = get_staking_pool_state();
          int   n     = state.transition(block_time, uint128_t(21));
          if( n >= 1 ) {
             auto top = top_active_producers(n);

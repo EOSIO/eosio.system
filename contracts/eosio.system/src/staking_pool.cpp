@@ -3,37 +3,37 @@
 
 namespace eosiosystem {
 
-   vote_pool_state_singleton& system_contract::get_vote_pool_state_singleton() {
-      static std::optional<vote_pool_state_singleton> sing;
+   staking_pool_state_singleton& system_contract::get_staking_pool_state_singleton() {
+      static std::optional<staking_pool_state_singleton> sing;
       if (!sing)
          sing.emplace(get_self(), get_self().value);
       return *sing;
    }
 
-   vote_pool_state& system_contract::get_vote_pool_state_mutable(bool init_if_not_exist) {
-      static std::optional<vote_pool_state> state;
+   staking_pool_state& system_contract::get_staking_pool_state_mutable(bool init_if_not_exist) {
+      static std::optional<staking_pool_state> state;
       if (!state) {
-         if (init_if_not_exist && !get_vote_pool_state_singleton().exists()) {
+         if (init_if_not_exist && !get_staking_pool_state_singleton().exists()) {
             state.emplace();
             state->interval_start.slot = (eosio::current_block_time().slot / blocks_per_round) * blocks_per_round;
          } else {
-            eosio::check(get_vote_pool_state_singleton().exists(), "vote pools not configured");
-            state = get_vote_pool_state_singleton().get();
+            eosio::check(get_staking_pool_state_singleton().exists(), "vote pools not configured");
+            state = get_staking_pool_state_singleton().get();
          }
       }
       return *state;
    }
 
-   const vote_pool_state& system_contract::get_vote_pool_state() { return get_vote_pool_state_mutable(); }
+   const staking_pool_state& system_contract::get_staking_pool_state() { return get_staking_pool_state_mutable(); }
 
-   void system_contract::save_vote_pool_state() {
-      get_vote_pool_state_singleton().set(get_vote_pool_state_mutable(), get_self());
+   void system_contract::save_staking_pool_state() {
+      get_staking_pool_state_singleton().set(get_staking_pool_state_mutable(), get_self());
    }
 
    double system_contract::claimrewards_transition(block_timestamp time) {
-      if (!get_vote_pool_state_singleton().exists())
+      if (!get_staking_pool_state_singleton().exists())
          return 1.0;
-      return 1.0 - get_vote_pool_state().transition(time, 1.0);
+      return 1.0 - get_staking_pool_state().transition(time, 1.0);
    }
 
    total_pool_votes_table& system_contract::get_total_pool_votes_table() {
@@ -54,8 +54,8 @@ namespace eosiosystem {
                                   const std::optional<double>&                 max_vote_ratio,   //
                                   const std::optional<asset>&                  min_transfer_create) {
       require_auth(get_self());
-      bool                     is_first_time = !get_vote_pool_state_singleton().exists();
-      vote_pool_state_autosave state{ *this, true };
+      bool                     is_first_time = !get_staking_pool_state_singleton().exists();
+      staking_pool_state_autosave state{ *this, true };
 
       if (is_first_time) {
          eosio::check(durations.has_value(), "durations is required on first use of cfgvpool");
@@ -149,7 +149,7 @@ namespace eosiosystem {
    }
 
    void system_contract::enable_prod_pool_votes(producer_info& info) {
-      if (!get_vote_pool_state_singleton().exists())
+      if (!get_staking_pool_state_singleton().exists())
          return;
 
       auto& total_table = get_total_pool_votes_table();
@@ -161,7 +161,7 @@ namespace eosiosystem {
       info.pool_votes.emplace();
       info.pool_votes.value().emplace();
       auto& v = info.pool_votes.value().value();
-      v.resize(get_vote_pool_state().pools.size());
+      v.resize(get_staking_pool_state().pools.size());
 
       total_table.emplace(info.owner, [&](auto& tot) {
          tot.owner    = info.owner;
@@ -191,7 +191,7 @@ namespace eosiosystem {
    const pool_voter& system_contract::create_pool_voter(name voter_name) {
       auto& pool_voter_table = get_pool_voter_table();
       return *pool_voter_table.emplace(get_self(), [&](auto& voter) {
-         auto size   = get_vote_pool_state().pools.size();
+         auto size   = get_staking_pool_state().pools.size();
          voter.owner = voter_name;
          voter.next_claim.resize(size);
          voter.owned_shares.resize(size);
@@ -222,7 +222,7 @@ namespace eosiosystem {
          proxy.proxied_shares[i] -= deltas[i];
    }
 
-   void system_contract::add_pool_votes(vote_pool_state_autosave& state, producer_info& prod,
+   void system_contract::add_pool_votes(staking_pool_state_autosave& state, producer_info& prod,
                                         const std::vector<double>& deltas) {
       auto* votes = get_prod_pool_votes(prod);
       if (!votes || votes->size() != deltas.size())
@@ -233,7 +233,7 @@ namespace eosiosystem {
       }
    }
 
-   void system_contract::sub_pool_votes(vote_pool_state_autosave& state, producer_info& prod,
+   void system_contract::sub_pool_votes(staking_pool_state_autosave& state, producer_info& prod,
                                         const std::vector<double>& deltas, const char* error) {
       auto* votes = get_prod_pool_votes(prod);
       eosio::check(votes && votes->size() == deltas.size(), error);
@@ -243,7 +243,7 @@ namespace eosiosystem {
       }
    }
 
-   void system_contract::update_pool_votes(vote_pool_state_autosave& state, const name& voter_name, const name& proxy,
+   void system_contract::update_pool_votes(staking_pool_state_autosave& state, const name& voter_name, const name& proxy,
                                            const std::vector<name>& producers, bool voting) {
       if (proxy) {
          eosio::check(producers.size() == 0, "cannot vote for producers and proxy at same time");
@@ -320,7 +320,7 @@ namespace eosiosystem {
       });
    } // system_contract::update_pool_votes
 
-   void system_contract::update_pool_proxy(vote_pool_state_autosave& state, const pool_voter& voter) {
+   void system_contract::update_pool_proxy(staking_pool_state_autosave& state, const pool_voter& voter) {
       check(!voter.proxy || !voter.is_proxy, "account registered as a proxy is not allowed to use a proxy");
 
       auto&               pool_voter_table = get_pool_voter_table();
@@ -363,7 +363,7 @@ namespace eosiosystem {
    }
 
    double system_contract::calc_votes(const std::vector<double>& pool_votes) {
-      auto&  pools  = get_vote_pool_state().pools;
+      auto&  pools  = get_staking_pool_state().pools;
       double result = 0;
       eosio::check(pool_votes.size() == pools.size(), "vote pool corruption");
       for (size_t i = 0; i < pools.size(); ++i)
@@ -380,7 +380,7 @@ namespace eosiosystem {
          });
    }
 
-   void system_contract::deposit_pool(vote_pool& pool, double& owned_shares, block_timestamp& next_claim,
+   void system_contract::deposit_pool(staking_pool& pool, double& owned_shares, block_timestamp& next_claim,
                                       asset new_amount) {
       auto                   current_time = eosio::current_block_time();
       eosio::block_timestamp max_next_claim{ current_time.slot + pool.claim_period * 2 };
@@ -398,7 +398,7 @@ namespace eosiosystem {
       next_claim = new_next_claim;
    }
 
-   asset system_contract::withdraw_pool(vote_pool& pool, double& owned_shares, asset max_requested, bool claiming) {
+   asset system_contract::withdraw_pool(staking_pool& pool, double& owned_shares, asset max_requested, bool claiming) {
       auto balance = pool.token_pool.simulate_sell(owned_shares);
 
       if (!claiming && max_requested >= balance) {
@@ -424,7 +424,7 @@ namespace eosiosystem {
    void system_contract::stake2pool(name owner, uint32_t pool_index, asset amount) {
       require_auth(owner);
 
-      vote_pool_state_autosave state{ *this };
+      staking_pool_state_autosave state{ *this };
       auto                     core_symbol = get_core_symbol();
 
       eosio::check(pool_index < state->pools.size(), "invalid pool");
@@ -448,7 +448,7 @@ namespace eosiosystem {
    void system_contract::setpoolnotif(name owner, std::optional<Bool> xfer_out_notif,
                                       std::optional<Bool> xfer_in_notif) {
       require_auth(owner);
-      get_vote_pool_state();
+      get_staking_pool_state();
       auto& pool_voter_table = get_pool_voter_table();
       auto& voter            = get_or_create_pool_voter(owner);
       pool_voter_table.modify(voter, same_payer, [&](auto& voter) {
@@ -462,7 +462,7 @@ namespace eosiosystem {
    void system_contract::claimstake(name owner, uint32_t pool_index, asset requested) {
       require_auth(owner);
 
-      vote_pool_state_autosave state{ *this };
+      staking_pool_state_autosave state{ *this };
       auto                     core_symbol      = get_core_symbol();
       auto                     current_time     = eosio::current_block_time();
       auto&                    pool_voter_table = get_pool_voter_table();
@@ -501,7 +501,7 @@ namespace eosiosystem {
       eosio::check(from != to, "from = to");
       eosio::check(eosio::is_account(to), "invalid account");
 
-      vote_pool_state_autosave state{ *this };
+      staking_pool_state_autosave state{ *this };
       auto                     core_symbol = get_core_symbol();
 
       eosio::check(pool_index < state->pools.size(), "invalid pool");
@@ -557,7 +557,7 @@ namespace eosiosystem {
    void system_contract::upgradestake(name owner, uint32_t from_pool_index, uint32_t to_pool_index, asset requested) {
       require_auth(owner);
 
-      vote_pool_state_autosave state{ *this };
+      staking_pool_state_autosave state{ *this };
       auto                     core_symbol = get_core_symbol();
 
       eosio::check(from_pool_index < state->pools.size(), "invalid pool");
@@ -585,13 +585,13 @@ namespace eosiosystem {
 
    void system_contract::votewithpool(const name& voter, const name& proxy, const std::vector<name>& producers) {
       require_auth(voter);
-      vote_pool_state_autosave state{ *this };
+      staking_pool_state_autosave state{ *this };
       update_pool_votes(state, voter, proxy, producers, true);
    }
 
    void system_contract::regpoolproxy(const name& proxy, bool isproxy) {
       require_auth(proxy);
-      vote_pool_state_autosave state{ *this };
+      staking_pool_state_autosave state{ *this };
       auto&                    pool_voter_table = get_pool_voter_table();
       auto&                    voter            = get_or_create_pool_voter(proxy);
       check(!isproxy || !voter.proxy, "account that uses a proxy is not allowed to become a proxy");
@@ -600,9 +600,9 @@ namespace eosiosystem {
    }
 
    void system_contract::onblock_update_vpool(block_timestamp production_time) {
-      if (!get_vote_pool_state_singleton().exists())
+      if (!get_staking_pool_state_singleton().exists())
          return;
-      vote_pool_state_autosave state{ *this };
+      staking_pool_state_autosave state{ *this };
       if (production_time.slot >= state->interval_start.slot + blocks_per_round) {
          state->unpaid_blocks       = state->blocks;
          state->blocks              = 0;
@@ -613,10 +613,10 @@ namespace eosiosystem {
 
    asset system_contract::transition_channel_to_pools(const name& from, const asset& amount, bool partial) {
       eosio::check(amount.symbol == core_symbol(), "incorrect symbol");
-      if (!get_vote_pool_state_singleton().exists())
+      if (!get_staking_pool_state_singleton().exists())
          return amount;
-      vote_pool_state_autosave state{ *this };
-      std::vector<vote_pool*>  active_pools;
+      staking_pool_state_autosave state{ *this };
+      std::vector<staking_pool*>  active_pools;
       active_pools.reserve(state->pools.size());
       for (auto& pool : state->pools)
          if (pool.token_pool.shares())
@@ -655,10 +655,10 @@ namespace eosiosystem {
    }
 
    void system_contract::channel_namebid_to_rex_or_pools(int64_t highest_bid) {
-      if (!get_vote_pool_state_singleton().exists())
+      if (!get_staking_pool_state_singleton().exists())
          return channel_namebid_to_rex(highest_bid);
 
-      vote_pool_state_autosave state{ *this };
+      staking_pool_state_autosave state{ *this };
       bool                     found = false;
       for (auto& pool : state->pools)
          if (pool.token_pool.shares())
@@ -673,7 +673,7 @@ namespace eosiosystem {
          channel_namebid_to_rex(to_rex);
    }
 
-   void system_contract::distribute_namebid_to_pools(vote_pool_state_autosave& state) {
+   void system_contract::distribute_namebid_to_pools(staking_pool_state_autosave& state) {
       if (state->namebid_proceeds.amount > 0)
          state->namebid_proceeds = transition_channel_to_pools(names_account, state->namebid_proceeds, false);
    }
@@ -691,7 +691,7 @@ namespace eosiosystem {
 
    void system_contract::updatepay(name user) {
       require_auth(user);
-      vote_pool_state_autosave state{ *this };
+      staking_pool_state_autosave state{ *this };
       auto&                    total_table = get_total_pool_votes_table();
       eosio::check(state->unpaid_blocks > 0, "already processed pay for this time interval");
 
@@ -737,7 +737,7 @@ namespace eosiosystem {
          }
          if (total_prod_pay > 0) {
             eosio::token::transfer_action transfer_act{ token_account, { get_self(), active_permission } };
-            transfer_act.send(get_self(), bvpay_account, eosio::asset{ total_prod_pay, core_symbol() },
+            transfer_act.send(get_self(), bpspay_account, eosio::asset{ total_prod_pay, core_symbol() },
                               "fund producer pay");
          }
          if (total_voter_pay > 0) {
@@ -756,8 +756,8 @@ namespace eosiosystem {
       auto& prod        = total_table.get(producer.value, "unknown producer");
       total_table.modify(prod, same_payer, [&](auto& prod) {
          eosio::check(prod.vote_pay.amount > 0, "no pay available");
-         eosio::token::transfer_action transfer_act{ token_account, { bvpay_account, active_permission } };
-         transfer_act.send(bvpay_account, producer, prod.vote_pay, "producer pay");
+         eosio::token::transfer_action transfer_act{ token_account, { bpspay_account, active_permission } };
+         transfer_act.send(bpspay_account, producer, prod.vote_pay, "producer pay");
          prod.vote_pay.amount = 0;
       });
    }

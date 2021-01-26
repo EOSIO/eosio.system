@@ -65,16 +65,16 @@ namespace eosiosystem {
       EOSLIB_SERIALIZE(pool, (balance)(total_shares))
    };
 
-   struct vote_pool {
+   struct staking_pool {
       uint32_t          duration;     // duration, seconds
       uint32_t          claim_period; // how often owners may claim, seconds
       double            vote_weight;  // voting power. if vote_weight == 1, then 1.0000 SYS in pool has 1.0 votes.
       eosiosystem::pool token_pool;   // token tracking
 
-      EOSLIB_SERIALIZE(vote_pool, (duration)(claim_period)(vote_weight)(token_pool))
+      EOSLIB_SERIALIZE(staking_pool, (duration)(claim_period)(vote_weight)(token_pool))
    };
 
-   struct [[eosio::table("vpoolstate"), eosio::contract("eosio.system")]] vote_pool_state {
+   struct [[eosio::table("poolstate"), eosio::contract("eosio.system")]] staking_pool_state {
       eosio::block_timestamp begin_transition; // Beginning of transition
       eosio::block_timestamp end_transition;   // End of transition
       double  prod_rate      = 0;   // Inflation rate (compounded each round) allocated to producer pay (0.01 = 1%)
@@ -84,7 +84,7 @@ namespace eosiosystem {
       asset   min_transfer_create;  // transferstake will automatically create to's pool_voter record if
                                     // requested amount is at least min_transfer_create. Defaults to 1.0000
 
-      std::vector<vote_pool> pools;
+      std::vector<staking_pool> pools;
       eosio::block_timestamp interval_start;    // Beginning of current block production interval (1 round)
       uint32_t               blocks        = 0; // Blocks produced in current interval
       uint32_t               unpaid_blocks = 0; // Blocks produced in previous interval
@@ -100,12 +100,12 @@ namespace eosiosystem {
          return val * (time.slot - begin_transition.slot) / (end_transition.slot - begin_transition.slot);
       }
 
-      EOSLIB_SERIALIZE(vote_pool_state, (begin_transition)(end_transition)(prod_rate)(voter_rate)(max_num_pay)(
+      EOSLIB_SERIALIZE(staking_pool_state, (begin_transition)(end_transition)(prod_rate)(voter_rate)(max_num_pay)(
                                               max_vote_ratio)(min_transfer_create)(pools)(interval_start)(blocks)(
                                               unpaid_blocks)(total_votes)(namebid_proceeds))
    };
 
-   typedef eosio::singleton<"vpoolstate"_n, vote_pool_state> vote_pool_state_singleton;
+   typedef eosio::singleton<"poolstate"_n, staking_pool_state> staking_pool_state_singleton;
 
    struct [[eosio::table, eosio::contract("eosio.system")]] pool_voter {
       name                                owner;
