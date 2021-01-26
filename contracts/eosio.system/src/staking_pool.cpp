@@ -43,7 +43,7 @@ namespace eosiosystem {
       return *table;
    }
 
-   void system_contract::cfgvpool(const std::optional<std::vector<uint32_t>>&  durations,        //
+   void system_contract::cfgsrpool(const std::optional<std::vector<uint32_t>>&  durations,        //
                                   const std::optional<std::vector<uint32_t>>&  claim_periods,    //
                                   const std::optional<std::vector<double>>&    vote_weights,     //
                                   const std::optional<eosio::block_timestamp>& begin_transition, //
@@ -58,11 +58,11 @@ namespace eosiosystem {
       staking_pool_state_autosave state{ *this, true };
 
       if (is_first_time) {
-         eosio::check(durations.has_value(), "durations is required on first use of cfgvpool");
-         eosio::check(claim_periods.has_value(), "claim_periods is required on first use of cfgvpool");
-         eosio::check(vote_weights.has_value(), "vote_weights is required on first use of cfgvpool");
-         eosio::check(begin_transition.has_value(), "begin_transition is required on first use of cfgvpool");
-         eosio::check(end_transition.has_value(), "end_transition is required on first use of cfgvpool");
+         eosio::check(durations.has_value(), "durations is required on first use of cfgsrpool");
+         eosio::check(claim_periods.has_value(), "claim_periods is required on first use of cfgsrpool");
+         eosio::check(vote_weights.has_value(), "vote_weights is required on first use of cfgsrpool");
+         eosio::check(begin_transition.has_value(), "begin_transition is required on first use of cfgsrpool");
+         eosio::check(end_transition.has_value(), "end_transition is required on first use of cfgsrpool");
          eosio::check(!durations->empty(), "durations is empty");
          eosio::check(claim_periods->size() == durations->size(), "mismatched vector sizes");
          eosio::check(vote_weights->size() == durations->size(), "mismatched vector sizes");
@@ -134,7 +134,7 @@ namespace eosiosystem {
                       "min_transfer_create out of range");
          state->min_transfer_create = *min_transfer_create;
       }
-   } // system_contract::cfgvpool
+   } // system_contract::cfgsrpool
 
    const std::vector<double>* system_contract::get_prod_pool_votes(const producer_info& info) {
       if (info.pool_votes.has_value() && info.pool_votes.value().has_value())

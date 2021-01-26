@@ -1323,14 +1323,14 @@ namespace eosiosystem {
          /**
           * Configure voter pools. Pools become available the first time this action is invoked.
           *
-          * @param durations - The duration of each pool. Must be set first time cfgvpool is used. Must be omitted if cfgvpool is used again.
-          * @param claim_periods - The claim period of each pool. Must be set first time cfgvpool is used. Must be omitted if cfgvpool is used again.
-          * @param vote_weights - The vote weight of each pool. Must be set first time cfgvpool is used. Must be omitted if cfgvpool is used again.
+          * @param durations - The duration of each pool. Must be set first time cfgsrpool is used. Must be omitted if cfgsrpool is used again.
+          * @param claim_periods - The claim period of each pool. Must be set first time cfgsrpool is used. Must be omitted if cfgsrpool is used again.
+          * @param vote_weights - The vote weight of each pool. Must be set first time cfgsrpool is used. Must be omitted if cfgsrpool is used again.
           * @param begin_transition - When to begin transitioning producer selection, inflation, ram fees, rentbw fees,
-          *                           and namebid fees. Must be set first time cfgvpool is used. Do not specify to preserve the existing setting.
+          *                           and namebid fees. Must be set first time cfgsrpool is used. Do not specify to preserve the existing setting.
           * @param end_transition - When to end the transition. When the transition ends: pool-based voting selects all producers;
           *                         the new inflation system is enabled and the previous one disabled; ram fees, rentbw fees, and namebid fees are
-          *                         directed to the voter pools. Must be set first time cfgvpool is used. Do not specify to preserve the existing setting.
+          *                         directed to the voter pools. Must be set first time cfgsrpool is used. Do not specify to preserve the existing setting.
           * @param prod_rate - The inflation rate (compounded each round) allocated to producer pay (0.01 = 1%). Do not specify to preserve the
           *                    existing setting or use the default (0.0).
           * @param voter_rate - The inflation rate (compounded each round) allocated to voters (0.01 = 1%). Do not specify to preserve the existing
@@ -1342,7 +1342,7 @@ namespace eosiosystem {
           *                              min_transfer_create. Do not specify to preserve the existing setting or use the default (1.0000).
           */
          [[eosio::action]]
-         void cfgvpool(
+         void cfgsrpool(
             const std::optional<uint32_vector>& durations,
             const std::optional<uint32_vector>& claim_periods,
             const std::optional<double_vector>& vote_weights,
@@ -1532,7 +1532,7 @@ namespace eosiosystem {
          using cfgpowerup_action = eosio::action_wrapper<"cfgpowerup"_n, &system_contract::cfgpowerup>;
          using powerupexec_action = eosio::action_wrapper<"powerupexec"_n, &system_contract::powerupexec>;
          using powerup_action = eosio::action_wrapper<"powerup"_n, &system_contract::powerup>;
-         using cfgvpool_action = eosio::action_wrapper<"cfgvpool"_n, &system_contract::cfgvpool>;
+         using cfgsrpool_action = eosio::action_wrapper<"cfgsrpool"_n, &system_contract::cfgsrpool>;
          using stake2pool_action = eosio::action_wrapper<"stake2pool"_n, &system_contract::stake2pool>;
          using setpoolnotif_action = eosio::action_wrapper<"setpoolnotif"_n, &system_contract::setpoolnotif>;
          using claimstake_action = eosio::action_wrapper<"claimstake"_n, &system_contract::claimstake>;
