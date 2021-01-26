@@ -12,7 +12,7 @@
 #include <eosio.system/native.hpp>
 #include <eosio.system/stream_extensions.hpp>
 #include <eosio.system/constants.hpp>
-#include <eosio.system/vote_pool.hpp>
+#include <eosio.system/staking_pool.hpp>
 
 #include <deque>
 #include <optional>
@@ -672,8 +672,8 @@ namespace eosiosystem {
          static constexpr eosio::name saving_account{"eosio.saving"_n};
          static constexpr eosio::name rex_account{"eosio.rex"_n};
          static constexpr eosio::name reserv_account{"eosio.reserv"_n};
-         static constexpr eosio::name vpool_account{"eosio.vpool"_n};
-         static constexpr eosio::name bvpay_account{"eosio.bvpay"_n};
+         static constexpr eosio::name vpool_account{"eosio.srpool"_n};
+         static constexpr eosio::name bpspay_account{"eosio.bpspay"_n};
          static constexpr eosio::name null_account{"eosio.null"_n};
          static constexpr eosio::name transferstake_notif{"eosio.tstake"_n};
          static constexpr symbol ramcore_symbol = symbol(symbol_code("RAMCORE"), 4);
@@ -1323,14 +1323,14 @@ namespace eosiosystem {
          /**
           * Configure voter pools. Pools become available the first time this action is invoked.
           *
-          * @param durations - The duration of each pool. Must be set first time cfgvpool is used. Must be omitted if cfgvpool is used again.
-          * @param claim_periods - The claim period of each pool. Must be set first time cfgvpool is used. Must be omitted if cfgvpool is used again.
-          * @param vote_weights - The vote weight of each pool. Must be set first time cfgvpool is used. Must be omitted if cfgvpool is used again.
+          * @param durations - The duration of each pool. Must be set first time cfgsrpool is used. Must be omitted if cfgsrpool is used again.
+          * @param claim_periods - The claim period of each pool. Must be set first time cfgsrpool is used. Must be omitted if cfgsrpool is used again.
+          * @param vote_weights - The vote weight of each pool. Must be set first time cfgsrpool is used. Must be omitted if cfgsrpool is used again.
           * @param begin_transition - When to begin transitioning producer selection, inflation, ram fees, rentbw fees,
-          *                           and namebid fees. Must be set first time cfgvpool is used. Do not specify to preserve the existing setting.
+          *                           and namebid fees. Must be set first time cfgsrpool is used. Do not specify to preserve the existing setting.
           * @param end_transition - When to end the transition. When the transition ends: pool-based voting selects all producers;
           *                         the new inflation system is enabled and the previous one disabled; ram fees, rentbw fees, and namebid fees are
-          *                         directed to the voter pools. Must be set first time cfgvpool is used. Do not specify to preserve the existing setting.
+          *                         directed to the voter pools. Must be set first time cfgsrpool is used. Do not specify to preserve the existing setting.
           * @param prod_rate - The inflation rate (compounded each round) allocated to producer pay (0.01 = 1%). Do not specify to preserve the
           *                    existing setting or use the default (0.0).
           * @param voter_rate - The inflation rate (compounded each round) allocated to voters (0.01 = 1%). Do not specify to preserve the existing
@@ -1342,7 +1342,7 @@ namespace eosiosystem {
           *                              min_transfer_create. Do not specify to preserve the existing setting or use the default (1.0000).
           */
          [[eosio::action]]
-         void cfgvpool(
+         void cfgsrpool(
             const std::optional<uint32_vector>& durations,
             const std::optional<uint32_vector>& claim_periods,
             const std::optional<double_vector>& vote_weights,
@@ -1532,7 +1532,7 @@ namespace eosiosystem {
          using cfgpowerup_action = eosio::action_wrapper<"cfgpowerup"_n, &system_contract::cfgpowerup>;
          using powerupexec_action = eosio::action_wrapper<"powerupexec"_n, &system_contract::powerupexec>;
          using powerup_action = eosio::action_wrapper<"powerup"_n, &system_contract::powerup>;
-         using cfgvpool_action = eosio::action_wrapper<"cfgvpool"_n, &system_contract::cfgvpool>;
+         using cfgsrpool_action = eosio::action_wrapper<"cfgsrpool"_n, &system_contract::cfgsrpool>;
          using stake2pool_action = eosio::action_wrapper<"stake2pool"_n, &system_contract::stake2pool>;
          using setpoolnotif_action = eosio::action_wrapper<"setpoolnotif"_n, &system_contract::setpoolnotif>;
          using claimstake_action = eosio::action_wrapper<"claimstake"_n, &system_contract::claimstake>;
@@ -1651,27 +1651,27 @@ namespace eosiosystem {
             powerup_order_table& orders, uint32_t max_items, int64_t& net_delta_available,
             int64_t& cpu_delta_available);
 
-         struct vote_pool_state_autosave {
+         struct staking_pool_state_autosave {
             system_contract& contract;
-            vote_pool_state& state;
+            staking_pool_state& state;
 
-            vote_pool_state_autosave(system_contract& contract, bool init_if_not_exist = false)
-                : contract{ contract }, state{ contract.get_vote_pool_state_mutable(init_if_not_exist) } {}
-            vote_pool_state_autosave(const vote_pool_state_autosave&) = delete;
+            staking_pool_state_autosave(system_contract& contract, bool init_if_not_exist = false)
+                : contract{ contract }, state{ contract.get_staking_pool_state_mutable(init_if_not_exist) } {}
+            staking_pool_state_autosave(const staking_pool_state_autosave&) = delete;
 
-            ~vote_pool_state_autosave() { contract.save_vote_pool_state(); }
+            ~staking_pool_state_autosave() { contract.save_staking_pool_state(); }
 
-            vote_pool_state_autosave& operator=(const vote_pool_state_autosave&) = delete;
+            staking_pool_state_autosave& operator=(const staking_pool_state_autosave&) = delete;
 
-            vote_pool_state* operator->() { return &state; }
-            vote_pool_state* operator*() { return &state; }
+            staking_pool_state* operator->() { return &state; }
+            staking_pool_state* operator*() { return &state; }
          };
 
-         // defined in vote_pool.cpp
-         vote_pool_state_singleton& get_vote_pool_state_singleton();
-         vote_pool_state& get_vote_pool_state_mutable(bool init_if_not_exist = false);
-         const vote_pool_state& get_vote_pool_state();
-         void save_vote_pool_state();
+         // defined in staking_pool.cpp
+         staking_pool_state_singleton& get_staking_pool_state_singleton();
+         staking_pool_state& get_staking_pool_state_mutable(bool init_if_not_exist = false);
+         const staking_pool_state& get_staking_pool_state();
+         void save_staking_pool_state();
          double claimrewards_transition(block_timestamp time);
          total_pool_votes_table& get_total_pool_votes_table();
          const std::vector<double>* get_prod_pool_votes(const producer_info& info);
@@ -1683,20 +1683,20 @@ namespace eosiosystem {
          const pool_voter& get_or_create_pool_voter(name voter_name, bool* created = nullptr);
          void add_proxied_shares(pool_voter& proxy, const std::vector<double>& deltas, const char* error);
          void sub_proxied_shares(pool_voter& proxy, const std::vector<double>& deltas, const char* error);
-         void add_pool_votes(vote_pool_state_autosave& state, producer_info& prod, const std::vector<double>& deltas);
-         void sub_pool_votes(vote_pool_state_autosave& state, producer_info& prod, const std::vector<double>& deltas, const char* error);
-         void update_pool_votes(vote_pool_state_autosave& state, const name& voter, const name& proxy, const std::vector<name>& producers, bool voting);
-         void update_pool_proxy(vote_pool_state_autosave& state, const pool_voter& voter);
+         void add_pool_votes(staking_pool_state_autosave& state, producer_info& prod, const std::vector<double>& deltas);
+         void sub_pool_votes(staking_pool_state_autosave& state, producer_info& prod, const std::vector<double>& deltas, const char* error);
+         void update_pool_votes(staking_pool_state_autosave& state, const name& voter, const name& proxy, const std::vector<name>& producers, bool voting);
+         void update_pool_proxy(staking_pool_state_autosave& state, const pool_voter& voter);
          std::vector<const total_pool_votes*> top_active_producers(size_t n);
          double calc_votes(const std::vector<double>& pool_votes);
          void update_total_pool_votes(size_t n);
-         void deposit_pool(vote_pool& pool, double& owned_shares, block_timestamp& next_claim, asset new_unvested);
-         asset withdraw_pool(vote_pool& pool, double& owned_shares, asset max_requested, bool claiming);
+         void deposit_pool(staking_pool& pool, double& owned_shares, block_timestamp& next_claim, asset new_unvested);
+         asset withdraw_pool(staking_pool& pool, double& owned_shares, asset max_requested, bool claiming);
          void onblock_update_vpool(block_timestamp production_time);
          asset transition_channel_to_pools(const name& from, const asset& amount, bool partial);
          void channel_to_rex_or_pools(const name& from, const asset& amount, bool require_all_funds_transferred);
          void channel_namebid_to_rex_or_pools(int64_t highest_bid);
-         void distribute_namebid_to_pools(vote_pool_state_autosave& state);
+         void distribute_namebid_to_pools(staking_pool_state_autosave& state);
    };
 
 }
