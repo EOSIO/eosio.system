@@ -1692,7 +1692,7 @@ namespace eosiosystem {
          void update_total_pool_votes(size_t n);
          void deposit_pool(staking_pool& pool, double& owned_shares, block_timestamp& next_claim, asset new_unvested);
          asset withdraw_pool(staking_pool& pool, double& owned_shares, asset max_requested, bool claiming);
-         void onblock_update_vpool(block_timestamp production_time);
+         void onblock_update_pool(block_timestamp production_time);
          asset transition_channel_to_pools(const name& from, const asset& amount, bool partial);
          void channel_to_rex_or_pools(const name& from, const asset& amount, bool require_all_funds_transferred);
          void channel_namebid_to_rex_or_pools(int64_t highest_bid);
