@@ -3527,11 +3527,11 @@ BOOST_FIXTURE_TEST_CASE( setparams, eosio_system_tester ) try {
 
 // The common routine for testing setkvparams
 void static setkvparams_common( const eosio::chain::kv_database_config& params, eosio_system_tester& system_tester ) {
-
+  
    BOOST_REQUIRE_EQUAL(adding_stake_partial_unstake::success(), system_tester.push_action( name(config::system_account_name), 
-                                               "setkvparams"_n,
-                                               fc::mutable_variant_object()("params", params)
-                                  )
+                                             "setkvparams"_n,
+                                             fc::mutable_variant_object()("params", params)
+                                 )
    );
 
    system_tester.produce_blocks( 250 );
@@ -3552,7 +3552,8 @@ BOOST_FIXTURE_TEST_CASE( setkvparams_initialize, eosio_system_tester ) try {
    eosio::chain::kv_database_config params { 128, 4096, 64 }; // max_key_size, max_value_size, max_iterators
 
    // set the parameters and verify them
-   setkvparams_common(params, *this);
+   if constexpr(SETKVPARAMS)
+      setkvparams_common(params, *this);
 
 } FC_LOG_AND_RETHROW()
 
@@ -3565,7 +3566,8 @@ BOOST_FIXTURE_TEST_CASE( setkvparams_update_all, eosio_system_tester ) try {
    params.max_iterators += 10;
 
    // update and verify them
-   setkvparams_common(params, *this);
+   if constexpr(SETKVPARAMS)
+      setkvparams_common(params, *this);
 } FC_LOG_AND_RETHROW()
 
 // This test verifies none of kv parameters is changed
@@ -3574,7 +3576,8 @@ BOOST_FIXTURE_TEST_CASE( setkvparams_update_none, eosio_system_tester ) try {
    auto params = control->get_global_properties().kv_configuration;
 
    // update and verify them
-   setkvparams_common(params, *this);
+   if constexpr(SETKVPARAMS)
+      setkvparams_common(params, *this);
 } FC_LOG_AND_RETHROW()
 
 // This test verifies only one parameters is changed
@@ -3584,7 +3587,8 @@ BOOST_FIXTURE_TEST_CASE( setkvparams_update_one, eosio_system_tester ) try {
    params.max_value_size += 2000;
 
    // update and verify them
-   setkvparams_common(params, *this);
+   if constexpr(SETKVPARAMS)
+      setkvparams_common(params, *this);
 } FC_LOG_AND_RETHROW()
 
 // // This test verifies non-authorized account is not allowed
