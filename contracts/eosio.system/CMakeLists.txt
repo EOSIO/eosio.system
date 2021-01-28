@@ -31,4 +31,11 @@ set_target_properties(rex.results
 
 configure_file( ${CMAKE_CURRENT_SOURCE_DIR}/ricardian/eosio.system.contracts.md.in ${CMAKE_CURRENT_BINARY_DIR}/ricardian/eosio.system.contracts.md @ONLY )
 
-target_compile_options( eosio.system PUBLIC -R${CMAKE_CURRENT_SOURCE_DIR}/ricardian -R${CMAKE_CURRENT_BINARY_DIR}/ricardian -DSETKVPARAMS=${SETKVPARAMS})
+target_compile_options( eosio.system PUBLIC -R${CMAKE_CURRENT_SOURCE_DIR}/ricardian -R${CMAKE_CURRENT_BINARY_DIR}/ricardian)
+
+# ##################################################################################################
+# Enable setkvparams.
+# ##################################################################################################
+if(SETKVPARAMS)
+   target_compile_definitions(eosio.system PUBLIC -DSETKVPARAMS_AVAILABLE)
+endif()

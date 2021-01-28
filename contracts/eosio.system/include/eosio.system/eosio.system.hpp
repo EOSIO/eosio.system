@@ -24,6 +24,12 @@
 // be set to 0.
 #define CHANNEL_RAM_AND_NAMEBID_FEES_TO_REX 1
 
+#ifdef SETKVPARAMS_AVAILABLE
+   constexpr inline static bool has_setkvparams_v = true;
+#else
+   constexpr inline static bool has_setkvparams_v = false;
+#endif
+
 namespace eosiosystem {
 
    using eosio::asset;

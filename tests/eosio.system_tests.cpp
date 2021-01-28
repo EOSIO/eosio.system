@@ -3552,7 +3552,7 @@ BOOST_FIXTURE_TEST_CASE( setkvparams_initialize, eosio_system_tester ) try {
    eosio::chain::kv_database_config params { 128, 4096, 64 }; // max_key_size, max_value_size, max_iterators
 
    // set the parameters and verify them
-   if constexpr(SETKVPARAMS)
+   if constexpr(has_setkvparams_v)
       setkvparams_common(params, *this);
 
 } FC_LOG_AND_RETHROW()
@@ -3566,7 +3566,7 @@ BOOST_FIXTURE_TEST_CASE( setkvparams_update_all, eosio_system_tester ) try {
    params.max_iterators += 10;
 
    // update and verify them
-   if constexpr(SETKVPARAMS)
+   if constexpr(has_setkvparams_v)
       setkvparams_common(params, *this);
 } FC_LOG_AND_RETHROW()
 
@@ -3576,7 +3576,7 @@ BOOST_FIXTURE_TEST_CASE( setkvparams_update_none, eosio_system_tester ) try {
    auto params = control->get_global_properties().kv_configuration;
 
    // update and verify them
-   if constexpr(SETKVPARAMS)
+   if constexpr(has_setkvparams_v)
       setkvparams_common(params, *this);
 } FC_LOG_AND_RETHROW()
 
@@ -3587,7 +3587,7 @@ BOOST_FIXTURE_TEST_CASE( setkvparams_update_one, eosio_system_tester ) try {
    params.max_value_size += 2000;
 
    // update and verify them
-   if constexpr(SETKVPARAMS)
+   if constexpr(has_setkvparams_v)
       setkvparams_common(params, *this);
 } FC_LOG_AND_RETHROW()
 
