@@ -440,7 +440,7 @@ namespace eosiosystem {
 
       eosio::token::transfer_action transfer_act{ token_account, { owner, active_permission } };
       transfer_act.send(owner, srpool_account, amount,
-                        std::string("transfer from ") + owner.to_string() + " to " + srpool_account.to_string());
+                        std::string("transfer from ") + owner.to_string() + " to eosio.vpool");
 
       update_pool_votes(state, owner, voter.proxy, voter.producers, false);
    }
@@ -760,6 +760,10 @@ namespace eosiosystem {
          transfer_act.send(bpspay_account, producer, prod.vote_pay, "producer pay");
          prod.vote_pay.amount = 0;
       });
+   }
+
+   void system_contract::deltopool(const name& owner, const name& receiver, const asset& from_net, const asset& from_cpu, uint32_t pool_index){
+      require_auth(owner);
    }
 
 } // namespace eosiosystem
