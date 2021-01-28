@@ -390,7 +390,7 @@ BOOST_FIXTURE_TEST_CASE(weight_tests, powerup_tester) try {
       auto state = get_state();
       BOOST_REQUIRE(near(           //
             state.net.weight_ratio, //
-            int64_t(state.net.assumed_stake_weight * eosio::chain::int128_t(powerup_frac) /
+            int64_t(state.net.assumed_stake_weight * static_cast<eosio::chain::int128_t>(powerup_frac) /
                     (state.net.weight + state.net.assumed_stake_weight)),
             10));
    };
