@@ -18,8 +18,9 @@ TEST_COMMANDS="ctest -j $JOBS --output-on-failure -T Test"
 COMMANDS="$PRE_COMMANDS && $TEST_COMMANDS"
 curl -sSf $CDT_URL --output eosio.cdt.deb
 set +e
-echo "docker run $ARGS $(buildkite-intrinsics) $DOCKER_IMAGE bash -c \"$COMMANDS\""
-eval docker run $ARGS $(buildkite-intrinsics) $DOCKER_IMAGE bash -c \"$COMMANDS\"
+DOCKER_RUN="docker run $ARGS $(buildkite-intrinsics) $DOCKER_IMAGE bash -c \"$COMMANDS\""
+echo "$ $DOCKER_RUN"
+eval $DOCKER_RUN
 EXIT_STATUS=$?
 # buildkite
 if [[ "$BUILDKITE" == 'true' ]]; then
