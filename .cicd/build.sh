@@ -45,4 +45,5 @@ done
 # run
 DOCKER_RUN="docker run $ARGS $(buildkite-intrinsics) $DOCKER_IMAGE bash -c \"$COMMANDS\""
 echo "$ $DOCKER_RUN"
+sleep 86400
 eval $DOCKER_RUN
