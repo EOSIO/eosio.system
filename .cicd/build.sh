@@ -4,7 +4,8 @@ set -eo pipefail
 . ./.cicd/helpers/general.sh
 . ./.cicd/helpers/dependency-info.sh
 mkdir -p $BUILD_DIR
-DOCKER_IMAGE=${DOCKER_IMAGE:-eosio/ci-contracts-builder:base-ubuntu-18.04-$SANITIZED_EOSIO_VERSION}
+DOCKER_REGISTRY="${MIRROR_REGISTRY:-docker.io/eosio/ci-contracts-builder}"
+[[ -z "$DOCKER_IMAGE" ]] && export DOCKER_IMAGE="$DOCKER_REGISTRY:base-ubuntu-18.04-$SANITIZED_EOSIO_VERSION"
 if [[ "$BUILDKITE" == 'true' ]]; then
     buildkite-agent meta-data set cdt-url "$CDT_URL"
     buildkite-agent meta-data set cdt-version "$CDT_VERSION"
@@ -14,11 +15,7 @@ else
     export CDT_VERSION
     export DOCKER_IMAGE
 fi
-ARGS=${ARGS:-"--rm -v $(pwd):$MOUNTED_DIR"}
-CDT_COMMANDS="dpkg -i $MOUNTED_DIR/eosio.cdt.deb && export PATH=/usr/opt/eosio.cdt/\\\$(ls /usr/opt/eosio.cdt/)/bin:\\\$PATH"
-PRE_COMMANDS="$CDT_COMMANDS && cd /root/eosio/ && printf \\\"EOSIO commit: \\\$(git rev-parse --verify HEAD). Click \033]1339;url=https://github.com/EOSIO/eos/commit/\\\$(git rev-parse --verify HEAD);content=here\a for details.\n\\\" && cd $MOUNTED_DIR/build"
-BUILD_COMMANDS="cmake -DBUILD_TESTS=true .. && make -j $JOBS"
-COMMANDS="$PRE_COMMANDS && $BUILD_COMMANDS"
+export SSH_AUTH_SOCK="$(readlink -f "$SSH_AUTH_SOCK")" # resolve symlinks
 # Test CDT binary download to prevent failures due to eosio.cdt pipeline.
 INDEX='1'
 echo "$ curl -sSf $CDT_URL --output eosio.cdt.deb"
@@ -42,5 +39,6 @@ while [[ "$(docker pull $DOCKER_IMAGE 2>&1 | grep -ice "manifest for $DOCKER_IMA
     sleep 60
 done
 # run
-echo "docker run $ARGS $(buildkite-intrinsics) $DOCKER_IMAGE bash -c \"$COMMANDS\""
-eval docker run $ARGS $(buildkite-intrinsics) $DOCKER_IMAGE bash -c \"$COMMANDS\"
+DOCKER_RUN="docker run --rm -v '$(pwd):$MOUNTED_DIR' -w '$MOUNTED_DIR' -e BUILDKITE_AGENT_KEY_PUBLIC -e BUILDKITE_AGENT_KEY_PRIVATE $(buildkite-intrinsics) -e JOBS $DOCKER_IMAGE bash -c './scripts/build.sh'"
+echo "$ $DOCKER_RUN"
+eval $DOCKER_RUN
