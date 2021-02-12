@@ -20,7 +20,9 @@ eval $CREATE_PUBLIC_KEY
 CHMOD_PUBLIC_KEY='chmod 400 /root/.ssh/id_rsa.pub'
 echo "$ $CHMOD_PUBLIC_KEY"
 eval $CHMOD_PUBLIC_KEY
-echo 'StrictHostKeyChecking no' > /root/.ssh/config
+SSH_KEYSCAN='ssh-keyscan -H github.com >> ~/.ssh/known_hosts'
+echo "$ $SSH_KEYSCAN"
+eval $SSH_KEYSCAN
 SSH_TEST='ssh -T git@github.com || :'
 echo "$ $SSH_TEST"
 eval $SSH_TEST
