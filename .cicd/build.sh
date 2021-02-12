@@ -15,9 +15,9 @@ else
     export DOCKER_IMAGE
 fi
 export SSH_AUTH_SOCK="$(readlink -f "$SSH_AUTH_SOCK")" # resolve symlinks
-ARGS=${ARGS:-"--rm -v '$(pwd):$MOUNTED_DIR' -v '/buildkite/hooks' -e BUILDKITE_AGENT_KEY_PUBLIC -e BUILDKITE_AGENT_KEY_PRIVATE"}
+ARGS=${ARGS:-"--rm -v '$(pwd):$MOUNTED_DIR' -e BUILDKITE_AGENT_KEY_PUBLIC -e BUILDKITE_AGENT_KEY_PRIVATE"}
 CDT_COMMANDS="dpkg -i $MOUNTED_DIR/eosio.cdt.deb && export PATH=/usr/opt/eosio.cdt/\\\$(ls /usr/opt/eosio.cdt/)/bin:\\\$PATH"
-PRE_COMMANDS="$CDT_COMMANDS && cd /root/eosio/ && printf \\\"EOSIO commit: \\\$(git rev-parse --verify HEAD). Click \033]1339;url=https://github.com/EOSIO/eos/commit/\\\$(git rev-parse --verify HEAD);content=here\a for details.\n\\\" && echo 'Authenticating to GitHub' && chmod +x /buildkite/hooks/environment && /buildkite/hooks/environment && ssh -T git@github.com || : && echo 'Authenticated to GitHub' && cd $MOUNTED_DIR/build"
+PRE_COMMANDS="$CDT_COMMANDS && cd /root/eosio/ && printf \\\"EOSIO commit: \\\$(git rev-parse --verify HEAD). Click \033]1339;url=https://github.com/EOSIO/eos/commit/\\\$(git rev-parse --verify HEAD);content=here\a for details.\n\\\" && echo 'Authenticating to GitHub' && mkdir /root/.ssh && echo \"\$BUILDKITE_AGENT_KEY_PRIVATE\" > /root/.ssh/id_rsa && echo \"\$BUILDKITE_AGENT_KEY_PUBLIC\" > /root/.ssh/id_rsa.pub && chmod 400 /root/.ssh/id_rsa && chmod 400 /root/.ssh/id_rsa.pub && ssh -T git@github.com || : && echo 'Authenticated to GitHub' && cd $MOUNTED_DIR/build"
 BUILD_COMMANDS="cmake -DBUILD_TESTS=true .. && make -j $JOBS"
 COMMANDS="$PRE_COMMANDS && $BUILD_COMMANDS"
 # Test CDT binary download to prevent failures due to eosio.cdt pipeline.
