@@ -1,6 +1,6 @@
 #!/bin/bash
 set -eo pipefail
-dpkg -i $MOUNTED_DIR/eosio.cdt.deb
+dpkg -i /eosio.system/eosio.cdt.deb
 export PATH=/usr/opt/eosio.cdt/$(ls /usr/opt/eosio.cdt/)/bin:$PATH
 cd /root/eosio/
 printf "EOSIO commit: $(git rev-parse --verify HEAD). Click \033]1339;url=https://github.com/EOSIO/eos/commit/$(git rev-parse --verify HEAD);content=here\a for details.\n"
@@ -12,6 +12,6 @@ chmod 400 /root/.ssh/id_rsa
 chmod 400 /root/.ssh/id_rsa.pub
 ssh -T git@github.com || :
 echo 'Authenticated to GitHub'
-cd $MOUNTED_DIR/build
+cd /eosio.system/build
 cmake -DBUILD_TESTS=true ..
 make -j $JOBS
