@@ -16,7 +16,6 @@ else
     export DOCKER_IMAGE
 fi
 export SSH_AUTH_SOCK="$(readlink -f "$SSH_AUTH_SOCK")" # resolve symlinks
-ARGS=${ARGS:-"--rm -v '$(pwd):$MOUNTED_DIR' -e BUILDKITE_AGENT_KEY_PUBLIC -e BUILDKITE_AGENT_KEY_PRIVATE"}
 # Test CDT binary download to prevent failures due to eosio.cdt pipeline.
 INDEX='1'
 echo "$ curl -sSf $CDT_URL --output eosio.cdt.deb"
@@ -40,6 +39,6 @@ while [[ "$(docker pull $DOCKER_IMAGE 2>&1 | grep -ice "manifest for $DOCKER_IMA
     sleep 60
 done
 # run
-DOCKER_RUN="docker run $ARGS $(buildkite-intrinsics) $DOCKER_IMAGE ./scripts/build.sh"
+DOCKER_RUN="docker run --rm -v '$(pwd):$MOUNTED_DIR' -e BUILDKITE_AGENT_KEY_PUBLIC -e BUILDKITE_AGENT_KEY_PRIVATE $(buildkite-intrinsics) $DOCKER_IMAGE ./scripts/build.sh"
 echo "$ $DOCKER_RUN"
 eval $DOCKER_RUN
