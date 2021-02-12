@@ -17,7 +17,7 @@ fi
 export SSH_AUTH_SOCK="$(readlink -f "$SSH_AUTH_SOCK")" # resolve symlinks
 ARGS=${ARGS:-"--rm -v '$(pwd):$MOUNTED_DIR' -v '$(dirname "$SSH_AUTH_SOCK"):/ssh-agent' -e SSH_AUTH_SOCK=/ssh-agent"}
 CDT_COMMANDS="dpkg -i $MOUNTED_DIR/eosio.cdt.deb && export PATH=/usr/opt/eosio.cdt/\\\$(ls /usr/opt/eosio.cdt/)/bin:\\\$PATH"
-PRE_COMMANDS="$CDT_COMMANDS && cd /root/eosio/ && printf \\\"EOSIO commit: \\\$(git rev-parse --verify HEAD). Click \033]1339;url=https://github.com/EOSIO/eos/commit/\\\$(git rev-parse --verify HEAD);content=here\a for details.\n\\\" && echo \"SSH_AUTH_SOCK=\$SSH_AUTH_SOCK\" && echo '$ ls -la /ssh-agent' && ls -la /ssh-agent && echo '$ ssh-keyscan -H github.com >> ~/.ssh/known_hosts' && ssh-keyscan -H github.com >> ~/.ssh/known_hosts && echo '$ ssh -T git@github.com' && (ssh -T git@github.com || :) && cd $MOUNTED_DIR/build"
+PRE_COMMANDS="$CDT_COMMANDS && cd /root/eosio/ && printf \\\"EOSIO commit: \\\$(git rev-parse --verify HEAD). Click \033]1339;url=https://github.com/EOSIO/eos/commit/\\\$(git rev-parse --verify HEAD);content=here\a for details.\n\\\" && cd $MOUNTED_DIR/build"
 BUILD_COMMANDS="cmake -DBUILD_TESTS=true .. && make -j $JOBS"
 COMMANDS="$PRE_COMMANDS && $BUILD_COMMANDS"
 # Test CDT binary download to prevent failures due to eosio.cdt pipeline.
@@ -45,5 +45,4 @@ done
 # run
 DOCKER_RUN="docker run $ARGS $(buildkite-intrinsics) $DOCKER_IMAGE bash -c \"$COMMANDS\""
 echo "$ $DOCKER_RUN"
-sleep 86400
 eval $DOCKER_RUN
