@@ -15,7 +15,7 @@ else
     export DOCKER_IMAGE
 fi
 export SSH_AUTH_SOCK="$(readlink -f "$SSH_AUTH_SOCK")" # resolve symlinks
-ARGS=${ARGS:-"--rm -v '$(pwd):$MOUNTED_DIR' -v '$(dirname "$SSH_AUTH_SOCK"):/ssh-agent' -e SSH_AUTH_SOCK=/ssh-agent"}
+ARGS=${ARGS:-"--rm -v '$(pwd):$MOUNTED_DIR' -v '/buildkite/hooks' -e BUILDKITE_AGENT_KEY_PUBLIC -e BUILDKITE_AGENT_KEY_PRIVATE"}
 CDT_COMMANDS="dpkg -i $MOUNTED_DIR/eosio.cdt.deb && export PATH=/usr/opt/eosio.cdt/\\\$(ls /usr/opt/eosio.cdt/)/bin:\\\$PATH"
 PRE_COMMANDS="$CDT_COMMANDS && cd /root/eosio/ && printf \\\"EOSIO commit: \\\$(git rev-parse --verify HEAD). Click \033]1339;url=https://github.com/EOSIO/eos/commit/\\\$(git rev-parse --verify HEAD);content=here\a for details.\n\\\" && cd $MOUNTED_DIR/build"
 BUILD_COMMANDS="cmake -DBUILD_TESTS=true .. && make -j $JOBS"
