@@ -6,6 +6,9 @@
 
 #include <eosio.system/constants.hpp>
 
+// The term “share” is used to indicate a portion of the pool of tokens to which a particular account is entitled. 
+// This pool portion approach has been implemented across multiple block.one code bases and was used to keep maintenance simple for developers across the code bases. 
+
 namespace eosiosystem {
 
    class pool {
