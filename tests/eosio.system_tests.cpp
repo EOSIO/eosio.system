@@ -160,7 +160,7 @@ BOOST_FIXTURE_TEST_CASE( buysell, eosio_system_tester ) try {
    {
       transfer( config::system_account_name, "bob111111111"_n, core_sym::from_string("100000.0000"), config::system_account_name );
       BOOST_REQUIRE_EQUAL( wasm_assert_msg("must reserve a positive amount"),
-                           buyrambytes( "bob111111111", "bob111111111", 1 ) );
+                           buyrambytes( "bob111111111", "bob111111111", -1 ) );
 
       uint64_t bytes0 = get_total_stake( "bob111111111" )["ram_bytes"].as_uint64();
       BOOST_REQUIRE_EQUAL( success(), buyrambytes( "bob111111111", "bob111111111", 1024 ) );

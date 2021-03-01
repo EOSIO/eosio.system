@@ -22,7 +22,9 @@ namespace eosiosystem {
    /**
     *  This action will buy at least the amount of ram and bill the payer the current market price.
     */
-   void system_contract::buyrambytes( const name& payer, const name& receiver, uint32_t bytes ) {
+   void system_contract::buyrambytes( const name& payer, const name& receiver, int32_t bytes ) {
+      check( bytes > 0, "must purchase a positive amount" );
+      
       auto itr = _rammarket.find(ramcore_symbol.raw());
       const int64_t ram_reserve   = itr->base.balance.amount;
       const int64_t eos_reserve   = itr->quote.balance.amount;

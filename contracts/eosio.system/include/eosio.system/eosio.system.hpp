@@ -959,7 +959,7 @@ namespace eosiosystem {
           * @param bytes - the quantity of ram to buy specified in bytes.
           */
          [[eosio::action]]
-         void buyrambytes( const name& payer, const name& receiver, uint32_t bytes );
+         void buyrambytes( const name& payer, const name& receiver, int32_t bytes );
 
          /**
           * Sell ram action, reduces quota by bytes and then performs an inline transfer of tokens
