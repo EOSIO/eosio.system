@@ -100,7 +100,7 @@ namespace eosiosystem {
       const double ob = out_reserve;
       const double ib = inp_reserve;
 
-      int64_t inp = (ib * out) / (ob - out);
+      int64_t inp = std::ceil((ib * out) / (ob - out));
 
       if ( inp < 0 ) inp = 0;
 

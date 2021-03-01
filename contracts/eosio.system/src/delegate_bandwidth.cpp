@@ -20,7 +20,7 @@ namespace eosiosystem {
    using eosio::token;
 
    /**
-    *  This action will buy an exact amount of ram and bill the payer the current market price.
+    *  This action will buy at least the amount of ram and bill the payer the current market price.
     */
    void system_contract::buyrambytes( const name& payer, const name& receiver, uint32_t bytes ) {
       auto itr = _rammarket.find(ramcore_symbol.raw());
@@ -49,7 +49,7 @@ namespace eosiosystem {
       check( quant.amount > 0, "must purchase a positive amount" );
 
       auto fee = quant;
-      fee.amount = ( fee.amount + 199 ) / 200; /// .5% fee (round up)
+      fee.amount = fee.amount * double(0.005) ; /// .5% fee (round up)
       // fee.amount cannot be 0 since that is only possible if quant.amount is 0 which is not allowed by the assert above.
       // If quant.amount == 1, then fee.amount == 1,
       // otherwise if quant.amount > 1, then 0 < fee.amount < quant.amount.
