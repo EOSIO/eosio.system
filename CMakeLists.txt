@@ -17,6 +17,24 @@ include(ExternalProject)
 
 find_package(eosio.cdt)
 
+find_package(Git REQUIRED)
+
+set(EOSIO_TOKEN_PREFIX "${CMAKE_CURRENT_BINARY_DIR}/eosio.token")
+
+# pull down seperate eosio.token contract
+ExternalProject_Add(
+   eosio.token
+   PREFIX ${EOSIO_TOKEN_PREFIX}
+   GIT_REPOSITORY git@github.com:EOSIO/eosio.token.git
+   TIMEOUT 10
+   UPDATE_COMMAND ${GIT_EXECUTABLE} pull
+   GIT_TAG develop
+   # CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${EOSIO_TOKEN_PREFIX}
+   INSTALL_COMMAND ""
+   LOG_DOWNLOAD ON
+   BUILD_BYPRODUCTS ${EOSIO_TOKEN_PREFIX}/src/eosio.token-build/contracts/eosio.token/eosio.token.wasm
+)
+
 message(STATUS "Building eosio.system v${VERSION_FULL}")
 
 set(EOSIO_CDT_VERSION_MIN "1.8")
@@ -45,16 +63,23 @@ else()
    set(TEST_BUILD_TYPE ${CMAKE_BUILD_TYPE})
 endif()
 
+option(SETKVPARAMS "enables setkvparams" OFF)
+
+if(SETKVPARAMS)
+   set(SETKVPARAMS_OPT "-DSETKVPARAMS=1")
+endif()
+
 ExternalProject_Add(
    contracts_project
    SOURCE_DIR ${CMAKE_SOURCE_DIR}/contracts
    BINARY_DIR ${CMAKE_BINARY_DIR}/contracts
-   CMAKE_ARGS -DCMAKE_TOOLCHAIN_FILE=${EOSIO_CDT_ROOT}/lib/cmake/eosio.cdt/EosioWasmToolchain.cmake
+   CMAKE_ARGS -DCMAKE_TOOLCHAIN_FILE=${EOSIO_CDT_ROOT}/lib/cmake/eosio.cdt/EosioWasmToolchain.cmake ${SETKVPARAMS_OPT}
    UPDATE_COMMAND ""
    PATCH_COMMAND ""
    TEST_COMMAND ""
    INSTALL_COMMAND ""
    BUILD_ALWAYS 1
+   DEPENDS eosio.token
 )
 
 if (APPLE)
@@ -82,7 +107,7 @@ if(BUILD_TESTS)
    ExternalProject_Add(
      contracts_unit_tests
      LIST_SEPARATOR | # Use the alternate list separator
-     CMAKE_ARGS -DCMAKE_BUILD_TYPE=${TEST_BUILD_TYPE} -DCMAKE_PREFIX_PATH=${TEST_PREFIX_PATH} -DCMAKE_FRAMEWORK_PATH=${TEST_FRAMEWORK_PATH} -DCMAKE_MODULE_PATH=${TEST_MODULE_PATH} -DEOSIO_ROOT=${EOSIO_ROOT} -DLLVM_DIR=${LLVM_DIR} -DBOOST_ROOT=${BOOST_ROOT} -DBUILD_TESTS_PINNED=${BUILD_TESTS_PINNED}  -DEOSIO_DIR_PROMPT=${EOSIO_DIR_PROMPT}
+     CMAKE_ARGS -DCMAKE_BUILD_TYPE=${TEST_BUILD_TYPE} -DCMAKE_PREFIX_PATH=${TEST_PREFIX_PATH} -DCMAKE_FRAMEWORK_PATH=${TEST_FRAMEWORK_PATH} -DCMAKE_MODULE_PATH=${TEST_MODULE_PATH} -DEOSIO_ROOT=${EOSIO_ROOT} -DLLVM_DIR=${LLVM_DIR} -DBOOST_ROOT=${BOOST_ROOT} -DBUILD_TESTS_PINNED=${BUILD_TESTS_PINNED}  -DEOSIO_DIR_PROMPT=${EOSIO_DIR_PROMPT} ${SETKVPARAMS_OPT}
      SOURCE_DIR ${CMAKE_SOURCE_DIR}/tests
      BINARY_DIR ${CMAKE_BINARY_DIR}/tests
      BUILD_ALWAYS 1

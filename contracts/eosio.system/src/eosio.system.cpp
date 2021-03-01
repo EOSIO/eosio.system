@@ -118,7 +118,10 @@ namespace eosiosystem {
 
    void system_contract::setkvparams( const eosio::kv_parameters& params ) {
       require_auth( get_self() );
-      set_kv_parameters( params );
+      if constexpr(has_setkvparams_v)
+         set_kv_parameters( params );
+      else 
+         check(false, "setkvparams has not been enabled.");
    }
 
    void system_contract::setpriv( const name& account, uint8_t ispriv ) {

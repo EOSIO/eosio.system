@@ -15,6 +15,12 @@ using namespace fc;
 
 using mvo = fc::mutable_variant_object;
 
+#ifdef SETKVPARAMS_AVAILABLE
+   constexpr inline static bool has_setkvparams_v = true;
+#else
+   constexpr inline static bool has_setkvparams_v = false;
+#endif
+
 #ifndef TESTER
 #ifdef NON_VALIDATING_TEST
 #define TESTER tester
