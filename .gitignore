@@ -34,3 +34,4 @@
 build.tar.gz
 build/
 .DS_Store
+.vscode
