@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.5)
 
-project(eosio_contracts)
+project(eosio_system)
 
 set(VERSION_MAJOR 1)
 set(VERSION_MINOR 9)
@@ -17,10 +17,28 @@ include(ExternalProject)
 
 find_package(eosio.cdt)
 
-message(STATUS "Building eosio.contracts v${VERSION_FULL}")
+find_package(Git REQUIRED)
 
-set(EOSIO_CDT_VERSION_MIN "1.7")
-set(EOSIO_CDT_VERSION_SOFT_MAX "1.7")
+set(EOSIO_TOKEN_PREFIX "${CMAKE_CURRENT_BINARY_DIR}/eosio.token")
+
+# pull down seperate eosio.token contract
+ExternalProject_Add(
+   eosio.token
+   PREFIX ${EOSIO_TOKEN_PREFIX}
+   GIT_REPOSITORY git@github.com:EOSIO/eosio.token.git
+   TIMEOUT 10
+   UPDATE_COMMAND ${GIT_EXECUTABLE} pull
+   GIT_TAG develop
+   # CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${EOSIO_TOKEN_PREFIX}
+   INSTALL_COMMAND ""
+   LOG_DOWNLOAD ON
+   BUILD_BYPRODUCTS ${EOSIO_TOKEN_PREFIX}/src/eosio.token-build/contracts/eosio.token/eosio.token.wasm
+)
+
+message(STATUS "Building eosio.system v${VERSION_FULL}")
+
+set(EOSIO_CDT_VERSION_MIN "1.8")
+set(EOSIO_CDT_VERSION_SOFT_MAX "1.8")
 #set(EOSIO_CDT_VERSION_HARD_MAX "")
 
 ### Check the version of eosio.cdt
