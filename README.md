@@ -18,14 +18,6 @@ To build the contracts follow the instructions in [Build and deploy](https://dev
 
 **NOTE** This contract pulls down and builds the [eosio.token](https://github.com/eosio/eosio.token) contract as certain token actions are a requirement for some of the systems.
 
-### Build with `setkvparams`
-```sh
-mkdir build && cd build
-# enablke setkvparams
-cmake -DBUILD_TESTS=true -DSETKVPARAMS=1 ..
-make -j4
-```
-
 ## Contributing
 
 [Contributing Guide](./CONTRIBUTING.md)
