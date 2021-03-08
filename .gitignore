@@ -31,44 +31,7 @@
 *.out
 *.app
 
-*.a
-*.sw*
-*.ll
-*.bc
-*.wast
-*.wast.hpp
-*.s
-*.dot
-*.abi.hpp
-*.cmake
-!.cicd
-!CMakeModules/*.cmake
-!CMakeModules/*.txt
-*.ninja
-\#*
-\.#*
-CMakeCache.txt
-CMakeFiles
-doxygen
-eos.doxygen
-
-wallet.json
-*.wallet
-build/*
-
-.vscode
-.idea/
-*.iws
+build.tar.gz
+build/
 .DS_Store
-!*.swagger.*
-
-# from eosjs
-dist/
-dist-web/
-node_modules/
-docs-build/
-*.tgz
-
-#cypress artifacts
-cypress/screenshots/
-cypress/videos/
+.vscode
