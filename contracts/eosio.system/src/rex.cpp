@@ -916,6 +916,7 @@ namespace eosiosystem {
     *
     * @param from - account from which asset is transfered to REX pool
     * @param amount - amount of tokens to be transfered
+    * @param required - if true, asserts when the system is not configured to channel fees into REX
     */
    void system_contract::channel_to_rex( const name& from, const asset& amount )
    {
@@ -926,6 +927,7 @@ namespace eosiosystem {
          token::transfer_action transfer_act{ token_account, { from, active_permission } };
          transfer_act.send( from, rex_account, amount,
                             std::string("transfer from ") + from.to_string() + " to eosio.rex" );
+         return;
       }
 #endif
    }

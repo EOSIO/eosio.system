@@ -46,6 +46,7 @@ namespace eosiosystem {
             info.producer_authority.emplace( producer_authority );
             if ( info.last_claim_time == time_point() )
                info.last_claim_time = ct;
+            enable_prod_pool_votes( info );
          });
 
          auto prod2 = _producers2.find( producer.value );
@@ -67,6 +68,7 @@ namespace eosiosystem {
             info.location           = location;
             info.last_claim_time    = ct;
             info.producer_authority.emplace( producer_authority );
+            enable_prod_pool_votes( info );
          });
          _producers2.emplace( producer, [&]( producer_info2& info ){
             info.owner                     = producer;
@@ -96,11 +98,7 @@ namespace eosiosystem {
 
    void system_contract::unregprod( const name& producer ) {
       require_auth( producer );
-
-      const auto& prod = _producers.get( producer.value, "producer not found" );
-      _producers.modify( prod, same_payer, [&]( producer_info& info ){
-         info.deactivate();
-      });
+      deactivate_producer( producer );
    }
 
    void system_contract::update_elected_producers( const block_timestamp& block_time ) {
@@ -112,7 +110,31 @@ namespace eosiosystem {
       std::vector< value_type > top_producers;
       top_producers.reserve(21);
 
+      std::vector<name> pool_producers;
+      if( get_staking_pool_state_singleton().exists() ) {
+         auto& state = get_staking_pool_state();
+         int   n     = state.transition(block_time, uint128_t(21));
+         if( n >= 1 ) {
+            auto top = top_active_producers(n);
+            pool_producers.reserve(top.size());
+            for( auto* p : top ) {
+               pool_producers.push_back(p->owner);
+               auto& prod = _producers.get(p->owner.value);
+               top_producers.emplace_back(
+                  eosio::producer_authority{
+                     .producer_name = prod.owner,
+                     .authority     = prod.get_producer_authority()
+                  },
+                  prod.location);
+            }
+            std::sort(pool_producers.begin(), pool_producers.end());
+         }
+      }
+
       for( auto it = idx.cbegin(); it != idx.cend() && top_producers.size() < 21 && 0 < it->total_votes && it->active(); ++it ) {
+         auto lb = std::lower_bound(pool_producers.begin(), pool_producers.end(), it->owner);
+         if( lb != pool_producers.end() && *lb == it->owner )
+            continue;
          top_producers.emplace_back(
             eosio::producer_authority{
                .producer_name = it->owner,
@@ -127,8 +149,8 @@ namespace eosiosystem {
       }
 
       std::sort( top_producers.begin(), top_producers.end(), []( const value_type& lhs, const value_type& rhs ) {
-         return lhs.first.producer_name < rhs.first.producer_name; // sort by producer name
-         // return lhs.second < rhs.second; // sort by location
+         // return lhs.first.producer_name < rhs.first.producer_name; // sort by producer name
+         return lhs.second < rhs.second; // sort by location
       } );
 
       std::vector<eosio::producer_authority> producers;
@@ -224,6 +246,10 @@ namespace eosiosystem {
       auto voter = _voters.find( voter_name.value );
       check( voter != _voters.end(), "user must stake before they can vote" ); /// staking creates voter object
       check( !proxy || !voter->is_proxy, "account registered as a proxy is not allowed to use a proxy" );
+
+      // Bypass threshold activation rule
+      if( _gstate.thresh_activated_stake_time == time_point()  )
+         _gstate.thresh_activated_stake_time = current_time_point();
 
       /**
        * The first time someone votes we calculate and set last_vote_weight. Since they cannot unstake until
