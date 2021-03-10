@@ -1,6 +1,6 @@
 # eosio.system
 
-## Version : 1.9.2
+## Version : 2.0.0-rc1
 
 The design of the EOSIO blockchain calls for a number of smart contracts that are run at a privileged permission level in order to support functions such as block producer registration and voting, token staking for CPU and network bandwidth, RAM purchasing, multi-sig, etc.  These smart contracts are referred to as the bios, boot, system, msig, wrap (formerly known as sudo) and token contracts.
 
@@ -17,6 +17,14 @@ Dependencies:
 To build the contracts follow the instructions in [Build and deploy](https://developers.eos.io/manuals/eosio.contracts/latest/build-and-deploy) section.
 
 **NOTE** This contract pulls down and builds the [eosio.token](https://github.com/eosio/eosio.token) contract as certain token actions are a requirement for some of the systems.
+
+### Build with `setkvparams`
+```sh
+mkdir build && cd build
+# enablke setkvparams
+cmake -DBUILD_TESTS=true -DSETKVPARAMS=1 ..
+make -j4
+```
 
 ## Contributing
 

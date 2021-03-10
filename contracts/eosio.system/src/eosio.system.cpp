@@ -116,6 +116,14 @@ namespace eosiosystem {
       set_blockchain_parameters( params );
    }
 
+   void system_contract::setkvparams( const eosio::kv_parameters& params ) {
+      require_auth( get_self() );
+      if constexpr(has_setkvparams_v)
+         set_kv_parameters( params );
+      else 
+         check(false, "setkvparams has not been enabled.");
+   }
+
    void system_contract::setpriv( const name& account, uint8_t ispriv ) {
       require_auth( get_self() );
       set_privileged( account, ispriv );
@@ -279,11 +287,7 @@ namespace eosiosystem {
 
    void system_contract::rmvproducer( const name& producer ) {
       require_auth( get_self() );
-      auto prod = _producers.find( producer.value );
-      check( prod != _producers.end(), "producer not found" );
-      _producers.modify( prod, same_payer, [&](auto& p) {
-            p.deactivate();
-         });
+      deactivate_producer( producer );
    }
 
    void system_contract::updtrevision( uint8_t revision ) {

@@ -10,6 +10,9 @@
 
 #include <eosio.system/exchange_state.hpp>
 #include <eosio.system/native.hpp>
+#include <eosio.system/stream_extensions.hpp>
+#include <eosio.system/constants.hpp>
+#include <eosio.system/staking_pool.hpp>
 
 #include <deque>
 #include <optional>
@@ -23,6 +26,12 @@
 // channeled to REX pool. In order to stop these proceeds from being channeled, the macro must
 // be set to 0.
 #define CHANNEL_RAM_AND_NAMEBID_FEES_TO_REX 1
+
+#ifdef SETKVPARAMS_AVAILABLE
+   constexpr inline static bool has_setkvparams_v = true;
+#else
+   constexpr inline static bool has_setkvparams_v = false;
+#endif
 
 namespace eosiosystem {
 
@@ -41,6 +50,9 @@ namespace eosiosystem {
    using eosio::unsigned_int;
 
    inline constexpr int64_t powerup_frac = 1'000'000'000'000'000ll;  // 1.0 = 10^15
+   using uint32_vector = std::vector<uint32_t>;
+   using double_vector = std::vector<double>;
+   using Bool = bool; // work around abigen issue with optional<bool>
 
    template<typename E, typename F>
    static inline auto has_field( F flags, E field )
@@ -61,14 +73,6 @@ namespace eosiosystem {
          return ( flags & ~static_cast<F>(field) );
    }
 
-   static constexpr uint32_t seconds_per_year      = 52 * 7 * 24 * 3600;
-   static constexpr uint32_t seconds_per_day       = 24 * 3600;
-   static constexpr uint32_t seconds_per_hour      = 3600;
-   static constexpr int64_t  useconds_per_year     = int64_t(seconds_per_year) * 1000'000ll;
-   static constexpr int64_t  useconds_per_day      = int64_t(seconds_per_day) * 1000'000ll;
-   static constexpr int64_t  useconds_per_hour     = int64_t(seconds_per_hour) * 1000'000ll;
-   static constexpr uint32_t blocks_per_day        = 2 * seconds_per_day; // half seconds per day
-
    static constexpr int64_t  min_activated_stake   = 150'000'000'0000;
    static constexpr int64_t  ram_gift_bytes        = 1400;
    static constexpr int64_t  min_pervote_daily_pay = 100'0000;
@@ -80,20 +84,6 @@ namespace eosiosystem {
    static constexpr int64_t  default_inflation_pay_factor  = 50000;   // producers pay share = 10000 / 50000 = 20% of the inflation
    static constexpr int64_t  default_votepay_factor        = 40000;   // per-block pay share = 10000 / 40000 = 25% of the producer pay
 
-  /**
-   * The `eosio.system` smart contract is provided by `block.one` as a sample system contract, and it defines the structures and actions needed for blockchain's core functionality.
-   * 
-   * Just like in the `eosio.bios` sample contract implementation, there are a few actions which are not implemented at the contract level (`newaccount`, `updateauth`, `deleteauth`, `linkauth`, `unlinkauth`, `canceldelay`, `onerror`, `setabi`, `setcode`), they are just declared in the contract so they will show in the contract's ABI and users will be able to push those actions to the chain via the account holding the `eosio.system` contract, but the implementation is at the EOSIO core level. They are referred to as EOSIO native actions.
-   * 
-   * - Users can stake tokens for CPU and Network bandwidth, and then vote for producers or
-   *    delegate their vote to a proxy.
-   * - Producers register in order to be voted for, and can claim per-block and per-vote rewards.
-   * - Users can buy and sell RAM at a market-determined price.
-   * - Users can bid on premium names.
-   * - A resource exchange system (REX) allows token holders to lend their tokens,
-   *    and users to rent CPU and Network resources in return for a market-determined fee.
-   */
-  
    // A name bid, which consists of:
    // - a `newname` name that the bid is for
    // - a `high_bidder` account name that is the one with the highest bid so far
@@ -199,6 +189,7 @@ namespace eosiosystem {
       time_point                                               last_claim_time;
       uint16_t                                                 location = 0;
       eosio::binary_extension<eosio::block_signing_authority>  producer_authority; // added in version 1.9.0
+      eosio::binary_extension<std::optional<double_vector>>    pool_votes;
 
       uint64_t primary_key()const { return owner.value;                             }
       double   by_votes()const    { return is_active ? -total_votes : total_votes;  }
@@ -237,10 +228,7 @@ namespace eosiosystem {
             << t.unpaid_blocks
             << t.last_claim_time
             << t.location;
-
-         if( !t.producer_authority.has_value() ) return ds;
-
-         return ds << t.producer_authority;
+         return write_extensions( ds, t.producer_authority, t.pool_votes );
       }
 
       template<typename DataStream>
@@ -253,7 +241,8 @@ namespace eosiosystem {
                    >> t.unpaid_blocks
                    >> t.last_claim_time
                    >> t.location
-                   >> t.producer_authority;
+                   >> t.producer_authority
+                   >> t.pool_votes;
       }
    };
 
@@ -642,20 +631,19 @@ namespace eosiosystem {
                                indexed_by<"byexpires"_n, const_mem_fun<powerup_order, uint64_t, &powerup_order::by_expires>>
                                > powerup_order_table;
 
-   /**
-    * The `eosio.system` smart contract is provided by `block.one` as a sample system contract, and it defines the structures and actions needed for blockchain's core functionality.
-    *
-    * Just like in the `eosio.bios` sample contract implementation, there are a few actions which are not implemented at the contract level (`newaccount`, `updateauth`, `deleteauth`, `linkauth`, `unlinkauth`, `canceldelay`, `onerror`, `setabi`, `setcode`), they are just declared in the contract so they will show in the contract's ABI and users will be able to push those actions to the chain via the account holding the `eosio.system` contract, but the implementation is at the EOSIO core level. They are referred to as EOSIO native actions.
-    *
-    * - Users can stake tokens for CPU and Network bandwidth, and then vote for producers or
-    *    delegate their vote to a proxy.
-    * - Producers register in order to be voted for, and can claim per-block and per-vote rewards.
-    * - Users can buy and sell RAM at a market-determined price.
-    * - Users can bid on premium names.
-    * - A resource exchange system (REX) allows token holders to lend their tokens,
-    *    and users to rent CPU and Network resources in return for a market-determined fee.
-    * - A resource market separate from REX: `power`.
-    */
+  /**
+   * The `eosio.system` smart contract is provided by `block.one` as a sample system contract, and it defines the structures and actions needed for blockchain's core functionality.
+   * 
+   * Just like in the `eosio.bios` sample contract implementation, there are a few actions which are not implemented at the contract level (`newaccount`, `updateauth`, `deleteauth`, `linkauth`, `unlinkauth`, `canceldelay`, `onerror`, `setabi`, `setcode`), they are just declared in the contract so they will show in the contract's ABI and users will be able to push those actions to the chain via the account holding the `eosio.system` contract, but the implementation is at the EOSIO core level. They are referred to as EOSIO native actions.
+   * 
+   * - Users can stake tokens for CPU and Network bandwidth, and then vote for producers or
+   *    delegate their vote to a proxy.
+   * - Producers register in order to be voted for, and can claim per-block and per-vote rewards.
+   * - Users can buy and sell RAM at a market-determined price.
+   * - Users can bid on premium names.
+   * - A resource exchange system (REX) allows token holders to lend their tokens,
+   *    and users to rent CPU and Network resources in return for a market-determined fee.
+   */
    class [[eosio::contract("eosio.system")]] system_contract : public native {
 
       private:
@@ -690,7 +678,10 @@ namespace eosiosystem {
          static constexpr eosio::name saving_account{"eosio.saving"_n};
          static constexpr eosio::name rex_account{"eosio.rex"_n};
          static constexpr eosio::name reserv_account{"eosio.reserv"_n};
+         static constexpr eosio::name srpool_account{"eosio.srpool"_n};
+         static constexpr eosio::name bpspay_account{"eosio.bpspay"_n};
          static constexpr eosio::name null_account{"eosio.null"_n};
+         static constexpr eosio::name transferstake_notif{"eosio.tstake"_n};
          static constexpr symbol ramcore_symbol = symbol(symbol_code("RAMCORE"), 4);
          static constexpr symbol ram_symbol     = symbol(symbol_code("RAM"), 0);
          static constexpr symbol rex_symbol     = symbol(symbol_code("REX"), 4);
@@ -1074,7 +1065,7 @@ namespace eosiosystem {
           *
           * @param payer - the ram buyer,
           * @param receiver - the ram receiver,
-          * @param quant - the quntity of tokens to buy ram with.
+          * @param quant - the quantity of tokens to buy ram with.
           */
          [[eosio::action]]
          void buyram( const name& payer, const name& receiver, const asset& quant );
@@ -1085,7 +1076,7 @@ namespace eosiosystem {
           *
           * @param payer - the ram buyer,
           * @param receiver - the ram receiver,
-          * @param bytes - the quntity of ram to buy specified in bytes.
+          * @param bytes - the quantity of ram to buy specified in bytes.
           */
          [[eosio::action]]
          void buyrambytes( const name& payer, const name& receiver, uint32_t bytes );
@@ -1220,6 +1211,13 @@ namespace eosiosystem {
          void setparams( const eosio::blockchain_parameters& params );
 
          /**
+          * Set KV parameters.
+          * @param params - New KV parameters to set.
+          */
+         [[eosio::action]]
+         void setkvparams( const eosio::kv_parameters& params );
+
+         /**
           * Claim rewards action, claims block producing and vote rewards.
           * @param owner - producer account claiming per-block and per-vote rewards.
           */
@@ -1328,6 +1326,181 @@ namespace eosiosystem {
          [[eosio::action]]
          void powerup( const name& payer, const name& receiver, uint32_t days, int64_t net_frac, int64_t cpu_frac, const asset& max_payment );
 
+         /**
+          * Configure voter pools. Pools become available the first time this action is invoked.
+          *
+          * @param durations - The duration of each pool. Must be set first time cfgsrpool is used. Must be omitted if cfgsrpool is used again.
+          * @param claim_periods - The claim period of each pool. Must be set first time cfgsrpool is used. Must be omitted if cfgsrpool is used again.
+          * @param vote_weights - The vote weight of each pool. Must be set first time cfgsrpool is used. Must be omitted if cfgsrpool is used again.
+          * @param begin_transition - When to begin transitioning producer selection, inflation, ram fees, rentbw fees,
+          *                           and namebid fees. Must be set first time cfgsrpool is used. Do not specify to preserve the existing setting.
+          * @param end_transition - When to end the transition. When the transition ends: pool-based voting selects all producers;
+          *                         the new inflation system is enabled and the previous one disabled; ram fees, rentbw fees, and namebid fees are
+          *                         directed to the voter pools. Must be set first time cfgsrpool is used. Do not specify to preserve the existing setting.
+          * @param prod_rate - The inflation rate (compounded each round) allocated to producer pay (0.01 = 1%). Do not specify to preserve the
+          *                    existing setting or use the default (0.0).
+          * @param voter_rate - The inflation rate (compounded each round) allocated to voters (0.01 = 1%). Do not specify to preserve the existing
+          *                     setting or use the default (0.0).
+          * @param max_num_pay - Maximum number of producers to pay. Do not specify to preserve the existing setting or use the default (50).
+          * @param max_vote_ratio - Stop producer payments once this factor (0.0-1.0) of votes have been paid out. Do not specify to preserve
+          *                         the existing setting or use the default (0.8).
+          * @param min_transfer_create - transferstake will automatically create to's pool_voter record if requested amount is at least
+          *                              min_transfer_create. Do not specify to preserve the existing setting or use the default (1.0000).
+          */
+         [[eosio::action]]
+         void cfgsrpool(
+            const std::optional<uint32_vector>& durations,
+            const std::optional<uint32_vector>& claim_periods,
+            const std::optional<double_vector>& vote_weights,
+            const std::optional<eosio::block_timestamp>& begin_transition,
+            const std::optional<eosio::block_timestamp>& end_transition,
+            const std::optional<double>& prod_rate,
+            const std::optional<double>& voter_rate,
+            const std::optional<uint8_t>& max_num_pay,
+            const std::optional<double>& max_vote_ratio,
+            const std::optional<asset>& min_transfer_create);
+
+         /**
+          * Stake tokens to pool.
+          *
+          * @param owner - Account staking
+          * @param pool_index - Which pool (starting at 0) to stake
+          * @param amount - Amount to stake
+          */
+         [[eosio::action]]
+         void stake2pool( name owner, uint32_t pool_index, asset amount );
+
+         /**
+          * Opt into or out of transferstake notifications. These notifications are inline actions (eosio.tstake) sent
+          * directly to owner. See transferstake_notification for the action body and for instructions how to authenticate these notifications.
+          *
+          * Caution: if there's a contract installed on the owner account, and that contract doesn't handle the eosio.tstake action,
+          *          then that contract will probably abort transactions containing transferstake actions.
+          *
+          * @param owner - Account to receive notifications
+          * @param xfer_out_notif - Opt into notifications when stake is transferred out. Do not specify to preserve the existing setting or use the default (false).
+          * @param xfer_in_notif - Opt into notifications when stake is transferred in. Do not specify to preserve the existing setting or use the default (false).
+          */
+         [[eosio::action]]
+         void setpoolnotif( name owner, std::optional<Bool> xfer_out_notif, std::optional<Bool> xfer_in_notif );
+
+         /**
+          * Unstake tokens from pool. Will fail if the owner has claimed from this pool recently (below claim_period).
+          *
+          * @param owner - Account unstaking
+          * @param pool_index - Which pool (starting at 0) to unstake
+          * @param amount - Requested amount to unstake. The amount actually unstaked will be capped at
+          *                 balance * pool.claim_period / pool.duration and may also be limited by rounding.
+          *                 Examine the inline transfer action this generates to see the final amount.
+          */
+         [[eosio::action]]
+         void claimstake( name owner, uint32_t pool_index, asset requested );
+
+         /**
+          * Transfer stake to another account. Unlike claimstake, this action doesn't have time-based restrictions.
+          *
+          * @param from - Account sending stake
+          * @param to - Account receiving stake
+          * @param pool_index - Which pool (starting at 0) to transfer stake in
+          * @param requested - Requested amount to transfer. The amount actually transferred will be capped at balance
+          *                    and may also be limited by rounding. Examine the transferstake notifications to see the
+          *                    final amount (must be enabled using setpoolnotif).
+          */
+         [[eosio::action]]
+         void transferstake(name from, name to, uint32_t pool_index, asset requested, const std::string& memo);
+
+         /**
+          * Upgrade stake from a shorter-term pool to a longer-term one. Unlike claimstake, this action doesn't have time-based restrictions.
+          *
+          * @param owner - Account upgrading stake
+          * @param from_pool_index - Which pool (starting at 0) to transfer stake out of
+          * @param to_pool_index - Which pool (starting at 0) to transfer stake into
+          * @param requested - Requested amount to upgrade. The amount actually upgraded will be capped at balance
+          *                    and may also be limited by rounding.
+          */
+         [[eosio::action]]
+         void upgradestake(name owner, uint32_t from_pool_index, uint32_t to_pool_index, asset requested);
+
+         /**
+          * Vote for a proxy or for up to 30 producers. Votes are weighted by the voter's pool holdings.
+          * If a voter votes for multiple producers, then that voter's weight will be evenly divided
+          * between them.
+          * 
+          * votewithpool votes are separate from voteproducer votes. Before begin_transition,
+          * producers are selected using voteproducer. After end_transition, producers are selected using
+          * votewithpool. During the transition period, the number of producers selected by votewithpool
+          * gradually increases, while the number selected by voteproducer decreases by the same amount.
+          *
+          * @param voter - the account voting
+          * @param proxy - an optional proxy to delegate voting to
+          * @param producers - up to 30 producers to vote for
+          *
+          * @pre Producers must be sorted and active. Producers must have used either regproducer or regproducer2
+          *      *after* the first time regpoolproxy was used.
+          * @pre If proxy is set then no producers can be voted for
+          * @pre If proxy is set then proxy account must exist and be registered as a proxy using regpoolproxy
+          */
+         [[eosio::action]]
+         void votewithpool(const name& voter, const name& proxy, const std::vector<name>& producers);
+
+         /**
+          * Register an account to be a proxy for pool voting. Once a proxy is registered, users may delegate
+          * their pool votes to the proxy using votewithpool.
+          *
+          * @param proxy - the account registering as voter proxy (or unregistering),
+          * @param isproxy - if true, proxy is registered; if false, proxy is unregistered.
+          */
+         [[eosio::action]]
+         void regpoolproxy(const name& proxy, bool isproxy);
+
+         /**
+          * Update the pool votes total for a producer. This can move a producer into the top max_num_pay
+          * producers, so that future calls to updatepay can update that producer's vote totals and generate
+          * their pay, if any. Any user may perform this action.
+          *
+          * @param user - the account authorizing this action
+          * @param producer - the producer to update the votes for
+          */
+         [[eosio::action]]
+         void updatevotes( name user, name producer );
+
+         /**
+          * Update the votes for the current top max_num_pay producers, pay inflation into the pools, and
+          * pay inflation into producers' vote_pay balance. updatepay pays the top-voted producers up until
+          * max_vote_ratio of the vote has been accounted for, or max_num_pay producers has been reached.
+          *
+          * Any account may authorize this action. It's usable once per 252-block time period. If no one
+          * authorizes this action within a period, then no inflation will be generated or paid out for that
+          * period.
+          *
+          * @param user - the account authorizing this action
+          */
+         [[eosio::action]]
+         void updatepay( name user );
+
+         /**
+          * Transfer pay to producer. A producer may use claimvotepay any time their `vote_pay` balance is
+          * not empty. `claimvotepay` has no time-based restrictions since `vote_pay` is an asset instead
+          * of a leaky bucket.
+          *
+          * @param producer - the producer to receive pay
+          */
+         [[eosio::action]]
+         void claimvotepay( name producer );
+
+         /**
+          * deltopool action, moves delegated core tokens to staking pools.
+          * Storage change is billed to 'owner' account.
+          *
+          * @param owner - owner of delegated tokens,
+          * @param receiver - account name that tokens have previously been delegated to,
+          * @param from_net - amount of tokens to be undelegated from NET bandwidth and used to stake,
+          * @param from_cpu - amount of tokens to be undelegated from CPU bandwidth and used to stake.
+          * @param pool_index - index of the pool that will be staked to.
+          */
+         [[eosio::action]]
+         void deltopool( const name& owner, const name& receiver, const asset& from_net, const asset& from_cpu, uint32_t pool_index );
+
          using init_action = eosio::action_wrapper<"init"_n, &system_contract::init>;
          using setacctram_action = eosio::action_wrapper<"setacctram"_n, &system_contract::setacctram>;
          using setacctnet_action = eosio::action_wrapper<"setacctnet"_n, &system_contract::setacctnet>;
@@ -1373,10 +1546,23 @@ namespace eosiosystem {
          using setpriv_action = eosio::action_wrapper<"setpriv"_n, &system_contract::setpriv>;
          using setalimits_action = eosio::action_wrapper<"setalimits"_n, &system_contract::setalimits>;
          using setparams_action = eosio::action_wrapper<"setparams"_n, &system_contract::setparams>;
+         using setkvparams_action = eosio::action_wrapper<"setkvparams"_n, &system_contract::setkvparams>;
          using setinflation_action = eosio::action_wrapper<"setinflation"_n, &system_contract::setinflation>;
          using cfgpowerup_action = eosio::action_wrapper<"cfgpowerup"_n, &system_contract::cfgpowerup>;
          using powerupexec_action = eosio::action_wrapper<"powerupexec"_n, &system_contract::powerupexec>;
          using powerup_action = eosio::action_wrapper<"powerup"_n, &system_contract::powerup>;
+         using cfgsrpool_action = eosio::action_wrapper<"cfgsrpool"_n, &system_contract::cfgsrpool>;
+         using stake2pool_action = eosio::action_wrapper<"stake2pool"_n, &system_contract::stake2pool>;
+         using setpoolnotif_action = eosio::action_wrapper<"setpoolnotif"_n, &system_contract::setpoolnotif>;
+         using claimstake_action = eosio::action_wrapper<"claimstake"_n, &system_contract::claimstake>;
+         using transferstake_action = eosio::action_wrapper<"transferstake"_n, &system_contract::transferstake>;
+         using upgradestake_action = eosio::action_wrapper<"upgradestake"_n, &system_contract::upgradestake>;
+         using votewithpool_action = eosio::action_wrapper<"votewithpool"_n, &system_contract::votewithpool>;
+         using regpoolproxy_action = eosio::action_wrapper<"regpoolproxy"_n, &system_contract::regpoolproxy>;
+         using updatevotes_action = eosio::action_wrapper<"updatevotes"_n, &system_contract::updatevotes>;
+         using updatepay_action = eosio::action_wrapper<"updatepay"_n, &system_contract::updatepay>;
+         using claimvotepay_action = eosio::action_wrapper<"claimvotepay"_n, &system_contract::claimvotepay>;
+         using deltopool_action = eosio::action_wrapper<"deltopool"_n, &system_contract::deltopool>;
 
       private:
          // Implementation details:
@@ -1401,7 +1587,7 @@ namespace eosiosystem {
                                         const char* error_msg = "must vote for at least 21 producers or for a proxy before buying REX" )const;
          rex_order_outcome fill_rex_order( const rex_balance_table::const_iterator& bitr, const asset& rex );
          asset update_rex_account( const name& owner, const asset& proceeds, const asset& unstake_quant, bool force_vote_update = false );
-         void channel_to_rex( const name& from, const asset& amount, bool required = false );
+         void channel_to_rex( const name& from, const asset& amount );
          void channel_namebid_to_rex( const int64_t highest_bid );
          template <typename T>
          int64_t rent_rex( T& table, const name& from, const name& receiver, const asset& loan_payment, const asset& loan_fund );
@@ -1484,6 +1670,53 @@ namespace eosiosystem {
             time_point_sec now, symbol core_symbol, powerup_state& state,
             powerup_order_table& orders, uint32_t max_items, int64_t& net_delta_available,
             int64_t& cpu_delta_available);
+
+         struct staking_pool_state_autosave {
+            system_contract& contract;
+            staking_pool_state& state;
+
+            staking_pool_state_autosave(system_contract& contract, bool init_if_not_exist = false)
+                : contract{ contract }, state{ contract.get_staking_pool_state_mutable(init_if_not_exist) } {}
+            staking_pool_state_autosave(const staking_pool_state_autosave&) = delete;
+
+            ~staking_pool_state_autosave() { contract.save_staking_pool_state(); }
+
+            staking_pool_state_autosave& operator=(const staking_pool_state_autosave&) = delete;
+
+            staking_pool_state* operator->() { return &state; }
+            staking_pool_state* operator*() { return &state; }
+         };
+
+         // defined in staking_pool.cpp
+         staking_pool_state_singleton& get_staking_pool_state_singleton();
+         staking_pool_state& get_staking_pool_state_mutable(bool init_if_not_exist = false);
+         const staking_pool_state& get_staking_pool_state();
+         void save_staking_pool_state();
+         double claimrewards_transition(block_timestamp time);
+         total_pool_votes_table& get_total_pool_votes_table();
+         const std::vector<double>* get_prod_pool_votes(const producer_info& info);
+         std::vector<double>* get_prod_pool_votes(producer_info& info);
+         void enable_prod_pool_votes(producer_info& info);
+         void deactivate_producer(name producer);
+         pool_voter_table& get_pool_voter_table();
+         const pool_voter& create_pool_voter(name voter_name);
+         const pool_voter& get_or_create_pool_voter(name voter_name, bool* created = nullptr);
+         void add_proxied_shares(pool_voter& proxy, const std::vector<double>& deltas, const char* error);
+         void sub_proxied_shares(pool_voter& proxy, const std::vector<double>& deltas, const char* error);
+         void add_pool_votes(staking_pool_state_autosave& state, producer_info& prod, const std::vector<double>& deltas);
+         void sub_pool_votes(staking_pool_state_autosave& state, producer_info& prod, const std::vector<double>& deltas, const char* error);
+         void update_pool_votes(staking_pool_state_autosave& state, const name& voter, const name& proxy, const std::vector<name>& producers, bool voting);
+         void update_pool_proxy(staking_pool_state_autosave& state, const pool_voter& voter);
+         std::vector<const total_pool_votes*> top_active_producers(size_t n);
+         double calc_votes(const std::vector<double>& pool_votes);
+         void update_total_pool_votes(size_t n);
+         void deposit_pool(staking_pool& pool, double& owned_shares, block_timestamp& next_claim, asset new_unvested);
+         asset withdraw_pool(staking_pool& pool, double& owned_shares, asset max_requested, bool claiming);
+         void onblock_update_pool(block_timestamp production_time);
+         asset transition_channel_to_pools(const name& from, const asset& amount, bool partial);
+         void channel_to_rex_or_pools(const name& from, const asset& amount, bool require_all_funds_transferred);
+         void channel_namebid_to_rex_or_pools(int64_t highest_bid);
+         void distribute_namebid_to_pools(staking_pool_state_autosave& state);
    };
 
 }
