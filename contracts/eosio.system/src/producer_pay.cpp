@@ -16,6 +16,8 @@ namespace eosiosystem {
       name producer;
       _ds >> timestamp >> producer;
 
+      onblock_update_pool(timestamp);
+
       // _gstate2.last_block_num is not used anywhere in the system contract code anymore.
       // Although this field is deprecated, we will continue updating it for now until the last_block_num field
       // is eventually completely removed, at which point this line can be removed.
@@ -56,7 +58,7 @@ namespace eosiosystem {
                 (current_time_point() - _gstate.thresh_activated_stake_time) > microseconds(14 * useconds_per_day)
             ) {
                _gstate.last_name_close = timestamp;
-               channel_namebid_to_rex( highest->high_bid );
+               channel_namebid_to_rex_or_pools( highest->high_bid );
                idx.modify( highest, same_payer, [&]( auto& b ){
                   b.high_bid = -b.high_bid;
                });
@@ -82,7 +84,9 @@ namespace eosiosystem {
       const auto usecs_since_last_fill = (ct - _gstate.last_pervote_bucket_fill).count();
 
       if( usecs_since_last_fill > 0 && _gstate.last_pervote_bucket_fill > time_point() ) {
-         double additional_inflation = (_gstate4.continuous_rate * double(token_supply.amount) * double(usecs_since_last_fill)) / double(useconds_per_year);
+         double additional_inflation = (claimrewards_transition(ct) * _gstate4.continuous_rate *
+                                        double(token_supply.amount) * double(usecs_since_last_fill)) /
+                                       double(useconds_per_year);
          check( additional_inflation <= double(std::numeric_limits<int64_t>::max() - ((1ll << 10) - 1)),
                 "overflow in calculating new tokens to be issued; inflation rate is too high" );
          int64_t new_tokens = (additional_inflation < 0.0) ? 0 : static_cast<int64_t>(additional_inflation);
