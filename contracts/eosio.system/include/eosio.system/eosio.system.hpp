@@ -1488,19 +1488,6 @@ namespace eosiosystem {
          [[eosio::action]]
          void claimvotepay( name producer );
 
-         /**
-          * deltopool action, moves delegated core tokens to staking pools.
-          * Storage change is billed to 'owner' account.
-          *
-          * @param owner - owner of delegated tokens,
-          * @param receiver - account name that tokens have previously been delegated to,
-          * @param from_net - amount of tokens to be undelegated from NET bandwidth and used to stake,
-          * @param from_cpu - amount of tokens to be undelegated from CPU bandwidth and used to stake.
-          * @param pool_index - index of the pool that will be staked to.
-          */
-         [[eosio::action]]
-         void deltopool( const name& owner, const name& receiver, const asset& from_net, const asset& from_cpu, uint32_t pool_index );
-
          using init_action = eosio::action_wrapper<"init"_n, &system_contract::init>;
          using setacctram_action = eosio::action_wrapper<"setacctram"_n, &system_contract::setacctram>;
          using setacctnet_action = eosio::action_wrapper<"setacctnet"_n, &system_contract::setacctnet>;
@@ -1562,7 +1549,6 @@ namespace eosiosystem {
          using updatevotes_action = eosio::action_wrapper<"updatevotes"_n, &system_contract::updatevotes>;
          using updatepay_action = eosio::action_wrapper<"updatepay"_n, &system_contract::updatepay>;
          using claimvotepay_action = eosio::action_wrapper<"claimvotepay"_n, &system_contract::claimvotepay>;
-         using deltopool_action = eosio::action_wrapper<"deltopool"_n, &system_contract::deltopool>;
 
       private:
          // Implementation details:
