@@ -262,9 +262,6 @@ namespace eosiosystem {
       if (voter.is_proxy)
          for (size_t i = 0; i < new_pool_votes.size(); ++i)
             new_pool_votes[i] += voter.proxied_shares[i];
-      if (producers.size() > 1)
-         for (size_t i = 0; i < new_pool_votes.size(); ++i)
-            new_pool_votes[i] /= producers.size();
 
       struct producer_change {
          bool old_vote = false;
@@ -328,9 +325,9 @@ namespace eosiosystem {
       if (voter.is_proxy)
          for (size_t i = 0; i < new_pool_votes.size(); ++i)
             new_pool_votes[i] += voter.proxied_shares[i];
-      if (voter.producers.size() > 1)
-         for (size_t i = 0; i < new_pool_votes.size(); ++i)
-            new_pool_votes[i] /= voter.producers.size();
+      // if (voter.producers.size() > 1)
+      //    for (size_t i = 0; i < new_pool_votes.size(); ++i)
+      //       new_pool_votes[i] /= voter.producers.size();
 
       if (voter.proxy) {
          auto& proxy = pool_voter_table.get(voter.proxy.value, "bug: proxy not found");
