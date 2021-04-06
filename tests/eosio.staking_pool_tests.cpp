@@ -508,7 +508,7 @@ struct votepool_tester : eosio_system_tester {
       return r;
    }
 
-   action_result setpoolnotif (name authorizer, name owner, std::optional<bool> xfer_out_notif = nullopt,
+   action_result setpoolnotif(name authorizer, name owner, std::optional<bool> xfer_out_notif = nullopt,
                               std::optional<bool> xfer_in_notif = nullopt) {
       mvo  v("owner", owner);
       auto fill = [&](const char* name, auto& opt) {
@@ -825,8 +825,8 @@ BOOST_AUTO_TEST_CASE(checks) try {
    BOOST_REQUIRE_EQUAL("missing authority of bob111111111", t.stake2pool(alice, bob, 0, a("1.0000 TST")));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("staking pools not configured"), t.stake2pool(alice, alice, 0, a("1.0000 TST")));
 
-   BOOST_REQUIRE_EQUAL("missing authority of bob111111111", t.setpoolnotif (alice, bob));
-   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("staking pools not configured"), t.setpoolnotif (alice, alice));
+   BOOST_REQUIRE_EQUAL("missing authority of bob111111111", t.setpoolnotif(alice, bob));
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("staking pools not configured"), t.setpoolnotif(alice, alice));
 
    BOOST_REQUIRE_EQUAL("missing authority of bob111111111", t.claimstake(alice, bob, 0, a("1.0000 TST")));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("staking pools not configured"), t.claimstake(alice, alice, 0, a("1.0000 TST")));
@@ -1077,7 +1077,7 @@ BOOST_AUTO_TEST_CASE(no_inflation) try {
 
    // transfer jane -> bob. bob's next_claim moves.
    // (3.8750, 64s), (2.0000, 256s) => (5.8750, 129s)
-   BOOST_REQUIRE_EQUAL(t.success(), t.setpoolnotif (bob, bob, nullopt, true));
+   BOOST_REQUIRE_EQUAL(t.success(), t.setpoolnotif(bob, bob, nullopt, true));
    t.transferstake_notify(jane, bob, 1, a("2.0000 TST"), a("2.0000 TST"), "", false, true);
    t.check_pool_totals(users);
    REQUIRE_MATCHING_OBJECT(mvo()                                                    //
@@ -1110,8 +1110,8 @@ BOOST_AUTO_TEST_CASE(no_inflation) try {
 
    // transfer jane -> bob. Even though jane's next_claim is 224, the transfer counts as 256 at the receiver.
    // (5.8750, 97s), (1.0000, 256s) => (6.8750, 120s)
-   BOOST_REQUIRE_EQUAL(t.success(), t.setpoolnotif (jane, jane, true, nullopt));
-   BOOST_REQUIRE_EQUAL(t.success(), t.setpoolnotif (bob, bob, nullopt, false));
+   BOOST_REQUIRE_EQUAL(t.success(), t.setpoolnotif(jane, jane, true, nullopt));
+   BOOST_REQUIRE_EQUAL(t.success(), t.setpoolnotif(bob, bob, nullopt, false));
    t.transferstake_notify(jane, bob, 1, a("1.0000 TST"), a("1.0000 TST"), "", true, false);
    t.check_pool_totals(users);
    REQUIRE_MATCHING_OBJECT(mvo()                                                    //
@@ -1154,8 +1154,8 @@ BOOST_AUTO_TEST_CASE(no_inflation) try {
                        t.transferstake(sue, sue, tom, 1, a("0.9999 TST"), ""));
    users.push_back(tom);
    t.check_pool_totals(users);
-   BOOST_REQUIRE_EQUAL(t.success(), t.setpoolnotif (sue, sue, true, nullopt));
-   BOOST_REQUIRE_EQUAL(t.success(), t.setpoolnotif (tom, tom, nullopt, true));
+   BOOST_REQUIRE_EQUAL(t.success(), t.setpoolnotif(sue, sue, true, nullopt));
+   BOOST_REQUIRE_EQUAL(t.success(), t.setpoolnotif(tom, tom, nullopt, true));
    t.transferstake_notify(sue, tom, 1, a("1.0000 TST"), a("1.0000 TST"), "", true, true);
    t.check_pool_totals(users);
    REQUIRE_MATCHING_OBJECT(mvo()                                                                 //
