@@ -298,7 +298,7 @@ struct votepool_tester : eosio_system_tester {
          ppv.pool_votes.clear();
          ppv.pool_votes.resize(num_pools);
       }
-      // TODO remove this
+      // TODO replace with self contained logic instead of reliance on SC 
       for (auto voter : voters) {
          auto calc_v = voter_obj_pool[voter];
 
@@ -329,27 +329,12 @@ struct votepool_tester : eosio_system_tester {
       auto pools = state["pools"];
       BOOST_REQUIRE_EQUAL(pools.size(), num_pools);
       for (auto bp : bps) {
-         // TODO remove
          auto& ppv = pool_votes[bp];
          auto& prod = producers_table[bp];
          BOOST_REQUIRE_EQUAL(ppv.pool_votes.size(), num_pools);
          double total = 0;
          for (int i = 0; i < num_pools; ++i) {
             auto token_pool = pools[i]["token_pool"];
-            // if (ppv.pool_votes[i]) {
-            //    int64_t sim_sell = ppv.pool_votes[i] * token_pool["balance"].as<asset>().get_amount() /
-            //                       token_pool["total_shares"].as<double>();
-            //    total += sim_sell * pools[i]["vote_weight"].as<double>();
-               
-            //    elog("${bp}: [${i}] ${x}(${pool_votes}), ${y}, ${z}, sim=${sim} => ${res}    ${calc_votes}", //
-            //         ("bp", bp)("i", i)("x", ppv.pool_votes[i])              //
-            //         ("y", token_pool["balance"].as<asset>().get_amount())   //
-            //         ("z", token_pool["total_shares"].as<double>())          //
-            //         ("sim", sim_sell)                                       //
-            //         ("pool_votes", get_producer_info(bp)["pool_votes"].as<vector<double>>()[i])
-            //         ("res", sim_sell * pools[i]["vote_weight"].as<double>())
-            //         ("calc_votes",producers_table[bp].votes));
-            // }
 
             if (prod.votes[i]) {
                // int64_t sim_sell = prod.votes[i] * token_pool["balance"].as<asset>().get_amount() /
