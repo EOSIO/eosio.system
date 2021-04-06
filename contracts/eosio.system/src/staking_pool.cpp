@@ -364,7 +364,8 @@ namespace eosiosystem {
       double result = 0;
       eosio::check(pool_votes.size() == pools.size(), "staking pool corruption");
       for (size_t i = 0; i < pools.size(); ++i)
-         result += pools[i].token_pool.simulate_sell(pool_votes[i]).amount * pools[i].vote_weight;
+         // result += pools[i].token_pool.simulate_sell(pool_votes[i]).amount * pools[i].vote_weight;
+         result += pool_votes[i] * pools[i].vote_weight;
       return result;
    }
 
@@ -695,6 +696,9 @@ namespace eosiosystem {
       update_total_pool_votes(state->max_num_pay);
       auto   prods            = top_active_producers(state->max_num_pay);
       double total_votes      = calc_votes(state->total_votes);
+      // double total_votes = 0.0;
+      // for(size_t i = 0; i < state->total_votes.size(); ++i)
+      //    total_votes += state->total_votes[i];
       double total_votes_paid = 0;
 
       const asset token_supply = eosio::token::get_supply(token_account, core_symbol().code());
@@ -709,7 +713,9 @@ namespace eosiosystem {
                break;
             total_table.modify(*prod, same_payer, [&](auto& prod) {
                total_votes_paid += prod.votes;
+               eosio::print("target: ", target_prod_pay, " prod: ", prod.votes, " total: ", total_votes, "\n");
                int64_t pay = (target_prod_pay * prod.votes) / total_votes;
+               eosio::print(pay, "\n");
                prod.vote_pay.amount += pay;
                total_prod_pay += pay;
             });
