@@ -498,13 +498,10 @@ struct votepool_tester : eosio_system_tester {
       action_result r = push_action(authorizer, "stake2pool"_n, mvo()("owner", owner)("pool_index", pool_index)("amount", amount));
       if(r == success()) {
          // deposit into the pool
-         ilog("owner: ${owner}",("owner", owner));
          if(voter_obj_pool.find(owner) == voter_obj_pool.end())
             init_pool(owner);
          voter_obj& voter = voter_obj_pool.at(owner);
-         ilog("shares(${index}) before: ${shares}",("index", pool_index)("shares",voter.owned_shares[pool_index]));
          deposit_pool(token_pools[pool_index], voter.owned_shares[pool_index], amount);
-         ilog("shares(${index}) after: ${shares}",("index", pool_index)("shares", voter.owned_shares[pool_index]));
 
          update_pool_votes(owner, voter.proxy, voter.producers);
       }
@@ -578,16 +575,10 @@ struct votepool_tester : eosio_system_tester {
       if(r == success()) {
          voter_obj& voter = voter_obj_pool.at(owner);
          // withdraw from_pool_index
-         // ilog("owned_shares(from): ${shares}",("shares",voter.owned_shares[from_pool_index]));
          asset transferred_amount = withdraw_pool(token_pools[from_pool_index], voter.owned_shares[from_pool_index], requested);
 
-         // ilog("owned_shares(from): ${shares}",("shares",voter.owned_shares[from_pool_index]));
-         // ilog("owned_shares(to): ${shares}",("shares",voter.owned_shares[to_pool_index]));
-         
          // deposit from_pool_index
          deposit_pool(token_pools[to_pool_index], voter.owned_shares[to_pool_index], transferred_amount);
-         // ilog("owned_shares(to): ${shares}",("shares",voter.owned_shares[to_pool_index]));
-
          update_pool_votes(owner, voter.proxy, voter.producers);
       }
       return r;
@@ -672,7 +663,6 @@ struct votepool_tester : eosio_system_tester {
 
       for (const auto& pc : producer_changes) {
          auto& prod = producers_table.at(pc.first);
-         // ilog("${voter} update ${prod}: ${votes}", ("voter", voter_name, ));
          if (pc.second.old_vote)
             sub_pool_votes(prod, voter.last_votes);
          if (pc.second.new_vote) 
@@ -690,9 +680,7 @@ struct votepool_tester : eosio_system_tester {
       action_result r = push_action(authorizer, "votewithpool"_n, mvo()("voter", voter)("proxy", proxy)("producers", producers));
       // process own state if the action was successful
       if (r == success()) {
-         ilog("${voter}: producers: ${prods}",("voter",voter)("prods",voter_obj_pool[voter].producers));
          update_pool_votes(voter, proxy, producers);
-         ilog("${voter}: producers: ${prods}",("voter",voter)("prods",voter_obj_pool[voter].producers));
       }
 
       return r;
@@ -860,7 +848,6 @@ BOOST_AUTO_TEST_CASE(checks) try {
 
    BOOST_REQUIRE_EQUAL("missing authority of bob111111111", t.updatepay(alice, bob));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("staking pools not configured"), t.updatepay(alice, alice));
-   ilog("config");
    BOOST_REQUIRE_EQUAL(t.success(),
                        t.cfgsrpool(sys, { { 2, 3, 4, 5 } }, { { 1, 1, 3, 3 } }, { { 1, 1, 1, 1 } }, btime(), btime()));
 
@@ -1471,7 +1458,7 @@ BOOST_AUTO_TEST_CASE(prod_inflation) try {
       auto pay_scale = pow(double(unpaid_blocks) / blocks_per_round, 10);
       auto target_pay =
             asset(pay_scale * prod_rate * supply.get_amount() / eosiosystem::rounds_per_year, symbol{ CORE_SYM });
-      ilog("target_pay: ${x}", ("x", target_pay));
+      // ilog("target_pay: ${x}", ("x", target_pay));
 
       auto check_pay = [&](auto bp, auto& bp_vote_pay, double ratio) {
          auto pay    = asset(target_pay.get_amount() * ratio, symbol{ CORE_SYM });
@@ -1479,7 +1466,7 @@ BOOST_AUTO_TEST_CASE(prod_inflation) try {
          auto adj    = actual - bp_vote_pay - pay;
          if (abs(adj.get_amount()) <= 2)
             pay += adj; // allow slight rounding difference
-         ilog("${bp} pay: ${x} actual: ${actual}", ("bp", bp)("x", pay)("actual",actual));
+         // ilog("${bp} pay: ${x} actual: ${actual}", ("bp", bp)("x", pay)("actual",actual));
          supply += pay;
          bpspay_bal += pay;
          bp_vote_pay += pay;
@@ -1710,11 +1697,9 @@ BOOST_AUTO_TEST_CASE(voting, *boost::unit_test::tolerance(1e-8)) try {
    BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(jane, jane, 1, a("1.0000 TST")));
    // t.display_voters({ alice, bob, jane, sue});
 
-   // ilog("pool 1: ${x}", ("x", t.get_poolstate()["pools"][1]));
    interval_start = interval_start.to_time_point() + fc::seconds(seconds_per_round);
    t.produce_to(interval_start.to_time_point() + fc::milliseconds(500));
    BOOST_REQUIRE_EQUAL(t.success(), t.updatepay(jane, jane));
-   // ilog("pool 1: ${x}", ("x", t.get_poolstate()["pools"][1]));
    BOOST_REQUIRE_EQUAL(t.success(), t.cfgsrpool(sys, nullopt, 0.0));
 
    interval_start = interval_start.to_time_point() + fc::seconds(seconds_per_round);
@@ -1765,9 +1750,6 @@ BOOST_AUTO_TEST_CASE(voting, *boost::unit_test::tolerance(1e-8)) try {
    BOOST_REQUIRE_EQUAL(t.success(), t.updatevotes(bpb, bpb, bpb));
    BOOST_REQUIRE_EQUAL(t.success(), t.updatevotes(bpc, bpc, bpc));
    t.check_votes(num_pools, pool_votes, users, { bpa, bpb, bpc });
-   // ilog("bpa: ${x}", ("x", t.get_producer_info(bpa)["pool_votes"]));
-   // ilog("bpb: ${x}", ("x", t.get_producer_info(bpb)["pool_votes"]));
-   // ilog("bpc: ${x}", ("x", t.get_producer_info(bpc)["pool_votes"]));
 
    // bob is now in both pools
    BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(bob, bob, 1, a("1.0000 TST")));
@@ -2080,19 +2062,12 @@ BOOST_AUTO_TEST_CASE(transition_inflation) try {
       BOOST_REQUIRE_EQUAL(t.get_token_supply(), supply);
    };
 
-   ilog("0");
    transition_to(-0.2, "claimer1111a"_n);
-   ilog("1");
    transition_to(0.0, "claimer1111b"_n);
-   ilog("2");
    transition_to(0.2, "claimer1111c"_n);
-   ilog("3");
    transition_to(0.8, "claimer1111d"_n);
-   ilog("4");
    transition_to(1.0, "claimer1111e"_n);
-   ilog("5");
    transition_to(1.2, "claimer1111f"_n);
-   ilog("6");
    transition_to(1.4, "claimer1111g"_n);
 } // transition_inflation
 FC_LOG_AND_RETHROW()
@@ -2139,11 +2114,9 @@ BOOST_AUTO_TEST_CASE(route_fees) try {
       auto jane_balance  = t.get_balance(jane);
       auto rex_balance   = t.get_balance(rex);
       auto pool_balance = t.get_balance(srpool);
-      // ilog("before ${a} ${b} ${c}", ("a",t.get_balance(jane))("b",t.get_balance(rex))("c",t.get_balance(srpool)));
       if (rent)
          BOOST_REQUIRE_EQUAL(t.success(), t.rentbw(jane, jane, 30, rentbw_percent, 0, a("1.0000 TST")));
       BOOST_REQUIRE_EQUAL(t.success(), t.buyram(jane, jane, ram_payment));
-      // ilog("after  ${a} ${b} ${c}", ("a",t.get_balance(jane))("b",t.get_balance(rex))("c",t.get_balance(srpool)));
       BOOST_REQUIRE_EQUAL(t.get_balance(jane), jane_balance - rex_rentbw_fee - pool_rentbw_fee - ram_payment);
       BOOST_REQUIRE_EQUAL(t.get_balance(rex), rex_balance + rex_rentbw_fee + rex_ram_fee);
       BOOST_REQUIRE_EQUAL(t.get_balance(srpool), pool_balance + pool_rentbw_fee + pool_ram_fee);
