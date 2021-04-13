@@ -361,7 +361,6 @@ namespace eosiosystem {
       double result = 0;
       eosio::check(pool_votes.size() == pools.size(), "staking pool corruption");
       for (size_t i = 0; i < pools.size(); ++i)
-         // result += pools[i].token_pool.simulate_sell(pool_votes[i]).amount * pools[i].vote_weight;
          result += pool_votes[i] * pools[i].vote_weight;
       return result;
    }
