@@ -10,7 +10,6 @@ The staking reward system, when combined with powerup, displaces (over time) the
 * Users use `powerup` to obtain NET and CPU resources instead of staking (`delegatebw`) or renting from REX.
 * Users stake into pools to be able to vote instead of staking using `delegatebw` or buying REX.
 * Users stake into pools to receive ram fees, powerup fees, and namebid fees, instead of buying REX.
-* If a user votes for `n` producers, then each producer gets `1/n` of that voter's voting power.
 * Inflation pays both producers and staking pools. Inflation occurs each round (126 seconds) and is scaled by `pow(produced_blocks / 252, 10)` to encourage the selection of reliable producers.
 
 # Activating on existing chains
