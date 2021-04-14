@@ -153,7 +153,7 @@ struct votepool_tester : eosio_system_tester {
 
    std::unordered_map<name, voter_obj> voter_obj_pool;
    std::vector<pool> token_pools;
-   std::map<name, producers_obj> producers_table;
+   std::unordered_map<name, producers_obj> producers_table;
    // TODO mimic SC table better (or at all)
    sr_state_obj state_table;
 
