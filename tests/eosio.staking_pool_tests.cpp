@@ -1722,6 +1722,9 @@ BOOST_AUTO_TEST_CASE(voting, *boost::unit_test::tolerance(1e-8)) try {
    t.check_votes(num_pools, pool_votes, users);
    BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(alice, alice, 0, a("1.0000 TST")));
    t.check_votes(num_pools, pool_votes, users);
+   // check error message
+   BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("Need to proxy votes or vote for at least 21 producers"),
+                       t.votewithpool(alice, { bpa, bpb }));
    // add bpd
    add_bp(bpd);
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("producer bpd111111111 has not upgraded to support pool votes"),
