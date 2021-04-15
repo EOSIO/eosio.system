@@ -613,7 +613,6 @@ struct votepool_tester : eosio_system_tester {
    }
 
    void update_pool_votes(const name& voter_name, const name& proxy, const std::vector<name>& producers) {
-      ilog("1");
       auto& voter = find_or_create_voter(voter_name);
 
       std::vector<double> new_pool_votes = voter.owned_shares;
@@ -1428,7 +1427,6 @@ BOOST_AUTO_TEST_CASE(prod_inflation) try {
    BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(alice, alice, 0, a("1.0000 TST")));
    for (auto p : producers) 
       BOOST_REQUIRE_EQUAL(t.success(), t.regproducer(p));
-   ilog("1");
    BOOST_REQUIRE_EQUAL(t.success(), t.votewithpool(alice, producers));
 
    btime interval_start(time_point::from_iso_string("2020-01-01T00:00:18.000"));
@@ -1660,11 +1658,18 @@ FC_LOG_AND_RETHROW()
 
 BOOST_AUTO_TEST_CASE(voting, *boost::unit_test::tolerance(1e-8)) try {
    votepool_tester   t;
-   std::vector<name> users     = { alice, bob, jane, sue, bpa, bpb, bpc, bpd };
-   std::vector<name> producers     = { bpa, bpb, bpc, "d"_n,  "e"_n,  "f"_n,  "g"_n,  "h"_n,  "i"_n, "j"_n, "k"_n,
-                                       "l"_n, "m"_n, "n"_n, "o"_n,  "p"_n,  "q"_n,  "r"_n,  "s"_n,  "t"_n, "u"_n };
+   std::vector<name> users     = { alice, bob, jane, sue};
+   std::vector<name> bp_check  = {bpa, bpb, bpc, bpd};
+   std::vector<name> odd_bps   = {bpa, bpd};
+   std::vector<name> producers = { bpb, bpc, "d"_n,  "e"_n,  "f"_n,  "g"_n,  "h"_n,  "i"_n, "j"_n, "k"_n,
+                                       "l"_n, "m"_n, "n"_n, "o"_n,  "p"_n,  "q"_n,  "r"_n,  "s"_n,  "t"_n, "u"_n, "v"_n };
+   std::vector<name> alice_sue_votes = { bpa, bpb, "d"_n,  "e"_n,  "f"_n,  "g"_n,  "h"_n,  "i"_n, "j"_n, "k"_n,
+                                       "l"_n, "m"_n, "n"_n, "o"_n,  "p"_n,  "q"_n,  "r"_n,  "s"_n,  "t"_n, "u"_n, "v"_n };
+   std::vector<name> bob_votes = { bpb, bpc, "d"_n,  "e"_n,  "f"_n,  "g"_n,  "h"_n,  "i"_n, "j"_n, "k"_n,
+                                       "l"_n, "m"_n, "n"_n, "o"_n,  "p"_n,  "q"_n,  "r"_n,  "s"_n,  "t"_n, "u"_n, "v"_n };
    int               num_pools = 2;
    t.create_accounts_with_resources(users, sys);
+   t.create_accounts_with_resources(odd_bps, sys);
    t.create_accounts_with_resources(producers, sys);
    BOOST_REQUIRE_EQUAL(t.success(), t.regproducer_0_time(bpd));
    BOOST_REQUIRE_EQUAL(t.success(),
@@ -1683,10 +1688,16 @@ BOOST_AUTO_TEST_CASE(voting, *boost::unit_test::tolerance(1e-8)) try {
    
    std::map<name, prod_pool_votes> pool_votes;
    for( auto& bp : producers){ 
-      ilog("bp: ${bp}", ("bp",bp));
       BOOST_REQUIRE_EQUAL(t.success(), t.regproducer(bp));
       pool_votes[bp];
    }
+
+   auto add_bp = [&] (name bp) {
+      producers.push_back(bp);
+      std::sort(producers.begin(), producers.end());
+      pool_votes[bp];
+   };
+
    t.init_pools(users, num_pools);
 
    btime interval_start(time_point::from_iso_string("2020-01-01T00:00:18.000"));
@@ -1711,17 +1722,21 @@ BOOST_AUTO_TEST_CASE(voting, *boost::unit_test::tolerance(1e-8)) try {
    t.check_votes(num_pools, pool_votes, users);
    BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(alice, alice, 0, a("1.0000 TST")));
    t.check_votes(num_pools, pool_votes, users);
+   // add bpd
+   add_bp(bpd);
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("producer bpd111111111 has not upgraded to support pool votes"),
-                       t.votewithpool(alice, vector{ bpd }));
+                       t.votewithpool(alice, producers));
+   // register bpd
+   BOOST_REQUIRE_EQUAL(t.success(), t.regproducer(bpd));
+   add_bp(bpa);
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("producer bpa111111111 is not registered"),
-                       t.votewithpool(alice, { bpa, bpb }));
+                       t.votewithpool(alice, producers));
    BOOST_REQUIRE_EQUAL(t.success(), t.regproducer(bpa));
-   pool_votes[bpa];
    BOOST_REQUIRE_EQUAL(t.success(), t.push_action(bpa, "unregprod"_n, mvo()("producer", bpa)));
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("producer bpa111111111 is not currently registered"),
-                       t.votewithpool(alice, { bpa, bpb }));
+                       t.votewithpool(alice, producers));
    BOOST_REQUIRE_EQUAL(t.success(), t.regproducer(bpa));
-   BOOST_REQUIRE_EQUAL(t.success(), t.votewithpool(alice, { bpa, bpb }));
+   BOOST_REQUIRE_EQUAL(t.success(), t.votewithpool(alice, alice_sue_votes));
    t.check_votes(num_pools, pool_votes, users);
    BOOST_REQUIRE_EQUAL(t.success(), t.updatevotes(bpa, bpa, bpa));
    t.check_votes(num_pools, pool_votes, users, { bpa });
@@ -1730,23 +1745,23 @@ BOOST_AUTO_TEST_CASE(voting, *boost::unit_test::tolerance(1e-8)) try {
    // bob buys pool 0 and votes
    BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(bob, bob, 0, a("1.0000 TST")));
    t.check_votes(num_pools, pool_votes, users);
-   BOOST_REQUIRE_EQUAL(t.success(), t.votewithpool(bob, { bpb, bpc }));
+   BOOST_REQUIRE_EQUAL(t.success(), t.votewithpool(bob, bob_votes));
    t.check_votes(num_pools, pool_votes, users);
    BOOST_REQUIRE_EQUAL(t.success(), t.updatepay(jane, jane));
    BOOST_REQUIRE_EQUAL(t.success(), t.updatevotes(bpc, bpc, bpc));
-   t.check_votes(num_pools, pool_votes, users, { bpb, bpc });
+   t.check_votes(num_pools, pool_votes, users, bp_check);
 
    // sue buys pool 1 and votes
    BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(sue, sue, 1, a("1.0000 TST")));
    t.produce_block();
    BOOST_REQUIRE_EQUAL(t.success(), t.updatevotes(bpa, bpa, bpa));
    BOOST_REQUIRE_EQUAL(t.success(), t.updatevotes(bpc, bpc, bpc));
-   t.check_votes(num_pools, pool_votes, users, { bpa, bpc });
+   t.check_votes(num_pools, pool_votes, users, bp_check);
 
    // check balance between pool 0 (not inflated) and pool 1 (inflated)
-   BOOST_REQUIRE_EQUAL(t.success(), t.votewithpool(alice));
-   BOOST_REQUIRE_EQUAL(t.success(), t.votewithpool(bob, vector{ bpb })); // 1.0000 TST in pool 0; 100000.0 shares
-   BOOST_REQUIRE_EQUAL(t.success(), t.votewithpool(sue, vector{ bpc })); // 1.0000 TST in pool 1; small shares
+   BOOST_REQUIRE_EQUAL(t.success(), t.votewithpool(alice, alice_sue_votes));
+   BOOST_REQUIRE_EQUAL(t.success(), t.votewithpool(bob, bob_votes)); // 1.0000 TST in pool 0; 100000.0 shares
+   BOOST_REQUIRE_EQUAL(t.success(), t.votewithpool(sue, alice_sue_votes)); // 1.0000 TST in pool 1; small shares
    t.produce_block();
    BOOST_REQUIRE_EQUAL(t.success(), t.updatevotes(bpa, bpa, bpa));
    BOOST_REQUIRE_EQUAL(t.success(), t.updatevotes(bpb, bpb, bpb));
@@ -1770,8 +1785,8 @@ BOOST_AUTO_TEST_CASE(voting, *boost::unit_test::tolerance(1e-8)) try {
    };
 
    // bob: {b, c}; alice: {a, b}
-   BOOST_REQUIRE_EQUAL(t.success(), t.votewithpool(alice, { bpa, bpb }));
-   BOOST_REQUIRE_EQUAL(t.success(), t.votewithpool(bob, { bpb, bpc }));
+   BOOST_REQUIRE_EQUAL(t.success(), t.votewithpool(alice, alice_sue_votes));
+   BOOST_REQUIRE_EQUAL(t.success(), t.votewithpool(bob, bob_votes));
    update_and_check();
 
    // bob becomes proxy and alice switches to proxy
@@ -1805,7 +1820,7 @@ BOOST_AUTO_TEST_CASE(voting, *boost::unit_test::tolerance(1e-8)) try {
    update_and_check();
 
    // alice switches back to manual voting
-   BOOST_REQUIRE_EQUAL(t.success(), t.votewithpool(alice, { bpa, bpb }));
+   BOOST_REQUIRE_EQUAL(t.success(), t.votewithpool(alice, alice_sue_votes));
    update_and_check();
 
    // alice uses bob as a proxy again
@@ -1820,7 +1835,7 @@ BOOST_AUTO_TEST_CASE(voting, *boost::unit_test::tolerance(1e-8)) try {
    update_and_check();
 
    // alice switches back to manual voting
-   BOOST_REQUIRE_EQUAL(t.success(), t.votewithpool(alice, { bpa, bpb }));
+   BOOST_REQUIRE_EQUAL(t.success(), t.votewithpool(alice, alice_sue_votes));
    update_and_check();
 
    // alice becomes a proxy
@@ -1829,7 +1844,7 @@ BOOST_AUTO_TEST_CASE(voting, *boost::unit_test::tolerance(1e-8)) try {
    update_and_check();
    BOOST_REQUIRE_EQUAL(t.wasm_assert_msg("account that uses a proxy is not allowed to become a proxy"),
                        t.regpoolproxy(bob, true));
-   BOOST_REQUIRE_EQUAL(t.success(), t.votewithpool(bob, { bpb, bpc }));
+   BOOST_REQUIRE_EQUAL(t.success(), t.votewithpool(bob, bob_votes));
    BOOST_REQUIRE_EQUAL(t.success(), t.regpoolproxy(bob, true));
    update_and_check();
 } // voting
@@ -1879,6 +1894,7 @@ BOOST_AUTO_TEST_CASE(transition_voting) try {
    BOOST_REQUIRE_EQUAL(t.success(),
                        t.cfgsrpool(sys, { { 1024 } }, { { 64 } }, { { 1.0 } }, t.start_transition, t.end_transition));
    unsigned loc = 0;
+   vector<name> bp_votes = {};
    for (auto& bp : bps) {
       t.create_account_with_resources(bp.bp, sys);
       BOOST_REQUIRE_EQUAL(t.success(), t.regproducer(bp.bp, loc++));
@@ -1887,13 +1903,17 @@ BOOST_AUTO_TEST_CASE(transition_voting) try {
          BOOST_REQUIRE_EQUAL(t.success(), t.stake(bp.bp, bp.bp, a("0.0000 TST"), bp.cpu_votes));
          BOOST_REQUIRE_EQUAL(t.success(), t.vote(bp.bp, { bp.bp }));
       }
-      if (bp.pool_votes.get_amount()) {
-         t.transfer(sys, bp.bp, bp.pool_votes, sys);
-         BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(bp.bp, bp.bp, 0, bp.pool_votes));
-         BOOST_REQUIRE_EQUAL(t.success(), t.votewithpool(bp.bp, vector{ bp.bp }));
-         BOOST_REQUIRE_EQUAL(t.success(), t.updatevotes(bp.bp, bp.bp, bp.bp));
-      }
+      // add to voting array
+      bp_votes.push_back(bp.bp);
    }
+   t.create_account_with_resources(alice, sys);
+   asset alice_votes = a("1000.0000 TST");
+   t.transfer(sys, alice, alice_votes, sys);
+   BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(alice, alice, 0, alice_votes));
+   BOOST_REQUIRE_EQUAL(t.success(), t.votewithpool(alice, bp_votes));
+   for(auto& bp : bps)
+      BOOST_REQUIRE_EQUAL(t.success(), t.updatevotes(bp.bp, bp.bp, bp.bp));
+
 
    auto transition_to = [&](int i, auto& prods) {
       t.skip_to(btime(t.start_transition.slot + i * (t.end_transition.slot - t.start_transition.slot) / 21));
@@ -1904,95 +1924,29 @@ BOOST_AUTO_TEST_CASE(transition_voting) try {
       BOOST_REQUIRE_EQUAL(t.active_producers(), prods);
    };
 
-   vector<name> p0  = { "bp111111111f"_n, "bp111111111g"_n, "bp111111111h"_n, "bp111111111i"_n, "bp111111111j"_n,
+   vector<name> start  = { "bp111111111f"_n, "bp111111111g"_n, "bp111111111h"_n, "bp111111111i"_n, "bp111111111j"_n,
                        "bp111111111k"_n, "bp111111111l"_n, "bp111111111m"_n, "bp111111111n"_n, "bp111111111o"_n,
                        "bp111111111p"_n, "bp111111111q"_n, "bp111111111r"_n, "bp111111111s"_n, "bp111111111t"_n,
                        "bp111111111u"_n, "bp111111111v"_n, "bp111111111w"_n, "bp111111111x"_n, "bp111111111y"_n,
                        "bp111111111z"_n };
-   vector<name> p1  = { "bp111111111c"_n, "bp111111111g"_n, "bp111111111h"_n, "bp111111111i"_n, "bp111111111j"_n,
-                       "bp111111111k"_n, "bp111111111l"_n, "bp111111111m"_n, "bp111111111n"_n, "bp111111111o"_n,
-                       "bp111111111p"_n, "bp111111111q"_n, "bp111111111r"_n, "bp111111111s"_n, "bp111111111t"_n,
-                       "bp111111111u"_n, "bp111111111v"_n, "bp111111111w"_n, "bp111111111x"_n, "bp111111111y"_n,
-                       "bp111111111z"_n };
-   vector<name> p2  = { "bp111111111c"_n, "bp111111111e"_n, "bp111111111h"_n, "bp111111111i"_n, "bp111111111j"_n,
-                       "bp111111111k"_n, "bp111111111l"_n, "bp111111111m"_n, "bp111111111n"_n, "bp111111111o"_n,
-                       "bp111111111p"_n, "bp111111111q"_n, "bp111111111r"_n, "bp111111111s"_n, "bp111111111t"_n,
-                       "bp111111111u"_n, "bp111111111v"_n, "bp111111111w"_n, "bp111111111x"_n, "bp111111111y"_n,
-                       "bp111111111z"_n };
-   vector<name> p3  = { "bp111111111b"_n, "bp111111111c"_n, "bp111111111e"_n, "bp111111111i"_n, "bp111111111j"_n,
-                       "bp111111111k"_n, "bp111111111l"_n, "bp111111111m"_n, "bp111111111n"_n, "bp111111111o"_n,
-                       "bp111111111p"_n, "bp111111111q"_n, "bp111111111r"_n, "bp111111111s"_n, "bp111111111t"_n,
-                       "bp111111111u"_n, "bp111111111v"_n, "bp111111111w"_n, "bp111111111x"_n, "bp111111111y"_n,
-                       "bp111111111z"_n };
-   vector<name> p7  = { "bp111111111b"_n, "bp111111111c"_n, "bp111111111e"_n, "bp111111111g"_n, "bp111111111j"_n,
-                       "bp111111111k"_n, "bp111111111l"_n, "bp111111111m"_n, "bp111111111n"_n, "bp111111111o"_n,
-                       "bp111111111p"_n, "bp111111111q"_n, "bp111111111r"_n, "bp111111111s"_n, "bp111111111t"_n,
-                       "bp111111111u"_n, "bp111111111v"_n, "bp111111111w"_n, "bp111111111x"_n, "bp111111111y"_n,
-                       "bp111111111z"_n };
-   vector<name> p8  = { "bp111111111a"_n, "bp111111111b"_n, "bp111111111c"_n, "bp111111111e"_n, "bp111111111g"_n,
-                       "bp111111111k"_n, "bp111111111l"_n, "bp111111111m"_n, "bp111111111n"_n, "bp111111111o"_n,
-                       "bp111111111p"_n, "bp111111111q"_n, "bp111111111r"_n, "bp111111111s"_n, "bp111111111t"_n,
-                       "bp111111111u"_n, "bp111111111v"_n, "bp111111111w"_n, "bp111111111x"_n, "bp111111111y"_n,
-                       "bp111111111z"_n };
-   vector<name> p9  = { "bp111111111a"_n, "bp111111111b"_n, "bp111111111c"_n, "bp111111111d"_n, "bp111111111e"_n,
-                       "bp111111111g"_n, "bp111111111l"_n, "bp111111111m"_n, "bp111111111n"_n, "bp111111111o"_n,
-                       "bp111111111p"_n, "bp111111111q"_n, "bp111111111r"_n, "bp111111111s"_n, "bp111111111t"_n,
-                       "bp111111111u"_n, "bp111111111v"_n, "bp111111111w"_n, "bp111111111x"_n, "bp111111111y"_n,
-                       "bp111111111z"_n };
-   vector<name> p10 = { "bp111111111a"_n, "bp111111111b"_n, "bp111111111c"_n, "bp111111111d"_n, "bp111111111e"_n,
-                        "bp111111111g"_n, "bp111111111h"_n, "bp111111111m"_n, "bp111111111n"_n, "bp111111111o"_n,
-                        "bp111111111p"_n, "bp111111111q"_n, "bp111111111r"_n, "bp111111111s"_n, "bp111111111t"_n,
-                        "bp111111111u"_n, "bp111111111v"_n, "bp111111111w"_n, "bp111111111x"_n, "bp111111111y"_n,
-                        "bp111111111z"_n };
-   vector<name> p17 = { "bp111111111a"_n, "bp111111111b"_n, "bp111111111c"_n, "bp111111111d"_n, "bp111111111e"_n,
-                        "bp111111111g"_n, "bp111111111h"_n, "bp111111111k"_n, "bp111111111m"_n, "bp111111111o"_n,
-                        "bp111111111p"_n, "bp111111111q"_n, "bp111111111r"_n, "bp111111111s"_n, "bp111111111t"_n,
-                        "bp111111111u"_n, "bp111111111v"_n, "bp111111111w"_n, "bp111111111x"_n, "bp111111111y"_n,
-                        "bp111111111z"_n };
-   vector<name> p19 = { "bp111111111a"_n, "bp111111111b"_n, "bp111111111c"_n, "bp111111111d"_n, "bp111111111e"_n,
-                        "bp111111111g"_n, "bp111111111h"_n, "bp111111111i"_n, "bp111111111k"_n, "bp111111111m"_n,
-                        "bp111111111o"_n, "bp111111111p"_n, "bp111111111q"_n, "bp111111111s"_n, "bp111111111t"_n,
-                        "bp111111111u"_n, "bp111111111v"_n, "bp111111111w"_n, "bp111111111x"_n, "bp111111111y"_n,
-                        "bp111111111z"_n };
-   vector<name> p20 = { "bp111111111a"_n, "bp111111111b"_n, "bp111111111c"_n, "bp111111111d"_n, "bp111111111e"_n,
-                        "bp111111111f"_n, "bp111111111g"_n, "bp111111111h"_n, "bp111111111i"_n, "bp111111111k"_n,
-                        "bp111111111m"_n, "bp111111111o"_n, "bp111111111p"_n, "bp111111111q"_n, "bp111111111s"_n,
-                        "bp111111111u"_n, "bp111111111v"_n, "bp111111111w"_n, "bp111111111x"_n, "bp111111111y"_n,
-                        "bp111111111z"_n };
-   vector<name> p21 = { "bp111111111a"_n, "bp111111111b"_n, "bp111111111c"_n, "bp111111111d"_n, "bp111111111e"_n,
+   vector<name> final = { "bp111111111a"_n, "bp111111111b"_n, "bp111111111c"_n, "bp111111111d"_n, "bp111111111e"_n,
                         "bp111111111f"_n, "bp111111111g"_n, "bp111111111h"_n, "bp111111111i"_n, "bp111111111j"_n,
-                        "bp111111111k"_n, "bp111111111m"_n, "bp111111111o"_n, "bp111111111p"_n, "bp111111111q"_n,
-                        "bp111111111s"_n, "bp111111111u"_n, "bp111111111v"_n, "bp111111111w"_n, "bp111111111y"_n,
-                        "bp111111111z"_n };
+                        "bp111111111k"_n, "bp111111111l"_n, "bp111111111m"_n, "bp111111111n"_n, "bp111111111o"_n, 
+                        "bp111111111p"_n, "bp111111111q"_n, "bp111111111r"_n, "bp111111111s"_n, "bp111111111t"_n, 
+                        "bp111111111u"_n };
 
    t.produce_blocks(100);
-   BOOST_REQUIRE_EQUAL(t.active_producers(), p0);
+   BOOST_REQUIRE_EQUAL(t.active_producers(), start);
 
-   transition_to(0, p0);
-   transition_to(1, p1);
-   transition_to(2, p2);
-   transition_to(3, p3);
-   transition_to(4, p3); // bp111111111m switches to being selected via pool
-   transition_to(5, p3); // bp111111111s switches to being selected via pool
-   transition_to(6, p3); // bp111111111p switches to being selected via pool
-   transition_to(7, p7);
-   transition_to(8, p8);
-   transition_to(9, p9);
-   transition_to(10, p10);
-   transition_to(11, p10); // bp111111111w switches to being selected via pool
-   transition_to(12, p10); // bp111111111u switches to being selected via pool
-   transition_to(13, p10); // bp111111111z switches to being selected via pool
-   transition_to(14, p10); // bp111111111v switches to being selected via pool
-   transition_to(15, p10); // bp111111111y switches to being selected via pool
-   transition_to(16, p10); // bp111111111o switches to being selected via pool
-   transition_to(17, p17);
-   transition_to(18, p17); // bp111111111q switches to being selected via pool
-   transition_to(19, p19);
-   transition_to(20, p20);
-   transition_to(21, p21);
-   transition_to(22, p21);
-   transition_to(23, p21);
-   transition_to(100, p21);
+   for(int i = 0; i < 21; ++i) {
+      transition_to(i, start);
+      start[i] = bps[i].bp;
+   }
+   // check final transitions
+   transition_to(21, final);
+   transition_to(22, final);
+   transition_to(23, final);
+   transition_to(100, final);
 } // transition_voting
 FC_LOG_AND_RETHROW()
 
@@ -2000,19 +1954,25 @@ BOOST_AUTO_TEST_CASE(transition_inflation) try {
    votepool_tester t;
    t.start_transition = time_point::from_iso_string("2020-04-10T10:00:00.000");
    t.end_transition   = time_point::from_iso_string("2020-08-10T10:00:00.000");
-
    double prod_rate  = .4;
    double voter_rate = .5;
+   std::vector<name> producers = { bpa, bpb, bpc, "d"_n,  "e"_n,  "f"_n,  "g"_n,  "h"_n,  "i"_n, "j"_n, "k"_n,
+                                       "l"_n, "m"_n, "n"_n, "o"_n,  "p"_n,  "q"_n,  "r"_n,  "s"_n,  "t"_n, "u"_n, "v"_n };
    BOOST_REQUIRE_EQUAL(t.success(), t.cfgsrpool(sys, { { 1024 } }, { { 64 } }, { { 1.0 } }, t.start_transition,
                                                t.end_transition, prod_rate, voter_rate));
-   t.create_account_with_resources(bpa, sys);
-   BOOST_REQUIRE_EQUAL(t.success(), t.stake(sys, bpa, a("1000.0000 TST"), a("1000.0000 TST")));
-   t.transfer(sys, bpa, a("2.0000 TST"), sys);
-   BOOST_REQUIRE_EQUAL(t.success(), t.regproducer(bpa));
-   BOOST_REQUIRE_EQUAL(t.success(), t.stake(bpa, bpa, a("0.0000 TST"), a("1.0000 TST")));
-   BOOST_REQUIRE_EQUAL(t.success(), t.vote(bpa, { bpa }));
+   
+   for(auto& prod : producers) {
+      t.create_account_with_resources(prod, sys);
+      BOOST_REQUIRE_EQUAL(t.success(), t.stake(sys, prod, a("1000.0000 TST"), a("1000.0000 TST")));
+      t.transfer(sys, prod, a("2.0000 TST"), sys);
+      BOOST_REQUIRE_EQUAL(t.success(), t.regproducer(prod));
+      BOOST_REQUIRE_EQUAL(t.success(), t.stake(prod, prod, a("0.0000 TST"), a("1.0000 TST")));
+      BOOST_REQUIRE_EQUAL(t.success(), t.vote(prod, { bpa }));
+
+   }
+   
    BOOST_REQUIRE_EQUAL(t.success(), t.stake2pool(bpa, bpa, 0, a("1.0000 TST")));
-   BOOST_REQUIRE_EQUAL(t.success(), t.votewithpool(bpa, vector{ bpa }));
+   BOOST_REQUIRE_EQUAL(t.success(), t.votewithpool(bpa, producers));
    BOOST_REQUIRE_EQUAL(t.success(), t.updatevotes(bpa, bpa, bpa));
 
    for (name claimer : { "claimer1111a"_n, "claimer1111b"_n, "claimer1111c"_n, "claimer1111d"_n, "claimer1111e"_n,
@@ -2037,8 +1997,8 @@ BOOST_AUTO_TEST_CASE(transition_inflation) try {
 
       auto pool_transition = t.transition(t.get_poolstate()["interval_start"].as<btime>(), 1.0);
       BOOST_REQUIRE_EQUAL(t.success(), t.updatepay(bpa, bpa));
-      auto bp_pay =
-            asset(pool_transition * prod_rate * supply.get_amount() / eosiosystem::rounds_per_year, symbol{ CORE_SYM });
+      int64_t calc_bp_pay = pool_transition * prod_rate * supply.get_amount() / eosiosystem::rounds_per_year / producers.size();
+      auto bp_pay = asset(calc_bp_pay, symbol{ CORE_SYM });
       auto pool_pay = asset(supply.get_amount() * voter_rate * pool_transition / eosiosystem::rounds_per_year,
                             symbol{ CORE_SYM });
       bpspay_bal += bp_pay;
