@@ -3,6 +3,11 @@
 
 namespace eosiosystem {
 
+   void system_contract::check_pool_requirements(const name& proxy, const std::vector<name> producers) const
+   {
+      check((proxy || 21 <= producers.size()), "Need to proxy votes or vote for at least 21 producers");
+   }
+
    staking_pool_state_singleton& system_contract::get_staking_pool_state_singleton() {
       static std::optional<staking_pool_state_singleton> sing;
       if (!sing)
@@ -465,6 +470,7 @@ namespace eosiosystem {
       eosio::check(pool_index < state->pools.size(), "invalid pool");
       eosio::check(requested.symbol == core_symbol, "requested doesn't match core symbol");
       eosio::check(requested.amount > 0, "requested must be positive");
+      check_pool_requirements(voter.proxy, voter.producers);
       distribute_namebid_to_pools(state);
 
       auto& pool = state->pools[pool_index];
@@ -580,6 +586,7 @@ namespace eosiosystem {
    void system_contract::votewithpool(const name& voter, const name& proxy, const std::vector<name>& producers) {
       require_auth(voter);
       staking_pool_state_autosave state{ *this };
+      check_pool_requirements(proxy, producers);
       update_pool_votes(state, voter, proxy, producers, true);
    }
 
