@@ -1674,6 +1674,7 @@ namespace eosiosystem {
          };
 
          // defined in staking_pool.cpp
+         void check_pool_requirements(const name& proxy, const std::vector<name> producers)const;
          staking_pool_state_singleton& get_staking_pool_state_singleton();
          staking_pool_state& get_staking_pool_state_mutable(bool init_if_not_exist = false);
          const staking_pool_state& get_staking_pool_state();
