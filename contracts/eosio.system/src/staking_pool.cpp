@@ -3,6 +3,11 @@
 
 namespace eosiosystem {
 
+   void system_contract::check_pool_requirements(const name& proxy, const std::vector<name> producers) const
+   {
+      check((proxy || 21 <= producers.size()), "Need to proxy votes or vote for at least 21 producers");
+   }
+
    staking_pool_state_singleton& system_contract::get_staking_pool_state_singleton() {
       static std::optional<staking_pool_state_singleton> sing;
       if (!sing)
@@ -262,9 +267,6 @@ namespace eosiosystem {
       if (voter.is_proxy)
          for (size_t i = 0; i < new_pool_votes.size(); ++i)
             new_pool_votes[i] += voter.proxied_shares[i];
-      if (producers.size() > 1)
-         for (size_t i = 0; i < new_pool_votes.size(); ++i)
-            new_pool_votes[i] /= producers.size();
 
       struct producer_change {
          bool old_vote = false;
@@ -328,9 +330,6 @@ namespace eosiosystem {
       if (voter.is_proxy)
          for (size_t i = 0; i < new_pool_votes.size(); ++i)
             new_pool_votes[i] += voter.proxied_shares[i];
-      if (voter.producers.size() > 1)
-         for (size_t i = 0; i < new_pool_votes.size(); ++i)
-            new_pool_votes[i] /= voter.producers.size();
 
       if (voter.proxy) {
          auto& proxy = pool_voter_table.get(voter.proxy.value, "bug: proxy not found");
@@ -367,7 +366,7 @@ namespace eosiosystem {
       double result = 0;
       eosio::check(pool_votes.size() == pools.size(), "staking pool corruption");
       for (size_t i = 0; i < pools.size(); ++i)
-         result += pools[i].token_pool.simulate_sell(pool_votes[i]).amount * pools[i].vote_weight;
+         result += pool_votes[i] * pools[i].vote_weight;
       return result;
    }
 
@@ -471,6 +470,7 @@ namespace eosiosystem {
       eosio::check(pool_index < state->pools.size(), "invalid pool");
       eosio::check(requested.symbol == core_symbol, "requested doesn't match core symbol");
       eosio::check(requested.amount > 0, "requested must be positive");
+      check_pool_requirements(voter.proxy, voter.producers);
       distribute_namebid_to_pools(state);
 
       auto& pool = state->pools[pool_index];
@@ -586,6 +586,7 @@ namespace eosiosystem {
    void system_contract::votewithpool(const name& voter, const name& proxy, const std::vector<name>& producers) {
       require_auth(voter);
       staking_pool_state_autosave state{ *this };
+      check_pool_requirements(proxy, producers);
       update_pool_votes(state, voter, proxy, producers, true);
    }
 
