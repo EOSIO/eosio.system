@@ -762,8 +762,4 @@ namespace eosiosystem {
       });
    }
 
-   void system_contract::deltopool(const name& owner, const name& receiver, const asset& from_net, const asset& from_cpu, uint32_t pool_index){
-      require_auth(owner);
-   }
-
 } // namespace eosiosystem
