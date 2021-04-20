@@ -11,7 +11,7 @@
       "name": "mdjavadoc",
       "options": {
         "source_dirs": [
-          "contracts/eosio.system/include/eosio.system/",
+          "contracts/eosio.system/include/eosio.system/"
         ],
         "output_dir": "action-reference"
       }

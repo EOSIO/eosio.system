@@ -93,11 +93,11 @@ void update_weight(time_point_sec now, powerup_state_resource& res, int64_t& del
       res.weight_ratio = res.target_weight_ratio;
    } else {
       res.weight_ratio = res.initial_weight_ratio + //
-                         int128_t(res.target_weight_ratio - res.initial_weight_ratio) *
+                         static_cast<int128_t>(res.target_weight_ratio - res.initial_weight_ratio) *
                                (now.utc_seconds - res.initial_timestamp.utc_seconds) /
                                (res.target_timestamp.utc_seconds - res.initial_timestamp.utc_seconds);
    }
-   int64_t new_weight    = res.assumed_stake_weight * int128_t(powerup_frac) / res.weight_ratio - res.assumed_stake_weight;
+   int64_t new_weight    = res.assumed_stake_weight * static_cast<int128_t>(powerup_frac) / res.weight_ratio - res.assumed_stake_weight;
    delta_available += new_weight - res.weight;
    res.weight = new_weight;
 }
@@ -109,7 +109,7 @@ void update_utilization(time_point_sec now, powerup_state_resource& res) {
       res.adjusted_utilization = res.utilization;
    } else {
       int64_t diff  = res.adjusted_utilization - res.utilization;
-      int64_t delta = diff * std::exp(-double(now.utc_seconds - res.utilization_timestamp.utc_seconds) / double(res.decay_secs));
+      int64_t delta = diff * std::exp(-static_cast<double>(now.utc_seconds - res.utilization_timestamp.utc_seconds) / static_cast<double>(res.decay_secs));
       delta = std::clamp( delta, 0ll, diff);
       res.adjusted_utilization = res.utilization + delta;
    }
@@ -197,7 +197,7 @@ void system_contract::cfgpowerup(powerup_config& args) {
       eosio::check(*args.target_weight_ratio <= *args.current_weight_ratio, "weight can't grow over time");
       eosio::check(*args.assumed_stake_weight >= 1,
                    "assumed_stake_weight must be at least 1; a much larger value is recommended");
-      eosio::check(*args.assumed_stake_weight * int128_t(powerup_frac) / *args.target_weight_ratio <=
+      eosio::check(*args.assumed_stake_weight * static_cast<int128_t>(powerup_frac) / *args.target_weight_ratio <=
                          std::numeric_limits<int64_t>::max(),
                    "assumed_stake_weight/target_weight_ratio is too large");
       eosio::check(*args.exponent >= 1.0, "exponent must be >= 1");
@@ -355,7 +355,7 @@ void system_contract::powerup(const name& payer, const name& receiver, uint32_t 
    auto         process = [&](int64_t frac, int64_t& amount, powerup_state_resource& state) {
       if (!frac)
          return;
-      amount = int128_t(frac) * state.weight / powerup_frac;
+      amount = static_cast<int128_t>(frac) * state.weight / powerup_frac;
       eosio::check(state.weight, "market doesn't have resources available");
       eosio::check(state.utilization + amount <= state.weight, "market doesn't have enough resources available");
       int64_t f = calc_powerup_fee(state, amount);
@@ -387,7 +387,7 @@ void system_contract::powerup(const name& payer, const name& receiver, uint32_t 
 
    adjust_resources(payer, receiver, core_symbol, net_amount, cpu_amount, true);
    adjust_resources(get_self(), reserv_account, core_symbol, net_delta_available, cpu_delta_available, true);
-   channel_to_rex(payer, fee, true);
+   channel_to_rex_or_pools(payer, fee, true);
    state_sing.set(state, get_self());
 
    // inline noop action
