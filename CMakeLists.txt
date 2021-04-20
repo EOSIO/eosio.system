@@ -25,9 +25,9 @@ set(EOSIO_TOKEN_PREFIX "${CMAKE_CURRENT_BINARY_DIR}/eosio.token")
 ExternalProject_Add(
    eosio.token
    PREFIX ${EOSIO_TOKEN_PREFIX}
-   GIT_REPOSITORY git@github.com:EOSIO/eosio.token.git
+   GIT_REPOSITORY https://github.com/EOSIO/eosio.token.git
    TIMEOUT 10
-   UPDATE_COMMAND ${GIT_EXECUTABLE} pull
+   UPDATE_COMMAND ${GIT_EXECUTABLE} checkout
    GIT_TAG develop
    # CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${EOSIO_TOKEN_PREFIX}
    INSTALL_COMMAND ""
