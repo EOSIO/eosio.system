@@ -699,7 +699,6 @@ namespace eosiosystem {
       update_total_pool_votes(state->max_num_pay);
       auto   prods            = top_active_producers(state->max_num_pay);
       double total_votes      = calc_votes(state->total_votes);
-      double total_votes_paid = 0;
 
       const asset token_supply = eosio::token::get_supply(token_account, core_symbol().code());
       auto        pay_scale =
@@ -708,6 +707,7 @@ namespace eosiosystem {
       int64_t total_prod_pay  = 0;
 
       if (target_prod_pay > 0 && total_votes > 0) {
+         double total_votes_paid = 0;
          for (auto* prod : prods) {
             if (total_votes_paid >= total_votes * state->max_vote_ratio)
                break;
