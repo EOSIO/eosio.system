@@ -364,7 +364,7 @@ namespace eosiosystem {
    double system_contract::calc_votes(const std::vector<double>& pool_votes) {
       auto&  pools  = get_staking_pool_state().pools;
       double result = 0;
-      eosio::check(pool_votes.size() == pools.size(), "staking pool corruption");
+      eosio::check(pool_votes && pool_votes.size() == pools.size(), "staking pool corruption");
       for (size_t i = 0; i < pools.size(); ++i)
          result += pool_votes[i] * pools[i].vote_weight;
       return result;
