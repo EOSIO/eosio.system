@@ -756,7 +756,7 @@ namespace eosiosystem {
       auto& total_table = get_total_pool_votes_table();
       auto& prod        = total_table.get(producer.value, "unknown producer");
       total_table.modify(prod, same_payer, [&](auto& prod) {
-         eosio::check(prod.vote_pay.amount > 0, "no pay available");
+         eosio::check(prod.vote_pay.amount > 100, "no pay available");
          eosio::token::transfer_action transfer_act{ token_account, { bpspay_account, active_permission } };
          transfer_act.send(bpspay_account, producer, prod.vote_pay, "producer pay");
          prod.vote_pay.amount = 0;
