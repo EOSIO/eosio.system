@@ -6,6 +6,7 @@ function usage() {
   -e DIR      Directory where EOSIO is installed. (Default: $HOME/eosio/X.Y)
   -c DIR      Directory where EOSIO.CDT is installed. (Default: /usr/local/eosio.cdt)
   -t          Build unit tests.
+  -d          Build with inflation sent to the eosio.dist account (Default: eosio.saving)
   -y          Noninteractive mode (Uses defaults for each prompt.)
   -h          Print this help menu.
    \\n" "$0" 1>&2
