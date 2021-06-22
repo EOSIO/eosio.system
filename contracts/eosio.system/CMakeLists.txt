@@ -1,3 +1,4 @@
+
 add_contract(eosio.system eosio.system
    ${CMAKE_CURRENT_SOURCE_DIR}/src/eosio.system.cpp
    ${CMAKE_CURRENT_SOURCE_DIR}/src/delegate_bandwidth.cpp
@@ -13,7 +14,7 @@ add_contract(eosio.system eosio.system
 target_include_directories(eosio.system
    PUBLIC
    ${CMAKE_CURRENT_SOURCE_DIR}/include
-   ${CMAKE_CURRENT_SOURCE_DIR}/../eosio.token/include)
+   ${CMAKE_CURRENT_BINARY_DIR}/../../eosio.token/src/eosio.token/contracts/eosio.token/include)
 
 set_target_properties(eosio.system
    PROPERTIES
@@ -40,4 +41,11 @@ set_target_properties(powup.results
 
 configure_file( ${CMAKE_CURRENT_SOURCE_DIR}/ricardian/eosio.system.contracts.md.in ${CMAKE_CURRENT_BINARY_DIR}/ricardian/eosio.system.contracts.md @ONLY )
 
-target_compile_options( eosio.system PUBLIC -R${CMAKE_CURRENT_SOURCE_DIR}/ricardian -R${CMAKE_CURRENT_BINARY_DIR}/ricardian )
+target_compile_options( eosio.system PUBLIC -R${CMAKE_CURRENT_SOURCE_DIR}/ricardian -R${CMAKE_CURRENT_BINARY_DIR}/ricardian)
+
+# ##################################################################################################
+# Enable setkvparams.
+# ##################################################################################################
+if(SETKVPARAMS)
+   target_compile_definitions(eosio.system PUBLIC -DSETKVPARAMS_AVAILABLE)
+endif()
