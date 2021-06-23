@@ -15,6 +15,7 @@ function usage() {
 
 BUILD_TESTS=false
 USE_DISTRIBUTE=false
+SETKVPARAMS=false
 
 if [ $# -ne 0 ]; then
   while getopts "e:c:tyhd" opt; do
@@ -34,6 +35,9 @@ if [ $# -ne 0 ]; then
       ;;
       d )
         USE_DISTRIBUTE=true
+      ;;
+      k )
+        SETKVPARAMS=true
       ;;
       h )
         usage
@@ -84,6 +88,6 @@ NC='\033[0m'
 CPU_CORES=$(getconf _NPROCESSORS_ONLN)
 mkdir -p build
 pushd build &> /dev/null
-cmake -DBUILD_TESTS=${BUILD_TESTS} -DUSE_INFLATION_DISTRIBUTE=${USE_DISTRIBUTE} ../
+cmake -DBUILD_TESTS=${BUILD_TESTS} -DUSE_INFLATION_DISTRIBUTE=${USE_DISTRIBUTE} -DSETKVPARAMS=${SETKVPARAMS} ../
 make -j $CPU_CORES
 popd &> /dev/null

@@ -10,6 +10,7 @@
 
 #include <eosio.system/exchange_state.hpp>
 #include <eosio.system/native.hpp>
+#include <eosio.system/constants.hpp>
 
 #include <deque>
 #include <optional>
@@ -23,6 +24,12 @@
 // channeled to REX pool. In order to stop these proceeds from being channeled, the macro must
 // be set to 0.
 #define CHANNEL_RAM_AND_NAMEBID_FEES_TO_REX 1
+
+#ifdef SETKVPARAMS_AVAILABLE
+   constexpr inline static bool has_setkvparams_v = true;
+#else
+   constexpr inline static bool has_setkvparams_v = false;
+#endif
 
 namespace eosiosystem {
 
@@ -41,6 +48,7 @@ namespace eosiosystem {
    using eosio::unsigned_int;
 
    inline constexpr int64_t powerup_frac = 1'000'000'000'000'000ll;  // 1.0 = 10^15
+   using Bool = bool; // work around abigen issue with optional<bool>
 
    template<typename E, typename F>
    static inline auto has_field( F flags, E field )
@@ -61,39 +69,6 @@ namespace eosiosystem {
          return ( flags & ~static_cast<F>(field) );
    }
 
-   static constexpr uint32_t seconds_per_year      = 52 * 7 * 24 * 3600;
-   static constexpr uint32_t seconds_per_day       = 24 * 3600;
-   static constexpr uint32_t seconds_per_hour      = 3600;
-   static constexpr int64_t  useconds_per_year     = int64_t(seconds_per_year) * 1000'000ll;
-   static constexpr int64_t  useconds_per_day      = int64_t(seconds_per_day) * 1000'000ll;
-   static constexpr int64_t  useconds_per_hour     = int64_t(seconds_per_hour) * 1000'000ll;
-   static constexpr uint32_t blocks_per_day        = 2 * seconds_per_day; // half seconds per day
-
-   static constexpr int64_t  min_activated_stake   = 150'000'000'0000;
-   static constexpr int64_t  ram_gift_bytes        = 1400;
-   static constexpr int64_t  min_pervote_daily_pay = 100'0000;
-   static constexpr uint32_t refund_delay_sec      = 3 * seconds_per_day;
-
-   static constexpr int64_t  inflation_precision           = 100;     // 2 decimals
-   static constexpr int64_t  default_annual_rate           = 500;     // 5% annual rate
-   static constexpr int64_t  pay_factor_precision          = 10000;
-   static constexpr int64_t  default_inflation_pay_factor  = 50000;   // producers pay share = 10000 / 50000 = 20% of the inflation
-   static constexpr int64_t  default_votepay_factor        = 40000;   // per-block pay share = 10000 / 40000 = 25% of the producer pay
-
-  /**
-   * The `eosio.system` smart contract is provided by `block.one` as a sample system contract, and it defines the structures and actions needed for blockchain's core functionality.
-   * 
-   * Just like in the `eosio.bios` sample contract implementation, there are a few actions which are not implemented at the contract level (`newaccount`, `updateauth`, `deleteauth`, `linkauth`, `unlinkauth`, `canceldelay`, `onerror`, `setabi`, `setcode`), they are just declared in the contract so they will show in the contract's ABI and users will be able to push those actions to the chain via the account holding the `eosio.system` contract, but the implementation is at the EOSIO core level. They are referred to as EOSIO native actions.
-   * 
-   * - Users can stake tokens for CPU and Network bandwidth, and then vote for producers or
-   *    delegate their vote to a proxy.
-   * - Producers register in order to be voted for, and can claim per-block and per-vote rewards.
-   * - Users can buy and sell RAM at a market-determined price.
-   * - Users can bid on premium names.
-   * - A resource exchange system (REX) allows token holders to lend their tokens,
-   *    and users to rent CPU and Network resources in return for a market-determined fee.
-   */
-  
    // A name bid, which consists of:
    // - a `newname` name that the bid is for
    // - a `high_bidder` account name that is the one with the highest bid so far
@@ -642,20 +617,19 @@ namespace eosiosystem {
                                indexed_by<"byexpires"_n, const_mem_fun<powerup_order, uint64_t, &powerup_order::by_expires>>
                                > powerup_order_table;
 
-   /**
-    * The `eosio.system` smart contract is provided by `block.one` as a sample system contract, and it defines the structures and actions needed for blockchain's core functionality.
-    *
-    * Just like in the `eosio.bios` sample contract implementation, there are a few actions which are not implemented at the contract level (`newaccount`, `updateauth`, `deleteauth`, `linkauth`, `unlinkauth`, `canceldelay`, `onerror`, `setabi`, `setcode`), they are just declared in the contract so they will show in the contract's ABI and users will be able to push those actions to the chain via the account holding the `eosio.system` contract, but the implementation is at the EOSIO core level. They are referred to as EOSIO native actions.
-    *
-    * - Users can stake tokens for CPU and Network bandwidth, and then vote for producers or
-    *    delegate their vote to a proxy.
-    * - Producers register in order to be voted for, and can claim per-block and per-vote rewards.
-    * - Users can buy and sell RAM at a market-determined price.
-    * - Users can bid on premium names.
-    * - A resource exchange system (REX) allows token holders to lend their tokens,
-    *    and users to rent CPU and Network resources in return for a market-determined fee.
-    * - A resource market separate from REX: `power`.
-    */
+  /**
+   * The `eosio.system` smart contract is provided by `block.one` as a sample system contract, and it defines the structures and actions needed for blockchain's core functionality.
+   * 
+   * Just like in the `eosio.bios` sample contract implementation, there are a few actions which are not implemented at the contract level (`newaccount`, `updateauth`, `deleteauth`, `linkauth`, `unlinkauth`, `canceldelay`, `onerror`, `setabi`, `setcode`), they are just declared in the contract so they will show in the contract's ABI and users will be able to push those actions to the chain via the account holding the `eosio.system` contract, but the implementation is at the EOSIO core level. They are referred to as EOSIO native actions.
+   * 
+   * - Users can stake tokens for CPU and Network bandwidth, and then vote for producers or
+   *    delegate their vote to a proxy.
+   * - Producers register in order to be voted for, and can claim per-block and per-vote rewards.
+   * - Users can buy and sell RAM at a market-determined price.
+   * - Users can bid on premium names.
+   * - A resource exchange system (REX) allows token holders to lend their tokens,
+   *    and users to rent CPU and Network resources in return for a market-determined fee.
+   */
    class [[eosio::contract("eosio.system")]] system_contract : public native {
 
       private:
@@ -1085,7 +1059,7 @@ namespace eosiosystem {
           *
           * @param payer - the ram buyer,
           * @param receiver - the ram receiver,
-          * @param quant - the quntity of tokens to buy ram with.
+          * @param quant - the quantity of tokens to buy ram with.
           */
          [[eosio::action]]
          void buyram( const name& payer, const name& receiver, const asset& quant );
@@ -1096,7 +1070,7 @@ namespace eosiosystem {
           *
           * @param payer - the ram buyer,
           * @param receiver - the ram receiver,
-          * @param bytes - the quntity of ram to buy specified in bytes.
+          * @param bytes - the quantity of ram to buy specified in bytes.
           */
          [[eosio::action]]
          void buyrambytes( const name& payer, const name& receiver, uint32_t bytes );
@@ -1229,6 +1203,13 @@ namespace eosiosystem {
           */
          [[eosio::action]]
          void setparams( const eosio::blockchain_parameters& params );
+
+         /**
+          * Set KV parameters.
+          * @param params - New KV parameters to set.
+          */
+         [[eosio::action]]
+         void setkvparams( const eosio::kv_parameters& params );
 
          /**
           * Claim rewards action, claims block producing and vote rewards.
@@ -1385,6 +1366,7 @@ namespace eosiosystem {
          using setpriv_action = eosio::action_wrapper<"setpriv"_n, &system_contract::setpriv>;
          using setalimits_action = eosio::action_wrapper<"setalimits"_n, &system_contract::setalimits>;
          using setparams_action = eosio::action_wrapper<"setparams"_n, &system_contract::setparams>;
+         using setkvparams_action = eosio::action_wrapper<"setkvparams"_n, &system_contract::setkvparams>;
          using setinflation_action = eosio::action_wrapper<"setinflation"_n, &system_contract::setinflation>;
          using cfgpowerup_action = eosio::action_wrapper<"cfgpowerup"_n, &system_contract::cfgpowerup>;
          using powerupexec_action = eosio::action_wrapper<"powerupexec"_n, &system_contract::powerupexec>;
@@ -1497,6 +1479,7 @@ namespace eosiosystem {
             time_point_sec now, symbol core_symbol, powerup_state& state,
             powerup_order_table& orders, uint32_t max_items, int64_t& net_delta_available,
             int64_t& cpu_delta_available);
+
    };
 
 }

@@ -6,7 +6,7 @@ target_include_directories(eosio.distribute
    PUBLIC
    ${CMAKE_CURRENT_SOURCE_DIR}/include
    ${CMAKE_CURRENT_SOURCE_DIR}/../eosio.system/include
-   ${CMAKE_CURRENT_SOURCE_DIR}/../eosio.token/include )
+   ${CMAKE_CURRENT_BINARY_DIR}/../../eosio.token/src/eosio.token/contracts/eosio.token/include)
 
 set_target_properties(eosio.distribute
    PROPERTIES

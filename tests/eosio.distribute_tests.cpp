@@ -12,11 +12,11 @@ struct distribute_account {
 };
 FC_REFLECT(distribute_account, (account)(percent))
 
-constexpr auto sys                 = N(eosio);
-constexpr auto dist_acct           = N(eosio.dist);
-constexpr auto rex_acct            = N(eosio.rex);
-constexpr auto alice               = N(alice);
-constexpr auto bob                 = N(bob);
+constexpr auto sys                 = "eosio"_n;
+constexpr auto dist_acct           = "eosio.dist"_n;
+constexpr auto rex_acct            = "eosio.rex"_n;
+constexpr auto alice               = "alice"_n;
+constexpr auto bob                 = "bob"_n;
 
 
 class eosio_distribute_tester : public eosio_system_tester {
@@ -47,20 +47,20 @@ class eosio_distribute_tester : public eosio_system_tester {
         }
 
         action_result setdistrib(name authorizer, const std::vector<distribute_account>& accounts) {
-            return push_action(dist_acct, N(setdistrib), authorizer, mvo()("accounts", accounts));
+            return push_action(dist_acct, "setdistrib"_n, authorizer, mvo()("accounts", accounts));
         }
 
         action_result claimdistrib(name acct) {
-            return push_action(dist_acct, N(claimdistrib), acct, mvo()("claimer", acct));
+            return push_action(dist_acct, "claimdistrib"_n, acct, mvo()("claimer", acct));
         }
 
         fc::variant get_state(){
-            vector<char> data = get_row_by_account(dist_acct, dist_acct, N(state), N(state));
+            vector<char> data = get_row_by_account(dist_acct, dist_acct, "state"_n, "state"_n);
             return data.empty() ? fc::variant() : abi_dist_ser.binary_to_variant("distribute_state", data, abi_serializer::create_yield_function(abi_serializer_max_time));
         }
 
         fc::variant get_claimer(const name& acct){
-            vector<char> data = get_row_by_account(dist_acct, dist_acct, N(claimers), acct);
+            vector<char> data = get_row_by_account(dist_acct, dist_acct, "claimers"_n, acct);
             return data.empty() ? fc::variant() : abi_dist_ser.binary_to_variant("distribute_claimer", data, abi_serializer::create_yield_function(abi_serializer_max_time));
         }
 

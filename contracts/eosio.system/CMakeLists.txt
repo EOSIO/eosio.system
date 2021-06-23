@@ -1,3 +1,4 @@
+
 add_contract(eosio.system eosio.system
    ${CMAKE_CURRENT_SOURCE_DIR}/src/eosio.system.cpp
    ${CMAKE_CURRENT_SOURCE_DIR}/src/delegate_bandwidth.cpp
@@ -13,7 +14,7 @@ add_contract(eosio.system eosio.system
 target_include_directories(eosio.system
    PUBLIC
    ${CMAKE_CURRENT_SOURCE_DIR}/include
-   ${CMAKE_CURRENT_SOURCE_DIR}/../eosio.token/include)
+   ${CMAKE_CURRENT_BINARY_DIR}/../../eosio.token/src/eosio.token/contracts/eosio.token/include)
 
 set_target_properties(eosio.system
    PROPERTIES
@@ -44,4 +45,11 @@ target_compile_options( eosio.system PUBLIC -R${CMAKE_CURRENT_SOURCE_DIR}/ricard
 
 if(USE_INFLATION_DISTRIBUTE)
    target_compile_definitions(eosio.system PUBLIC -DUSE_INFLATION_DISTRIBUTE)
+endif()
+
+# ##################################################################################################
+# Enable setkvparams.
+# ##################################################################################################
+if(SETKVPARAMS)
+   target_compile_definitions(eosio.system PUBLIC -DSETKVPARAMS_AVAILABLE)
 endif()
