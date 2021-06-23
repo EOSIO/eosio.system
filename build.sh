@@ -6,6 +6,7 @@ function usage() {
   -e DIR      Directory where EOSIO is installed. (Default: $HOME/eosio/X.Y)
   -c DIR      Directory where EOSIO.CDT is installed. (Default: /usr/local/eosio.cdt)
   -t          Build unit tests.
+  -d          Build with inflation sent to the eosio.dist account (Default: eosio.saving)
   -y          Noninteractive mode (Uses defaults for each prompt.)
   -h          Print this help menu.
    \\n" "$0" 1>&2
@@ -13,10 +14,11 @@ function usage() {
 }
 
 BUILD_TESTS=false
+USE_DISTRIBUTE=false
 SETKVPARAMS=false
 
 if [ $# -ne 0 ]; then
-  while getopts "e:c:tyhk" opt; do
+  while getopts "e:c:tyhdk" opt; do
     case "${opt}" in
       e )
         EOSIO_DIR_PROMPT=$OPTARG
@@ -30,6 +32,9 @@ if [ $# -ne 0 ]; then
       y )
         NONINTERACTIVE=true
         PROCEED=true
+      ;;
+      d )
+        USE_DISTRIBUTE=true
       ;;
       k )
         SETKVPARAMS=true
@@ -83,6 +88,6 @@ NC='\033[0m'
 CPU_CORES=$(getconf _NPROCESSORS_ONLN)
 mkdir -p build
 pushd build &> /dev/null
-cmake -DBUILD_TESTS=${BUILD_TESTS} -DSETKVPARAMS=${SETKVPARAMS} ../
+cmake -DBUILD_TESTS=${BUILD_TESTS} -DUSE_INFLATION_DISTRIBUTE=${USE_DISTRIBUTE} -DSETKVPARAMS=${SETKVPARAMS} ../
 make -j $CPU_CORES
 popd &> /dev/null

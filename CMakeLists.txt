@@ -19,9 +19,6 @@ find_package(eosio.cdt)
 
 find_package(Git REQUIRED)
 
-set(EOSIO_TOKEN_PREFIX "${CMAKE_CURRENT_BINARY_DIR}/eosio.token")
-
-
 message(STATUS "Building eosio.system v${VERSION_FULL}")
 
 set(EOSIO_CDT_VERSION_MIN "1.8")
@@ -31,19 +28,20 @@ set(EOSIO_CDT_VERSION_SOFT_MAX "1.8")
 ### Check the version of eosio.cdt
 set(VERSION_MATCH_ERROR_MSG "")
 EOSIO_CHECK_VERSION(VERSION_OUTPUT "${EOSIO_CDT_VERSION}"
-                                   "${EOSIO_CDT_VERSION_MIN}"
-                                   "${EOSIO_CDT_VERSION_SOFT_MAX}"
-                                   "${EOSIO_CDT_VERSION_HARD_MAX}"
-                                   VERSION_MATCH_ERROR_MSG)
+"${EOSIO_CDT_VERSION_MIN}"
+"${EOSIO_CDT_VERSION_SOFT_MAX}"
+"${EOSIO_CDT_VERSION_HARD_MAX}"
+VERSION_MATCH_ERROR_MSG)
 if(VERSION_OUTPUT STREQUAL "MATCH")
-   message(STATUS "Using eosio.cdt version ${EOSIO_CDT_VERSION}")
+message(STATUS "Using eosio.cdt version ${EOSIO_CDT_VERSION}")
 elseif(VERSION_OUTPUT STREQUAL "WARN")
-   message(WARNING "Using eosio.cdt version ${EOSIO_CDT_VERSION} even though it exceeds the maximum supported version of ${EOSIO_CDT_VERSION_SOFT_MAX}; continuing with configuration, however build may fail.\nIt is recommended to use eosio.cdt version ${EOSIO_CDT_VERSION_SOFT_MAX}.x")
+message(WARNING "Using eosio.cdt version ${EOSIO_CDT_VERSION} even though it exceeds the maximum supported version of ${EOSIO_CDT_VERSION_SOFT_MAX}; continuing with configuration, however build may fail.\nIt is recommended to use eosio.cdt version ${EOSIO_CDT_VERSION_SOFT_MAX}.x")
 else() # INVALID OR MISMATCH
-   message(FATAL_ERROR "Found eosio.cdt version ${EOSIO_CDT_VERSION} but it does not satisfy version requirements: ${VERSION_MATCH_ERROR_MSG}\nPlease use eosio.cdt version ${EOSIO_CDT_VERSION_SOFT_MAX}.x")
+message(FATAL_ERROR "Found eosio.cdt version ${EOSIO_CDT_VERSION} but it does not satisfy version requirements: ${VERSION_MATCH_ERROR_MSG}\nPlease use eosio.cdt version ${EOSIO_CDT_VERSION_SOFT_MAX}.x")
 endif(VERSION_OUTPUT STREQUAL "MATCH")
 
 # pull down seperate eosio.token contract
+set(EOSIO_TOKEN_PREFIX "${CMAKE_CURRENT_BINARY_DIR}/eosio.token")
 ExternalProject_Add(
    eosio.token
    PREFIX ${EOSIO_TOKEN_PREFIX}
@@ -64,6 +62,13 @@ else()
    set(TEST_BUILD_TYPE ${CMAKE_BUILD_TYPE})
 endif()
 
+option(USE_INFLATION_DISTRIBUTE "enables inflation to eosio.dist" OFF)
+
+if(USE_INFLATION_DISTRIBUTE)
+   set(DISTRIBUTE_OPT "-DUSE_INFLATION_DISTRIBUTE=1")
+endif()
+
+
 option(SETKVPARAMS "enables setkvparams" OFF)
 
 if(SETKVPARAMS)
@@ -74,7 +79,7 @@ ExternalProject_Add(
    contracts_project
    SOURCE_DIR ${CMAKE_SOURCE_DIR}/contracts
    BINARY_DIR ${CMAKE_BINARY_DIR}/contracts
-   CMAKE_ARGS -DCMAKE_TOOLCHAIN_FILE=${EOSIO_CDT_ROOT}/lib/cmake/eosio.cdt/EosioWasmToolchain.cmake ${SETKVPARAMS_OPT}
+   CMAKE_ARGS -DCMAKE_TOOLCHAIN_FILE=${EOSIO_CDT_ROOT}/lib/cmake/eosio.cdt/EosioWasmToolchain.cmake ${DISTRIBUTE_OPT} ${SETKVPARAMS_OPT}
    UPDATE_COMMAND ""
    PATCH_COMMAND ""
    TEST_COMMAND ""
@@ -108,7 +113,7 @@ if(BUILD_TESTS)
    ExternalProject_Add(
      contracts_unit_tests
      LIST_SEPARATOR | # Use the alternate list separator
-     CMAKE_ARGS -DCMAKE_BUILD_TYPE=${TEST_BUILD_TYPE} -DCMAKE_PREFIX_PATH=${TEST_PREFIX_PATH} -DCMAKE_FRAMEWORK_PATH=${TEST_FRAMEWORK_PATH} -DCMAKE_MODULE_PATH=${TEST_MODULE_PATH} -DEOSIO_ROOT=${EOSIO_ROOT} -DLLVM_DIR=${LLVM_DIR} -DBOOST_ROOT=${BOOST_ROOT} -DBUILD_TESTS_PINNED=${BUILD_TESTS_PINNED}  -DEOSIO_DIR_PROMPT=${EOSIO_DIR_PROMPT} ${SETKVPARAMS_OPT}
+     CMAKE_ARGS -DCMAKE_BUILD_TYPE=${TEST_BUILD_TYPE} -DCMAKE_PREFIX_PATH=${TEST_PREFIX_PATH} -DCMAKE_FRAMEWORK_PATH=${TEST_FRAMEWORK_PATH} -DCMAKE_MODULE_PATH=${TEST_MODULE_PATH} -DEOSIO_ROOT=${EOSIO_ROOT} -DLLVM_DIR=${LLVM_DIR} -DBOOST_ROOT=${BOOST_ROOT} -DBUILD_TESTS_PINNED=${BUILD_TESTS_PINNED}  -DEOSIO_DIR_PROMPT=${EOSIO_DIR_PROMPT} ${SETKVPARAMS_OPT} ${DISTRIBUTE_OPT}
      SOURCE_DIR ${CMAKE_SOURCE_DIR}/tests
      BINARY_DIR ${CMAKE_BINARY_DIR}/tests
      BUILD_ALWAYS 1

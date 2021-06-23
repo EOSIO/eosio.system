@@ -353,6 +353,16 @@ namespace eosiosystem {
       }
    }
 
+   void system_contract::donatetorex(const name& from, const asset& amount, const std::string& memo) {
+      require_auth(from);
+
+      check( amount.symbol == core_symbol(), "must deposit core token" );
+      check( rex_available(), "REX must be enabled" );
+      if(amount.amount > 0) {
+         channel_to_rex(from, amount, true, memo);
+      }
+   }
+
    /**
     * @brief Updates account NET and CPU resource limits
     *
@@ -918,19 +928,24 @@ namespace eosiosystem {
     * @param amount - amount of tokens to be transfered
     * @param required - if true, asserts when the system is not configured to channel fees into REX
     */
-   void system_contract::channel_to_rex( const name& from, const asset& amount, bool required )
+
+   void system_contract::channel_to_rex( const name& from, const asset& amount, bool required, const std::string& memo )
    {
 #if CHANNEL_RAM_AND_NAMEBID_FEES_TO_REX
       if ( rex_available() ) {
          add_to_rex_return_pool( amount );
          // inline transfer to rex_account
          token::transfer_action transfer_act{ token_account, { from, active_permission } };
-         transfer_act.send( from, rex_account, amount,
-                            std::string("transfer from ") + from.to_string() + " to eosio.rex" );
+         transfer_act.send( from, rex_account, amount, memo);
          return;
       }
 #endif
       eosio::check( !required, "can't channel fees to rex" );
+   }
+
+   void system_contract::channel_to_rex ( const name& from, const asset& amount, bool required ) 
+   {
+      channel_to_rex(from, amount, required, std::string("transfer from ") + from.to_string() + " to eosio.rex");
    }
 
    /**
