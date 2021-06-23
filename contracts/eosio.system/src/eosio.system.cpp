@@ -121,6 +121,14 @@ namespace eosiosystem {
       set_privileged( account, ispriv );
    }
 
+   void system_contract::setkvparams( const eosio::kv_parameters& params ) {
+      require_auth( get_self() );
+      if constexpr(has_setkvparams_v)
+         set_kv_parameters( params );
+      else 
+         check(false, "setkvparams has not been enabled.");
+   }
+
    void system_contract::setalimits( const name& account, int64_t ram, int64_t net, int64_t cpu ) {
       require_auth( get_self() );
 

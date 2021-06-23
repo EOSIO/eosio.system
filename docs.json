@@ -1,5 +1,5 @@
 {
-  "name": "eosio.contracts",
+  "name": "eosio.system",
   "generators": [
     {
       "name": "collate_markdown",
@@ -11,11 +11,7 @@
       "name": "mdjavadoc",
       "options": {
         "source_dirs": [
-          "contracts/eosio.token/include/eosio.token/",
-          "contracts/eosio.wrap/include/eosio.wrap/",
-          "contracts/eosio.bios/include/eosio.bios/",
-          "contracts/eosio.system/include/eosio.system/",
-          "contracts/eosio.msig/include/eosio.msig/"
+          "contracts/eosio.system/include/eosio.system/"
         ],
         "output_dir": "action-reference"
       }

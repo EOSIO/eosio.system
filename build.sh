@@ -13,6 +13,7 @@ function usage() {
 }
 
 BUILD_TESTS=false
+SETKVPARAMS=false
 
 if [ $# -ne 0 ]; then
   while getopts "e:c:tyh" opt; do
@@ -29,6 +30,9 @@ if [ $# -ne 0 ]; then
       y )
         NONINTERACTIVE=true
         PROCEED=true
+      ;;
+      k )
+        SETKVPARAMS=true
       ;;
       h )
         usage
@@ -79,6 +83,6 @@ NC='\033[0m'
 CPU_CORES=$(getconf _NPROCESSORS_ONLN)
 mkdir -p build
 pushd build &> /dev/null
-cmake -DBUILD_TESTS=${BUILD_TESTS} ../
+cmake -DBUILD_TESTS=${BUILD_TESTS} -DSETKVPARAMS=${SETKVPARAMS} ../
 make -j $CPU_CORES
 popd &> /dev/null

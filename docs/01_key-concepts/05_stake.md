@@ -7,9 +7,9 @@ link_text: Staking on EOSIO-based blockchains
 
 EOSIO-based blockchains work with three system resources:
 
-* [RAM](02_ram.md)
-* [CPU](03_cpu.md)
-* [NET](04_net.md)
+* [RAM](02_ram.md),
+* [CPU](03_cpu.md) and
+* [NET](04_net.md).
 
 ## How To Allocate System Resources
 
