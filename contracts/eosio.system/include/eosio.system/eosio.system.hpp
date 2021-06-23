@@ -10,9 +10,7 @@
 
 #include <eosio.system/exchange_state.hpp>
 #include <eosio.system/native.hpp>
-// #include <eosio.system/stream_extensions.hpp>
 #include <eosio.system/constants.hpp>
-// #include <eosio.system/staking_pool.hpp>
 
 #include <deque>
 #include <optional>
@@ -50,8 +48,6 @@ namespace eosiosystem {
    using eosio::unsigned_int;
 
    inline constexpr int64_t powerup_frac = 1'000'000'000'000'000ll;  // 1.0 = 10^15
-   using uint32_vector = std::vector<uint32_t>;
-   using double_vector = std::vector<double>;
    using Bool = bool; // work around abigen issue with optional<bool>
 
    template<typename E, typename F>
@@ -178,7 +174,6 @@ namespace eosiosystem {
       time_point                                               last_claim_time;
       uint16_t                                                 location = 0;
       eosio::binary_extension<eosio::block_signing_authority>  producer_authority; // added in version 1.9.0
-      eosio::binary_extension<std::optional<double_vector>>    pool_votes;
 
       uint64_t primary_key()const { return owner.value;                             }
       double   by_votes()const    { return is_active ? -total_votes : total_votes;  }
@@ -669,10 +664,7 @@ namespace eosiosystem {
          static constexpr eosio::name saving_account{"eosio.saving"_n};
          static constexpr eosio::name rex_account{"eosio.rex"_n};
          static constexpr eosio::name reserv_account{"eosio.reserv"_n};
-         static constexpr eosio::name srpool_account{"eosio.srpool"_n};
-         static constexpr eosio::name bpspay_account{"eosio.bpspay"_n};
          static constexpr eosio::name null_account{"eosio.null"_n};
-         static constexpr eosio::name transferstake_notif{"eosio.tstake"_n};
          static constexpr symbol ramcore_symbol = symbol(symbol_code("RAMCORE"), 4);
          static constexpr symbol ram_symbol     = symbol(symbol_code("RAM"), 0);
          static constexpr symbol rex_symbol     = symbol(symbol_code("REX"), 4);
