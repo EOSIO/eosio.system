@@ -16,7 +16,7 @@ BUILD_TESTS=false
 SETKVPARAMS=false
 
 if [ $# -ne 0 ]; then
-  while getopts "e:c:tyh" opt; do
+  while getopts "e:c:tyhk" opt; do
     case "${opt}" in
       e )
         EOSIO_DIR_PROMPT=$OPTARG

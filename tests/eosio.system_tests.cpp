@@ -3835,10 +3835,10 @@ BOOST_FIXTURE_TEST_CASE( ram_gift, eosio_system_tester ) try {
 } FC_LOG_AND_RETHROW()
 
 BOOST_FIXTURE_TEST_CASE( rex_rounding_issue, eosio_system_tester ) try {
-   const std::vector<name> whales { N(whale1), N(whale2), N(whale3), N(whale4) , N(whale5)  };
-   const name bob{ N(bob) }, alice{ N(alice) };
+   const std::vector<name> whales { "whale1"_n, "whale2"_n, "whale3"_n, "whale4"_n , "whale5"_n  };
+   const name bob{ "bob"_n }, alice{ "alice"_n };
    const std::vector<name> accounts = {bob, alice};
-   const std::vector<name> rexborrowers = {N(rex1), N(rex2), N(rex3), N(rex4)};
+   const std::vector<name> rexborrowers = {"rex1"_n, "rex2"_n, "rex3"_n, "rex4"_n};
     const asset one_eos      = core_sym::from_string("1.0000");
    const asset one_rex      = asset::from_string("1.0000 REX");
    const asset init_balance = core_sym::from_string("1000.0000");
@@ -3850,9 +3850,9 @@ BOOST_FIXTURE_TEST_CASE( rex_rounding_issue, eosio_system_tester ) try {
       create_accounts_with_resources({ w });
       stake_with_transfer(config::system_account_name, w, core_sym::from_string("1000.0000"), core_sym::from_string("1000.0000"));
       issue_and_transfer(w, core_sym::from_string("100000000.0000"));
-      BOOST_REQUIRE_EQUAL( success(), vote( w, { }, N(proxyaccount) ) );
-      BOOST_REQUIRE_EQUAL( success(), push_action( w, N(deposit), mvo()("owner", w)("amount", core_sym::from_string("1000000.0000")) ) );
-      BOOST_REQUIRE_EQUAL( success(), push_action( w, N(buyrex), mvo()("from", w)("amount", core_sym::from_string("1000000.0000")) ) );
+      BOOST_REQUIRE_EQUAL( success(), vote( w, { }, "proxyaccount"_n ) );
+      BOOST_REQUIRE_EQUAL( success(), push_action( w, "deposit"_n, mvo()("owner", w)("amount", core_sym::from_string("1000000.0000")) ) );
+      BOOST_REQUIRE_EQUAL( success(), push_action( w, "buyrex"_n, mvo()("from", w)("amount", core_sym::from_string("1000000.0000")) ) );
    }
 
    issue_and_transfer(bob, init_balance);
@@ -3863,22 +3863,22 @@ BOOST_FIXTURE_TEST_CASE( rex_rounding_issue, eosio_system_tester ) try {
       buyram(config::system_account_name, rb, core_sym::from_string("10.0000"));
       issue_and_transfer(rb, core_sym::from_string("1000000.0000"));
       stake_with_transfer(config::system_account_name, rb, core_sym::from_string("1000.0000"), core_sym::from_string("1000.0000"));
-      BOOST_REQUIRE_EQUAL( success(), vote( rb, { }, N(proxyaccount) ) );
-      BOOST_REQUIRE_EQUAL( success(), push_action( rb, N(deposit), mvo()("owner", rb)("amount", core_sym::from_string("1000000.0000")) ) );
+      BOOST_REQUIRE_EQUAL( success(), vote( rb, { }, "proxyaccount"_n ) );
+      BOOST_REQUIRE_EQUAL( success(), push_action( rb, "deposit"_n, mvo()("owner", rb)("amount", core_sym::from_string("1000000.0000")) ) );
    }
    // get accounts into rex
    for(auto& acct : accounts){
       stake_with_transfer(config::system_account_name, acct, core_sym::from_string("1000.0000"), core_sym::from_string("1000.0000"));
       issue_and_transfer(acct, core_sym::from_string("100.1239"));
-      BOOST_REQUIRE_EQUAL( success(), vote( acct, { }, N(proxyaccount) ) );
-      BOOST_REQUIRE_EQUAL( success(), push_action( acct, N(deposit), mvo()("owner", acct)("amount", core_sym::from_string("100.1239")) ) );
-      BOOST_REQUIRE_EQUAL( success(), push_action( acct, N(buyrex), mvo()("from", acct)("amount", core_sym::from_string("100.1239")) ) );
+      BOOST_REQUIRE_EQUAL( success(), vote( acct, { }, "proxyaccount"_n ) );
+      BOOST_REQUIRE_EQUAL( success(), push_action( acct, "deposit"_n, mvo()("owner", acct)("amount", core_sym::from_string("100.1239")) ) );
+      BOOST_REQUIRE_EQUAL( success(), push_action( acct, "buyrex"_n, mvo()("from", acct)("amount", core_sym::from_string("100.1239")) ) );
    }
 
    auto rent_and_go = [&] (int cnt) {
       for(auto& rb : rexborrowers) {
          BOOST_REQUIRE_EQUAL( success(),
-                        push_action( rb, N(rentcpu), 
+                        push_action( rb, "rentcpu"_n, 
                         mvo()
                         ("from", rb)
                         ("receiver", rb)
@@ -3888,12 +3888,12 @@ BOOST_FIXTURE_TEST_CASE( rex_rounding_issue, eosio_system_tester ) try {
       // exec and update
       for(auto& acct : accounts) {
          if(cnt % 10 == 0) {
-            BOOST_REQUIRE_EQUAL( success(), push_action( acct, N(rexexec), mvo()("user", acct)("max", 2) ) );
-            BOOST_REQUIRE_EQUAL( success(), push_action( acct, N(updaterex), mvo()("owner", acct) ) );
+            BOOST_REQUIRE_EQUAL( success(), push_action( acct, "rexexec"_n, mvo()("user", acct)("max", 2) ) );
+            BOOST_REQUIRE_EQUAL( success(), push_action( acct, "updaterex"_n, mvo()("owner", acct) ) );
          }
-         BOOST_REQUIRE_EQUAL( success(), push_action( acct, N(sellrex), mvo()("from", acct)("rex",one_rex) ) );
+         BOOST_REQUIRE_EQUAL( success(), push_action( acct, "sellrex"_n, mvo()("from", acct)("rex",one_rex) ) );
          BOOST_REQUIRE_EQUAL( success(),
-                            push_action( acct, N(unstaketorex), mvo()("owner", acct)("receiver", acct)("from_net", one_eos)("from_cpu", one_eos) ) );
+                            push_action( acct, "unstaketorex"_n, mvo()("owner", acct)("receiver", acct)("from_net", one_eos)("from_cpu", one_eos) ) );
       }
 
       produce_block( fc::days(1) );
@@ -3933,7 +3933,7 @@ BOOST_FIXTURE_TEST_CASE( rex_rounding_issue, eosio_system_tester ) try {
    std::vector<name> delegates = {};
    for(auto& acct : accounts) {
       BOOST_REQUIRE_EQUAL( success(),
-                            push_action( acct, N(voteupdate), mvo()("voter_name", acct) ) );
+                            push_action( acct, "voteupdate"_n, mvo()("voter_name", acct) ) );
    }
    // check that values are equal
    for(auto& acct : accounts) {
