@@ -14,3 +14,4 @@ set(REX_ICON_URI      "rex.png#d229837fa62a464b9c71e06060aa86179adf0b3f4e3b8c4f9
 set(VOTING_ICON_URI   "voting.png#db28cd3db6e62d4509af3644ce7d377329482a14bb4bfaca2aa5f1400d8e8a84")
 
 add_subdirectory(eosio.system)
+add_subdirectory(eosio.distribute)
